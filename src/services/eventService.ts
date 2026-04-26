@@ -71,6 +71,26 @@ export async function createEvent(dto: CreateEventDTO): Promise<Event> {
   return data as Event
 }
 
+/** Marca como completados los eventos de baño pendientes/notificados hasta esa fecha (inclusive). */
+export async function completeDueGroomingEventsForPet(
+  petId: string,
+  clinicId: string,
+  upToDate: string
+): Promise<number> {
+  const { data, error } = await supabase
+    .from('events')
+    .update({ status: 'COMPLETED', updated_at: new Date().toISOString() })
+    .eq('pet_id', petId)
+    .eq('clinic_id', clinicId)
+    .eq('type', 'grooming')
+    .in('status', ['PENDING', 'NOTIFIED'])
+    .lte('scheduled_date', upToDate)
+    .select('id')
+
+  if (error) handleSupabaseError(error)
+  return (data ?? []).length
+}
+
 export async function scheduleGroomingEvent(pet: Pet): Promise<Event | null> {
   if (!pet.last_grooming_date || !pet.grooming_frequency_days) return null
 

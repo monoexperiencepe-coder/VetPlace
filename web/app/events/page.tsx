@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { api } from '@/lib/api'
+import { useToast } from '@/context/ToastContext'
 
 type EventStatus = 'PENDING' | 'NOTIFIED' | 'COMPLETED' | 'CANCELLED'
 type EventType   = 'grooming' | 'vaccine' | 'checkup' | 'deworming'
@@ -43,6 +44,7 @@ const TYPE_ICON: Record<EventType, string> = {
 }
 
 export default function EventsPage() {
+  const toast = useToast()
   const [events, setEvents]   = useState<VetEvent[]>([])
   const [status, setStatus]   = useState<string>('')
   const [type, setType]       = useState<string>('')
@@ -68,12 +70,18 @@ export default function EventsPage() {
   useEffect(() => { load() }, [load])
 
   const handleAction = async (id: string, action: 'complete' | 'cancel') => {
+    if (action === 'cancel' && !window.confirm('¿Cancelar este evento?')) return
     try {
-      if (action === 'complete') await api.completeEvent(id)
-      else await api.cancelEvent(id)
+      if (action === 'complete') {
+        await api.completeEvent(id)
+        toast.success('Evento completado')
+      } else {
+        await api.cancelEvent(id)
+        toast.info('Evento cancelado')
+      }
       load()
     } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : 'Error')
+      toast.error(e instanceof Error ? e.message : 'Error al actualizar')
     }
   }
 

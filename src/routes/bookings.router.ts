@@ -7,6 +7,7 @@ import {
   confirmBooking,
   cancelBooking,
   completeBooking,
+  isSlotAvailable,
 } from '../services/bookingService'
 import { ValidationError } from '../utils/errors'
 import { getClinicId } from '../config/clinic'
@@ -61,6 +62,31 @@ router.get('/pet/:petId', async (req: Request, res: Response, next: NextFunction
     const clinicId = getClinicId()
     const bookings = await getBookingsByPet(req.params.petId, clinicId)
     res.json({ ok: true, data: bookings })
+  } catch (err) {
+    next(err)
+  }
+})
+
+// GET /api/bookings/slot-available?date=YYYY-MM-DD&time=HH:MM
+router.get('/slot-available', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { date, time } = req.query
+    const clinicId = getClinicId()
+
+    if (!date || typeof date !== 'string') {
+      throw new ValidationError('query param "date" is required (YYYY-MM-DD)')
+    }
+    if (!time || typeof time !== 'string') {
+      throw new ValidationError('query param "time" is required (HH:MM)')
+    }
+
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/
+    const timeRegex = /^\d{2}:\d{2}$/
+    if (!dateRegex.test(date)) throw new ValidationError('date must be YYYY-MM-DD')
+    if (!timeRegex.test(time)) throw new ValidationError('time must be HH:MM (24h)')
+
+    const available = await isSlotAvailable(date, time, clinicId)
+    res.json({ ok: true, data: { available } })
   } catch (err) {
     next(err)
   }

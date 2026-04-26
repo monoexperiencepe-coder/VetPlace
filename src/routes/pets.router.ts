@@ -73,8 +73,15 @@ router.patch('/:id/grooming-completed', async (req: Request, res: Response, next
   try {
     const { completed_date } = req.body
     const clinicId = getClinicId()
-    const pet = await recordGroomingCompleted(req.params.id, clinicId, completed_date)
-    res.json({ ok: true, data: pet })
+    const result = await recordGroomingCompleted(req.params.id, clinicId, completed_date)
+    res.json({
+      ok: true,
+      data: result.pet,
+      meta: {
+        grooming_events_completed: result.grooming_events_completed,
+        next_grooming_event_created: result.next_grooming_event_created,
+      },
+    })
   } catch (err) {
     next(err)
   }

@@ -54,6 +54,10 @@ export async function hasConflict(date: string, time: string, clinicId: string):
   return (count ?? 0) > 0
 }
 
+export async function isSlotAvailable(date: string, time: string, clinicId: string): Promise<boolean> {
+  return !(await hasConflict(date, time, clinicId))
+}
+
 export async function createBooking(dto: CreateBookingDTO): Promise<Booking> {
   const conflict = await hasConflict(dto.date, dto.time, dto.clinic_id)
   if (conflict) {

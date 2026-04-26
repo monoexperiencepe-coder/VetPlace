@@ -10,6 +10,11 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   return json.data as T
 }
 
+export interface GroomingCompletedMeta {
+  grooming_events_completed: number
+  next_grooming_event_created: boolean
+}
+
 export const api = {
   // Stats
   getStats: () =>
@@ -38,11 +43,24 @@ export const api = {
   getPetsByUser: (userId: string) =>
     request(`/api/pets/user/${userId}`),
 
-  groomingCompleted: (petId: string, completed_date?: string) =>
-    request(`/api/pets/${petId}/grooming-completed`, {
+  groomingCompleted: async (
+    petId: string,
+    completed_date?: string
+  ): Promise<{ pet: unknown; meta?: GroomingCompletedMeta }> => {
+    const res = await fetch(`${BASE}/api/pets/${petId}/grooming-completed`, {
       method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ completed_date }),
-    }),
+    })
+    const json = await res.json()
+    if (!json.ok) throw new Error(json.message ?? 'API error')
+    return { pet: json.data, meta: json.meta as GroomingCompletedMeta | undefined }
+  },
+
+  isSlotAvailable: (date: string, time: string) =>
+    request<{ available: boolean }>(
+      `/api/bookings/slot-available?date=${encodeURIComponent(date)}&time=${encodeURIComponent(time)}`
+    ),
 
   // Events
   getEventsByPet: (petId: string) =>

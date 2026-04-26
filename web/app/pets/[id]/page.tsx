@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { api } from '@/lib/api'
+import { useToast } from '@/context/ToastContext'
 
 // ─── Modal nuevo evento ───────────────────────────────────────────────────────
 interface NewEventModalProps {
@@ -13,6 +14,7 @@ interface NewEventModalProps {
 }
 
 function NewEventModal({ petId, onClose, onCreated }: NewEventModalProps) {
+  const toast = useToast()
   const [type, setType]             = useState('vaccine')
   const [date, setDate]             = useState(new Date().toISOString().slice(0, 10))
   const [submitting, setSubmitting] = useState(false)
@@ -23,9 +25,12 @@ function NewEventModal({ petId, onClose, onCreated }: NewEventModalProps) {
     setError('')
     try {
       await api.createEvent({ pet_id: petId, type, scheduled_date: date })
+      toast.success('Evento creado correctamente')
       onCreated()
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Error al crear evento')
+      const msg = e instanceof Error ? e.message : 'Error al crear evento'
+      setError(msg)
+      toast.error(msg)
     } finally {
       setSubmitting(false)
     }
@@ -164,6 +169,7 @@ export default function PetDetailPage() {
   const params   = useParams()
   const router   = useRouter()
   const petId    = params.id as string
+  const toast    = useToast()
 
   const [pet, setPet]           = useState<Pet | null>(null)
   const [events, setEvents]     = useState<VetEvent[]>([])
@@ -198,33 +204,61 @@ export default function PetDetailPage() {
     if (!pet) return
     setMarkingGrooming(true)
     try {
-      await api.groomingCompleted(pet.id)
+      const { meta } = await api.groomingCompleted(pet.id)
+      const parts: string[] = ['Baño registrado']
+      if (meta && meta.grooming_events_completed > 0) {
+        parts.push(`${meta.grooming_events_completed} recordatorio(s) de baño cerrado(s)`)
+      }
+      if (meta?.next_grooming_event_created) {
+        parts.push('próximo baño programado en la agenda de eventos')
+      }
+      toast.success(parts.join('. ') + '.')
       load()
     } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : 'Error')
+      toast.error(e instanceof Error ? e.message : 'No se pudo registrar el baño')
     } finally {
       setMarkingGrooming(false)
     }
   }
 
   const handleEventAction = async (id: string, action: 'complete' | 'cancel') => {
+    if (action === 'cancel') {
+      if (!window.confirm('¿Cancelar este evento?')) return
+    }
     try {
-      if (action === 'complete') await api.completeEvent(id)
-      else await api.cancelEvent(id)
+      if (action === 'complete') {
+        await api.completeEvent(id)
+        toast.success('Evento completado')
+      } else {
+        await api.cancelEvent(id)
+        toast.info('Evento cancelado')
+      }
       load()
     } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : 'Error')
+      toast.error(e instanceof Error ? e.message : 'Error al actualizar el evento')
     }
   }
 
   const handleBookingAction = async (id: string, action: 'confirm' | 'complete' | 'cancel') => {
+    if (action === 'cancel') {
+      if (!window.confirm('¿Cancelar esta cita?')) return
+    }
     try {
-      if (action === 'confirm')  await api.confirmBooking(id)
-      if (action === 'complete') await api.completeBooking(id)
-      if (action === 'cancel')   await api.cancelBooking(id)
+      if (action === 'confirm') {
+        await api.confirmBooking(id)
+        toast.success('Cita confirmada')
+      }
+      if (action === 'complete') {
+        await api.completeBooking(id)
+        toast.success('Cita completada')
+      }
+      if (action === 'cancel') {
+        await api.cancelBooking(id)
+        toast.info('Cita cancelada')
+      }
       load()
     } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : 'Error')
+      toast.error(e instanceof Error ? e.message : 'Error al actualizar la cita')
     }
   }
 

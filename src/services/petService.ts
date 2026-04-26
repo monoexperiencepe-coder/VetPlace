@@ -1,7 +1,14 @@
 import { supabase } from '../config/supabase'
 import { handleSupabaseError, NotFoundError } from '../utils/errors'
 import { nextEventDate, todayUTC } from '../utils/dateUtils'
+import { completeDueGroomingEventsForPet, scheduleGroomingEvent } from './eventService'
 import type { Pet, CreatePetDTO, PetWithUser } from '../types'
+
+export interface GroomingCompletedResult {
+  pet: Pet
+  grooming_events_completed: number
+  next_grooming_event_created: boolean
+}
 
 export async function getPetWithUser(petId: string, clinicId: string): Promise<PetWithUser> {
   const { data, error } = await supabase
@@ -62,7 +69,7 @@ export async function recordGroomingCompleted(
   petId: string,
   clinicId: string,
   completedDate: string = todayUTC()
-): Promise<Pet> {
+): Promise<GroomingCompletedResult> {
   const { data, error } = await supabase
     .from('pets')
     .update({ last_grooming_date: completedDate, updated_at: new Date().toISOString() })
@@ -73,7 +80,21 @@ export async function recordGroomingCompleted(
 
   if (error) handleSupabaseError(error)
   if (!data) throw new NotFoundError('Pet', petId)
-  return data as Pet
+  const pet = data as Pet
+
+  const grooming_events_completed = await completeDueGroomingEventsForPet(
+    petId,
+    clinicId,
+    completedDate
+  )
+
+  const nextEvent = await scheduleGroomingEvent(pet)
+
+  return {
+    pet,
+    grooming_events_completed,
+    next_grooming_event_created: nextEvent !== null,
+  }
 }
 
 function addDays(dateStr: string, days: number): string {

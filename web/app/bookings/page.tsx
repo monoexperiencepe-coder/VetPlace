@@ -2,6 +2,13 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { api } from '@/lib/api'
+import { useToast } from '@/context/ToastContext'
+
+function normalizeTime(t: string): string {
+  if (!t) return ''
+  const [h, m] = t.split(':')
+  return `${(h ?? '0').padStart(2, '0')}:${(m ?? '00').slice(0, 2).padStart(2, '0')}`
+}
 
 type BookingStatus = 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'COMPLETED'
 
@@ -56,6 +63,7 @@ interface NewBookingModalProps {
 }
 
 function NewBookingModal({ defaultDate, onClose, onCreated }: NewBookingModalProps) {
+  const toast = useToast()
   const [phone, setPhone]           = useState('')
   const [client, setClient]         = useState<Client | null>(null)
   const [pets, setPets]             = useState<Pet[]>([])
@@ -67,9 +75,37 @@ function NewBookingModal({ defaultDate, onClose, onCreated }: NewBookingModalPro
   const [notes, setNotes]           = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [submitErr, setSubmitErr]   = useState('')
+  const [slotOk, setSlotOk]         = useState<boolean | null>(null)
+  const [slotChecking, setSlotChecking] = useState(false)
   const phoneRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => { phoneRef.current?.focus() }, [])
+
+  const timeNorm = normalizeTime(time)
+
+  useEffect(() => {
+    if (!petId || !date || !timeNorm || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(timeNorm)) {
+      setSlotOk(null)
+      setSlotChecking(false)
+      return
+    }
+    let cancelled = false
+    setSlotChecking(true)
+    const h = setTimeout(async () => {
+      try {
+        const { available } = await api.isSlotAvailable(date, timeNorm)
+        if (!cancelled) setSlotOk(available)
+      } catch {
+        if (!cancelled) setSlotOk(null)
+      } finally {
+        if (!cancelled) setSlotChecking(false)
+      }
+    }, 400)
+    return () => {
+      cancelled = true
+      clearTimeout(h)
+    }
+  }, [petId, date, timeNorm])
 
   const searchClient = async () => {
     if (!phone.trim()) return
@@ -95,13 +131,17 @@ function NewBookingModal({ defaultDate, onClose, onCreated }: NewBookingModalPro
     if (!petId) return setSubmitErr('Seleccioná una mascota')
     if (!date)  return setSubmitErr('Ingresá la fecha')
     if (!time)  return setSubmitErr('Ingresá la hora')
+    if (slotOk === false) return setSubmitErr('Ese horario ya está ocupado')
     setSubmitting(true)
     setSubmitErr('')
     try {
-      await api.createBooking({ pet_id: petId, date, time, notes: notes || undefined })
+      await api.createBooking({ pet_id: petId, date, time: timeNorm, notes: notes || undefined })
+      toast.success('Cita creada')
       onCreated()
     } catch (e: unknown) {
-      setSubmitErr(e instanceof Error ? e.message : 'Error al crear cita')
+      const msg = e instanceof Error ? e.message : 'Error al crear cita'
+      setSubmitErr(msg)
+      toast.error(msg)
     } finally {
       setSubmitting(false)
     }
@@ -166,7 +206,7 @@ function NewBookingModal({ defaultDate, onClose, onCreated }: NewBookingModalPro
         )}
 
         {/* Fecha y hora */}
-        <div className="grid grid-cols-2 gap-3 mb-4">
+        <div className="grid grid-cols-2 gap-3 mb-2">
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wide mb-1.5" style={{ color: '#94a3b8' }}>Fecha</label>
             <input
@@ -184,10 +224,20 @@ function NewBookingModal({ defaultDate, onClose, onCreated }: NewBookingModalPro
               value={time}
               onChange={(e) => setTime(e.target.value)}
               className="w-full rounded-xl px-3 py-2 text-sm focus:outline-none"
-              style={{ border: '1.5px solid #e4ebff', background: '#f8faff' }}
+              style={{
+                border: slotOk === false ? '1.5px solid #fca5a5' : '1.5px solid #e4ebff',
+                background: '#f8faff',
+              }}
             />
           </div>
         </div>
+        {petId && date && time && (
+          <p className="text-xs mb-4 min-h-[1rem]" style={{ color: slotOk === false ? '#dc2626' : '#94a3b8' }}>
+            {slotChecking && 'Comprobando disponibilidad…'}
+            {!slotChecking && slotOk === true && 'Horario disponible'}
+            {!slotChecking && slotOk === false && 'Ese horario ya está ocupado. Elegí otra hora.'}
+          </p>
+        )}
 
         {/* Notas */}
         <div className="mb-5">
@@ -207,7 +257,7 @@ function NewBookingModal({ defaultDate, onClose, onCreated }: NewBookingModalPro
         <div className="flex gap-3">
           <button
             onClick={submit}
-            disabled={submitting || !petId || !date || !time}
+            disabled={submitting || !petId || !date || !time || slotOk === false}
             className="flex-1 py-2.5 text-white text-sm font-semibold rounded-xl disabled:opacity-50"
             style={{ background: 'var(--blue)' }}
           >
@@ -228,6 +278,7 @@ function NewBookingModal({ defaultDate, onClose, onCreated }: NewBookingModalPro
 
 // ─── Página principal ─────────────────────────────────────────────────────────
 export default function BookingsPage() {
+  const toast = useToast()
   const [date, setDate]         = useState(todayStr())
   const [bookings, setBookings] = useState<Booking[]>([])
   const [loading, setLoading]   = useState(true)
@@ -250,13 +301,23 @@ export default function BookingsPage() {
   useEffect(() => { load() }, [load])
 
   const handleAction = async (id: string, action: 'confirm' | 'complete' | 'cancel') => {
+    if (action === 'cancel' && !window.confirm('¿Cancelar esta cita?')) return
     try {
-      if (action === 'confirm')  await api.confirmBooking(id)
-      if (action === 'complete') await api.completeBooking(id)
-      if (action === 'cancel')   await api.cancelBooking(id)
+      if (action === 'confirm') {
+        await api.confirmBooking(id)
+        toast.success('Cita confirmada')
+      }
+      if (action === 'complete') {
+        await api.completeBooking(id)
+        toast.success('Cita completada')
+      }
+      if (action === 'cancel') {
+        await api.cancelBooking(id)
+        toast.info('Cita cancelada')
+      }
       load()
     } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : 'Error')
+      toast.error(e instanceof Error ? e.message : 'Error al actualizar')
     }
   }
 
