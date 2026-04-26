@@ -244,28 +244,27 @@ export default function ClientsPage() {
         />
       )}
 
-      <h2 className="text-2xl font-bold mb-8">Clientes</h2>
-
       {/* Buscar */}
-      <section className="bg-white border border-gray-200 rounded-xl p-6 mb-6">
+      <section className="rounded-2xl p-6 mb-5" style={{ background: '#ffffff', border: '1px solid #e4ebff' }}>
+        <p className="text-xs font-semibold uppercase tracking-widest mb-4" style={{ color: '#94a3b8' }}>Buscar cliente</p>
         <div className="flex gap-2 mb-4">
           <button
             onClick={() => { setMode('phone'); reset(); setQuery('') }}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-              mode === 'phone'
-                ? 'bg-indigo-600 text-white'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
+            className="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
+            style={mode === 'phone'
+              ? { background: 'var(--blue)', color: '#ffffff' }
+              : { background: '#f0f4ff', color: '#64748b' }
+            }
           >
             Por teléfono
           </button>
           <button
             onClick={() => { setMode('name'); reset(); setQuery('') }}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-              mode === 'name'
-                ? 'bg-indigo-600 text-white'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
+            className="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
+            style={mode === 'name'
+              ? { background: 'var(--blue)', color: '#ffffff' }
+              : { background: '#f0f4ff', color: '#64748b' }
+            }
           >
             Por nombre
           </button>
@@ -279,12 +278,14 @@ export default function ClientsPage() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && search()}
-            className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            className="flex-1 rounded-xl px-3 py-2 text-sm focus:outline-none"
+            style={{ border: '1.5px solid #e4ebff', background: '#f8faff' }}
           />
           <button
             onClick={search}
             disabled={loading}
-            className="px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+            className="px-4 py-2 text-white text-sm rounded-xl disabled:opacity-50"
+            style={{ background: 'var(--blue)' }}
           >
             {loading ? 'Buscando...' : 'Buscar'}
           </button>
@@ -294,12 +295,15 @@ export default function ClientsPage() {
 
         {/* Resultados múltiples (búsqueda por nombre) */}
         {clients.length > 0 && (
-          <ul className="mt-4 divide-y divide-gray-100 border border-gray-100 rounded-lg overflow-hidden">
+          <ul className="mt-4 overflow-hidden rounded-xl" style={{ border: '1px solid #e4ebff' }}>
             {clients.map((c) => (
               <li key={c.id}>
                 <button
                   onClick={() => selectClient(c)}
-                  className="w-full text-left px-4 py-3 hover:bg-indigo-50 transition-colors"
+                  className="w-full text-left px-4 py-3 transition-colors"
+                  style={{ background: '#ffffff' }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = '#f0f4ff')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = '#ffffff')}
                 >
                   <span className="font-medium text-sm">{c.name ?? '—'}</span>
                   <span className="ml-2 text-gray-400 text-xs">{c.phone}</span>
@@ -311,7 +315,7 @@ export default function ClientsPage() {
 
         {/* Cliente seleccionado */}
         {selected && (
-          <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-100">
+          <div className="mt-4 p-4 rounded-xl" style={{ background: '#f8faff', border: '1px solid #e4ebff' }}>
             <div className="flex items-start justify-between mb-3">
               <div className="text-sm space-y-1">
                 <p><span className="text-gray-500">Nombre:</span> <span className="font-semibold">{selected.name ?? '—'}</span></p>
@@ -327,7 +331,7 @@ export default function ClientsPage() {
             </div>
 
             {/* Mascotas del cliente */}
-            <div className="border-t border-gray-200 pt-3">
+            <div className="pt-3" style={{ borderTop: '1px solid #e4ebff' }}>
               <div className="flex items-center justify-between mb-2">
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Mascotas</p>
                 <button
@@ -362,15 +366,16 @@ export default function ClientsPage() {
       </section>
 
       {/* Registrar nuevo cliente */}
-      <section className="bg-white border border-gray-200 rounded-xl p-6">
-        <h3 className="font-semibold text-gray-800 mb-4">Registrar nuevo cliente</h3>
+      <section className="rounded-2xl p-6" style={{ background: '#ffffff', border: '1px solid #e4ebff' }}>
+        <p className="text-xs font-semibold uppercase tracking-widest mb-4" style={{ color: '#94a3b8' }}>Registrar nuevo cliente</p>
         <div className="flex flex-col gap-3">
           <input
             type="text"
             placeholder="Teléfono (E.164): +51987654321 *"
             value={newPhone}
             onChange={(e) => setNewPhone(e.target.value)}
-            className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            className="rounded-xl px-3 py-2 text-sm focus:outline-none"
+            style={{ border: '1.5px solid #e4ebff', background: '#f8faff' }}
           />
           <input
             type="text"
@@ -378,12 +383,14 @@ export default function ClientsPage() {
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && create()}
-            className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            className="rounded-xl px-3 py-2 text-sm focus:outline-none"
+            style={{ border: '1.5px solid #e4ebff', background: '#f8faff' }}
           />
           <button
             onClick={create}
             disabled={creating}
-            className="px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 disabled:opacity-50 self-start"
+            className="px-4 py-2 text-white text-sm rounded-xl disabled:opacity-50 self-start font-medium"
+            style={{ background: 'var(--blue)' }}
           >
             {creating ? 'Creando...' : 'Crear cliente'}
           </button>

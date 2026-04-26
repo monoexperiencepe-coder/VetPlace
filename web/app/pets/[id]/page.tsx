@@ -139,22 +139,16 @@ const EVENT_STATUS_LABEL: Record<EventStatus, string> = {
   PENDING: 'Pendiente', NOTIFIED: 'Notificado', COMPLETED: 'Completado', CANCELLED: 'Cancelado',
 }
 
-const EVENT_STATUS_COLOR: Record<EventStatus, string> = {
-  PENDING:   'bg-yellow-100 text-yellow-800',
-  NOTIFIED:  'bg-blue-100 text-blue-800',
-  COMPLETED: 'bg-green-100 text-green-800',
-  CANCELLED: 'bg-gray-100 text-gray-500',
+const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
+  PENDING:   { bg: '#fef9c3', text: '#854d0e' },
+  NOTIFIED:  { bg: '#dbeafe', text: '#1e40af' },
+  CONFIRMED: { bg: '#dbeafe', text: '#1e40af' },
+  COMPLETED: { bg: '#dcfce7', text: '#166534' },
+  CANCELLED: { bg: '#f1f5f9', text: '#64748b' },
 }
 
 const BOOKING_STATUS_LABEL: Record<BookingStatus, string> = {
   PENDING: 'Pendiente', CONFIRMED: 'Confirmado', COMPLETED: 'Completado', CANCELLED: 'Cancelado',
-}
-
-const BOOKING_STATUS_COLOR: Record<BookingStatus, string> = {
-  PENDING:   'bg-yellow-100 text-yellow-800',
-  CONFIRMED: 'bg-blue-100 text-blue-800',
-  COMPLETED: 'bg-green-100 text-green-800',
-  CANCELLED: 'bg-gray-100 text-gray-500',
 }
 
 function calcAge(birthDate: string): string {
@@ -235,14 +229,14 @@ export default function PetDetailPage() {
   }
 
   if (loading) {
-    return <p className="text-gray-400 text-sm mt-8">Cargando...</p>
+    return <p className="text-sm mt-8" style={{ color: '#94a3b8' }}>Cargando...</p>
   }
 
   if (error || !pet) {
     return (
       <div className="mt-8">
         <p className="text-red-500 text-sm mb-4">{error || 'Mascota no encontrada'}</p>
-        <button onClick={() => router.back()} className="text-indigo-600 text-sm hover:underline">← Volver</button>
+        <button onClick={() => router.back()} className="text-sm font-medium" style={{ color: 'var(--blue)' }}>← Volver</button>
       </div>
     )
   }
@@ -258,58 +252,38 @@ export default function PetDetailPage() {
       )}
 
       {/* Breadcrumb */}
-      <nav className="text-sm text-gray-400 mb-6 flex items-center gap-2">
-        <Link href="/clients" className="hover:text-indigo-600">Clientes</Link>
+      <nav className="text-xs mb-5 flex items-center gap-2" style={{ color: '#94a3b8' }}>
+        <Link href="/clients" className="hover:underline">Clientes</Link>
         <span>›</span>
-        <span className="text-gray-600">{pet.user.name ?? pet.user.phone}</span>
+        <span>{pet.user.name ?? pet.user.phone}</span>
         <span>›</span>
-        <span className="text-gray-800 font-medium">{pet.name}</span>
+        <span className="font-semibold" style={{ color: '#334155' }}>{pet.name}</span>
       </nav>
 
       {/* Card principal */}
-      <div className="bg-white border border-gray-200 rounded-xl p-6 mb-6">
+      <div className="rounded-2xl p-6 mb-5" style={{ background: '#ffffff', border: '1px solid #e4ebff' }}>
         <div className="flex items-start gap-4">
           <div className="text-5xl leading-none">{PET_EMOJI[pet.type] ?? '🐾'}</div>
           <div className="flex-1">
-            <h2 className="text-2xl font-bold mb-1">{pet.name}</h2>
-            <p className="text-gray-500 text-sm">{PET_TYPE_LABEL[pet.type] ?? pet.type}</p>
+            <h2 className="text-2xl font-bold mb-0.5" style={{ color: '#0f172a' }}>{pet.name}</h2>
+            <p className="text-sm" style={{ color: '#64748b' }}>{PET_TYPE_LABEL[pet.type] ?? pet.type}</p>
 
-            <div className="mt-4 grid grid-cols-2 gap-x-8 gap-y-2 text-sm">
-              <div>
-                <span className="text-gray-400">Dueño</span>
-                <p className="font-medium">{pet.user.name ?? '—'}</p>
-              </div>
-              <div>
-                <span className="text-gray-400">Teléfono</span>
-                <p className="font-medium">{pet.user.phone}</p>
-              </div>
-              {pet.birth_date && (
-                <div>
-                  <span className="text-gray-400">Edad</span>
-                  <p className="font-medium">{calcAge(pet.birth_date)}</p>
-                </div>
-              )}
-              {pet.grooming_frequency_days && (
-                <div>
-                  <span className="text-gray-400">Frecuencia de baño</span>
-                  <p className="font-medium">cada {pet.grooming_frequency_days} días</p>
-                </div>
-              )}
-              {pet.last_grooming_date && (
-                <div>
-                  <span className="text-gray-400">Último baño</span>
-                  <p className="font-medium">{pet.last_grooming_date}</p>
-                </div>
-              )}
+            <div className="mt-4 grid grid-cols-2 gap-x-8 gap-y-3 text-sm">
+              <InfoItem label="Dueño"          value={pet.user.name ?? '—'} />
+              <InfoItem label="Teléfono"       value={pet.user.phone} />
+              {pet.birth_date        && <InfoItem label="Edad"               value={calcAge(pet.birth_date)} />}
+              {pet.grooming_frequency_days && <InfoItem label="Frecuencia de baño" value={`cada ${pet.grooming_frequency_days} días`} />}
+              {pet.last_grooming_date && <InfoItem label="Último baño"       value={pet.last_grooming_date} />}
             </div>
 
             {/* Botón baño completado */}
             {pet.grooming_frequency_days && (
-              <div className="mt-4 pt-4 border-t border-gray-100">
+              <div className="mt-4 pt-4" style={{ borderTop: '1px solid #f0f4ff' }}>
                 <button
                   onClick={markGroomingCompleted}
                   disabled={markingGrooming}
-                  className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700 disabled:opacity-50"
+                  className="flex items-center gap-2 px-4 py-2 text-white text-sm font-medium rounded-xl disabled:opacity-50"
+                  style={{ background: '#0d9488' }}
                 >
                   🛁 {markingGrooming ? 'Guardando...' : 'Marcar baño completado hoy'}
                 </button>
@@ -320,56 +294,54 @@ export default function PetDetailPage() {
       </div>
 
       {/* Eventos */}
-      <section className="mb-6">
+      <section className="mb-5">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="font-semibold text-gray-800">
-            Eventos <span className="text-gray-400 font-normal text-sm">({events.length})</span>
+          <h3 className="font-semibold text-sm" style={{ color: '#0f172a' }}>
+            Eventos <span className="font-normal" style={{ color: '#94a3b8' }}>({events.length})</span>
           </h3>
           <button
             onClick={() => setShowNewEvent(true)}
-            className="text-sm text-indigo-600 hover:text-indigo-800 font-medium"
+            className="text-xs font-semibold"
+            style={{ color: 'var(--blue)' }}
           >
             + Nuevo evento
           </button>
         </div>
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+        <div className="rounded-2xl overflow-hidden" style={{ background: '#ffffff', border: '1px solid #e4ebff' }}>
           {events.length === 0 ? (
-            <p className="text-center text-gray-400 py-8 text-sm">Sin eventos registrados</p>
+            <p className="text-center py-8 text-sm" style={{ color: '#94a3b8' }}>Sin eventos registrados</p>
           ) : (
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
+              <thead style={{ background: '#f8faff', borderBottom: '1px solid #e4ebff' }}>
                 <tr>
-                  <th className="text-left px-5 py-3 font-medium text-gray-500">Tipo</th>
-                  <th className="text-left px-5 py-3 font-medium text-gray-500">Fecha</th>
-                  <th className="text-left px-5 py-3 font-medium text-gray-500">Estado</th>
-                  <th className="px-5 py-3"></th>
+                  {['Tipo', 'Fecha', 'Estado', ''].map((h) => (
+                    <th key={h} className="text-left px-5 py-3 text-xs font-semibold uppercase tracking-wide" style={{ color: '#94a3b8' }}>{h}</th>
+                  ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
-                {events.map((ev) => (
-                  <tr key={ev.id} className="hover:bg-gray-50">
-                    <td className="px-5 py-3 font-medium">{EVENT_TYPE_LABEL[ev.type]}</td>
-                    <td className="px-5 py-3 text-gray-600">{ev.scheduled_date}</td>
-                    <td className="px-5 py-3">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${EVENT_STATUS_COLOR[ev.status]}`}>
+              <tbody>
+                {events.map((ev, i) => (
+                  <tr
+                    key={ev.id}
+                    style={{ borderTop: i > 0 ? '1px solid #f0f4ff' : undefined }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = '#f8faff')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                  >
+                    <td className="px-5 py-3.5 font-semibold" style={{ color: '#334155' }}>{EVENT_TYPE_LABEL[ev.type]}</td>
+                    <td className="px-5 py-3.5 font-mono text-xs" style={{ color: '#64748b' }}>{ev.scheduled_date}</td>
+                    <td className="px-5 py-3.5">
+                      <span
+                        className="px-2.5 py-1 rounded-lg text-xs font-semibold"
+                        style={{ background: STATUS_COLORS[ev.status].bg, color: STATUS_COLORS[ev.status].text }}
+                      >
                         {EVENT_STATUS_LABEL[ev.status]}
                       </span>
                     </td>
-                    <td className="px-5 py-3">
+                    <td className="px-5 py-3.5">
                       {(ev.status === 'PENDING' || ev.status === 'NOTIFIED') && (
                         <div className="flex gap-2 justify-end">
-                          <button
-                            onClick={() => handleEventAction(ev.id, 'complete')}
-                            className="text-xs px-3 py-1 rounded-lg bg-green-600 text-white hover:bg-green-700"
-                          >
-                            Completar
-                          </button>
-                          <button
-                            onClick={() => handleEventAction(ev.id, 'cancel')}
-                            className="text-xs px-3 py-1 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-100"
-                          >
-                            Cancelar
-                          </button>
+                          <Btn onClick={() => handleEventAction(ev.id, 'complete')} variant="green">Completar</Btn>
+                          <Btn onClick={() => handleEventAction(ev.id, 'cancel')} variant="ghost">Cancelar</Btn>
                         </div>
                       )}
                     </td>
@@ -383,58 +355,49 @@ export default function PetDetailPage() {
 
       {/* Bookings */}
       <section>
-        <h3 className="font-semibold text-gray-800 mb-3">
-          Historial de citas <span className="text-gray-400 font-normal text-sm">({bookings.length})</span>
+        <h3 className="font-semibold text-sm mb-3" style={{ color: '#0f172a' }}>
+          Historial de citas <span className="font-normal" style={{ color: '#94a3b8' }}>({bookings.length})</span>
         </h3>
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+        <div className="rounded-2xl overflow-hidden" style={{ background: '#ffffff', border: '1px solid #e4ebff' }}>
           {bookings.length === 0 ? (
-            <p className="text-center text-gray-400 py-8 text-sm">Sin citas registradas</p>
+            <p className="text-center py-8 text-sm" style={{ color: '#94a3b8' }}>Sin citas registradas</p>
           ) : (
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
+              <thead style={{ background: '#f8faff', borderBottom: '1px solid #e4ebff' }}>
                 <tr>
-                  <th className="text-left px-5 py-3 font-medium text-gray-500">Fecha</th>
-                  <th className="text-left px-5 py-3 font-medium text-gray-500">Hora</th>
-                  <th className="text-left px-5 py-3 font-medium text-gray-500">Notas</th>
-                  <th className="text-left px-5 py-3 font-medium text-gray-500">Estado</th>
-                  <th className="px-5 py-3"></th>
+                  {['Fecha', 'Hora', 'Notas', 'Estado', ''].map((h) => (
+                    <th key={h} className="text-left px-5 py-3 text-xs font-semibold uppercase tracking-wide" style={{ color: '#94a3b8' }}>{h}</th>
+                  ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
-                {bookings.map((b) => (
-                  <tr key={b.id} className="hover:bg-gray-50">
-                    <td className="px-5 py-3 text-gray-700">{b.date}</td>
-                    <td className="px-5 py-3 font-mono font-medium">{b.time}</td>
-                    <td className="px-5 py-3 text-gray-500">{b.notes ?? '—'}</td>
-                    <td className="px-5 py-3">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${BOOKING_STATUS_COLOR[b.status]}`}>
+              <tbody>
+                {bookings.map((b, i) => (
+                  <tr
+                    key={b.id}
+                    style={{ borderTop: i > 0 ? '1px solid #f0f4ff' : undefined }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = '#f8faff')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                  >
+                    <td className="px-5 py-3.5 font-mono text-xs" style={{ color: '#64748b' }}>{b.date}</td>
+                    <td className="px-5 py-3.5 font-mono font-bold" style={{ color: '#0f172a' }}>{b.time}</td>
+                    <td className="px-5 py-3.5" style={{ color: '#94a3b8' }}>{b.notes ?? '—'}</td>
+                    <td className="px-5 py-3.5">
+                      <span
+                        className="px-2.5 py-1 rounded-lg text-xs font-semibold"
+                        style={{ background: STATUS_COLORS[b.status].bg, color: STATUS_COLORS[b.status].text }}
+                      >
                         {BOOKING_STATUS_LABEL[b.status]}
                       </span>
                     </td>
-                    <td className="px-5 py-3">
+                    <td className="px-5 py-3.5">
                       <div className="flex gap-2 justify-end">
                         {b.status === 'PENDING' && (
-                          <button
-                            onClick={() => handleBookingAction(b.id, 'confirm')}
-                            className="text-xs px-3 py-1 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
-                          >
-                            Confirmar
-                          </button>
+                          <Btn onClick={() => handleBookingAction(b.id, 'confirm')} variant="blue">Confirmar</Btn>
                         )}
                         {(b.status === 'PENDING' || b.status === 'CONFIRMED') && (
                           <>
-                            <button
-                              onClick={() => handleBookingAction(b.id, 'complete')}
-                              className="text-xs px-3 py-1 rounded-lg bg-green-600 text-white hover:bg-green-700"
-                            >
-                              Completar
-                            </button>
-                            <button
-                              onClick={() => handleBookingAction(b.id, 'cancel')}
-                              className="text-xs px-3 py-1 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-100"
-                            >
-                              Cancelar
-                            </button>
+                            <Btn onClick={() => handleBookingAction(b.id, 'complete')} variant="green">Completar</Btn>
+                            <Btn onClick={() => handleBookingAction(b.id, 'cancel')} variant="ghost">Cancelar</Btn>
                           </>
                         )}
                       </div>
@@ -447,5 +410,23 @@ export default function PetDetailPage() {
         </div>
       </section>
     </div>
+  )
+}
+
+function InfoItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="text-xs" style={{ color: '#94a3b8' }}>{label}</p>
+      <p className="font-semibold text-sm mt-0.5" style={{ color: '#0f172a' }}>{value}</p>
+    </div>
+  )
+}
+
+function Btn({ onClick, variant, children }: { onClick: () => void; variant: 'green' | 'blue' | 'ghost'; children: React.ReactNode }) {
+  const s = { green: { background: '#dcfce7', color: '#166534' }, blue: { background: '#dbeafe', color: '#1e40af' }, ghost: { background: '#f1f5f9', color: '#475569' } }
+  return (
+    <button onClick={onClick} className="text-xs px-3 py-1.5 rounded-lg font-medium hover:opacity-80" style={s[variant]}>
+      {children}
+    </button>
   )
 }

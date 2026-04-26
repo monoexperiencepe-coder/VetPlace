@@ -21,26 +21,33 @@ const STATUS_LABEL: Record<EventStatus, string> = {
   CANCELLED: 'Cancelado',
 }
 
-const STATUS_COLOR: Record<EventStatus, string> = {
-  PENDING:   'bg-yellow-100 text-yellow-800',
-  NOTIFIED:  'bg-blue-100 text-blue-800',
-  COMPLETED: 'bg-green-100 text-green-800',
-  CANCELLED: 'bg-gray-100 text-gray-500',
+const STATUS_COLOR: Record<EventStatus, { bg: string; text: string }> = {
+  PENDING:   { bg: '#fef9c3', text: '#854d0e' },
+  NOTIFIED:  { bg: '#dbeafe', text: '#1e40af' },
+  COMPLETED: { bg: '#dcfce7', text: '#166534' },
+  CANCELLED: { bg: '#f1f5f9', text: '#64748b' },
 }
 
 const TYPE_LABEL: Record<EventType, string> = {
-  grooming:   'Baño',
-  vaccine:    'Vacuna',
-  checkup:    'Control',
-  deworming:  'Desparasitación',
+  grooming:  'Baño',
+  vaccine:   'Vacuna',
+  checkup:   'Control',
+  deworming: 'Desparasitación',
+}
+
+const TYPE_ICON: Record<EventType, string> = {
+  grooming:  '🛁',
+  vaccine:   '💉',
+  checkup:   '🩺',
+  deworming: '💊',
 }
 
 export default function EventsPage() {
-  const [events, setEvents]     = useState<VetEvent[]>([])
-  const [status, setStatus]     = useState<string>('')
-  const [type, setType]         = useState<string>('')
-  const [loading, setLoading]   = useState(true)
-  const [error, setError]       = useState('')
+  const [events, setEvents]   = useState<VetEvent[]>([])
+  const [status, setStatus]   = useState<string>('')
+  const [type, setType]       = useState<string>('')
+  const [loading, setLoading] = useState(true)
+  const [error, setError]     = useState('')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -72,83 +79,73 @@ export default function EventsPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold">Eventos</h2>
-      </div>
-
       {/* Filtros */}
-      <div className="flex gap-3 mb-6">
-        <select
-          value={status}
-          onChange={(e) => setStatus(e.target.value)}
-          className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"
-        >
-          <option value="">Todos los estados</option>
+      <div className="flex flex-wrap gap-3 mb-5">
+        <Select value={status} onChange={setStatus} placeholder="Todos los estados">
           <option value="PENDING">Pendiente</option>
           <option value="NOTIFIED">Notificado</option>
           <option value="COMPLETED">Completado</option>
           <option value="CANCELLED">Cancelado</option>
-        </select>
-
-        <select
-          value={type}
-          onChange={(e) => setType(e.target.value)}
-          className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"
-        >
-          <option value="">Todos los tipos</option>
-          <option value="grooming">Baño</option>
-          <option value="vaccine">Vacuna</option>
-          <option value="checkup">Control</option>
-          <option value="deworming">Desparasitación</option>
-        </select>
+        </Select>
+        <Select value={type} onChange={setType} placeholder="Todos los tipos">
+          <option value="grooming">🛁 Baño</option>
+          <option value="vaccine">💉 Vacuna</option>
+          <option value="checkup">🩺 Control</option>
+          <option value="deworming">💊 Desparasitación</option>
+        </Select>
       </div>
 
-      {loading && <p className="text-gray-400 text-sm">Cargando...</p>}
-      {error   && <p className="text-red-500 text-sm">{error}</p>}
+      {loading && <p className="text-sm" style={{ color: '#94a3b8' }}>Cargando...</p>}
+      {error   && <p className="text-sm text-red-500">{error}</p>}
 
       {!loading && !error && (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="rounded-2xl overflow-hidden" style={{ background: '#ffffff', border: '1px solid #e4ebff' }}>
           {events.length === 0 ? (
-            <p className="text-center text-gray-400 py-12 text-sm">No hay eventos con esos filtros.</p>
+            <p className="text-center py-16 text-sm" style={{ color: '#94a3b8' }}>
+              No hay eventos con esos filtros.
+            </p>
           ) : (
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
+              <thead style={{ background: '#f8faff', borderBottom: '1px solid #e4ebff' }}>
                 <tr>
-                  <th className="text-left px-5 py-3 font-medium text-gray-500">Mascota</th>
-                  <th className="text-left px-5 py-3 font-medium text-gray-500">Dueño</th>
-                  <th className="text-left px-5 py-3 font-medium text-gray-500">Tipo</th>
-                  <th className="text-left px-5 py-3 font-medium text-gray-500">Fecha</th>
-                  <th className="text-left px-5 py-3 font-medium text-gray-500">Estado</th>
-                  <th className="px-5 py-3"></th>
+                  {['Mascota', 'Dueño', 'Tipo', 'Fecha', 'Estado', ''].map((h) => (
+                    <th key={h} className="text-left px-5 py-3 text-xs font-semibold uppercase tracking-wide" style={{ color: '#94a3b8' }}>
+                      {h}
+                    </th>
+                  ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
-                {events.map((ev) => (
-                  <tr key={ev.id} className="hover:bg-gray-50">
-                    <td className="px-5 py-3 font-medium">{ev.pet.name}</td>
-                    <td className="px-5 py-3 text-gray-600">{ev.pet.user.name ?? ev.pet.user.phone}</td>
-                    <td className="px-5 py-3 text-gray-600">{TYPE_LABEL[ev.type]}</td>
-                    <td className="px-5 py-3 text-gray-600">{ev.scheduled_date}</td>
-                    <td className="px-5 py-3">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${STATUS_COLOR[ev.status]}`}>
+              <tbody>
+                {events.map((ev, i) => (
+                  <tr
+                    key={ev.id}
+                    style={{
+                      borderTop: i > 0 ? '1px solid #f0f4ff' : undefined,
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = '#f8faff')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                  >
+                    <td className="px-5 py-3.5 font-semibold" style={{ color: '#0f172a' }}>{ev.pet.name}</td>
+                    <td className="px-5 py-3.5" style={{ color: '#475569' }}>{ev.pet.user.name ?? ev.pet.user.phone}</td>
+                    <td className="px-5 py-3.5">
+                      <span style={{ color: '#334155' }}>
+                        {TYPE_ICON[ev.type]} {TYPE_LABEL[ev.type]}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3.5 font-mono text-xs" style={{ color: '#64748b' }}>{ev.scheduled_date}</td>
+                    <td className="px-5 py-3.5">
+                      <span
+                        className="px-2.5 py-1 rounded-lg text-xs font-semibold"
+                        style={{ background: STATUS_COLOR[ev.status].bg, color: STATUS_COLOR[ev.status].text }}
+                      >
                         {STATUS_LABEL[ev.status]}
                       </span>
                     </td>
-                    <td className="px-5 py-3">
+                    <td className="px-5 py-3.5">
                       {(ev.status === 'PENDING' || ev.status === 'NOTIFIED') && (
                         <div className="flex gap-2 justify-end">
-                          <button
-                            onClick={() => handleAction(ev.id, 'complete')}
-                            className="text-xs px-3 py-1 rounded-lg bg-green-600 text-white hover:bg-green-700"
-                          >
-                            Completar
-                          </button>
-                          <button
-                            onClick={() => handleAction(ev.id, 'cancel')}
-                            className="text-xs px-3 py-1 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-100"
-                          >
-                            Cancelar
-                          </button>
+                          <ActionBtn onClick={() => handleAction(ev.id, 'complete')} variant="green">Completar</ActionBtn>
+                          <ActionBtn onClick={() => handleAction(ev.id, 'cancel')} variant="ghost">Cancelar</ActionBtn>
                         </div>
                       )}
                     </td>
@@ -160,5 +157,45 @@ export default function EventsPage() {
         </div>
       )}
     </div>
+  )
+}
+
+function Select({ value, onChange, placeholder, children }: {
+  value: string
+  onChange: (v: string) => void
+  placeholder: string
+  children: React.ReactNode
+}) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="rounded-xl px-3 py-2 text-sm focus:outline-none"
+      style={{ background: '#ffffff', border: '1.5px solid #e4ebff', color: value ? '#0f172a' : '#94a3b8' }}
+    >
+      <option value="">{placeholder}</option>
+      {children}
+    </select>
+  )
+}
+
+function ActionBtn({ onClick, variant, children }: {
+  onClick: () => void
+  variant: 'green' | 'blue' | 'ghost'
+  children: React.ReactNode
+}) {
+  const styles = {
+    green: { background: '#dcfce7', color: '#166534' },
+    blue:  { background: '#dbeafe', color: '#1e40af' },
+    ghost: { background: '#f1f5f9', color: '#475569' },
+  }
+  return (
+    <button
+      onClick={onClick}
+      className="text-xs px-3 py-1.5 rounded-lg font-medium transition-opacity hover:opacity-80"
+      style={styles[variant]}
+    >
+      {children}
+    </button>
   )
 }

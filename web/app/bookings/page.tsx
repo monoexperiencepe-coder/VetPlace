@@ -33,11 +33,11 @@ const STATUS_LABEL: Record<BookingStatus, string> = {
   CANCELLED: 'Cancelado',
 }
 
-const STATUS_COLOR: Record<BookingStatus, string> = {
-  PENDING:   'bg-yellow-100 text-yellow-800',
-  CONFIRMED: 'bg-blue-100 text-blue-800',
-  COMPLETED: 'bg-green-100 text-green-800',
-  CANCELLED: 'bg-gray-100 text-gray-500',
+const STATUS_COLOR: Record<BookingStatus, { bg: string; text: string }> = {
+  PENDING:   { bg: '#fef9c3', text: '#854d0e' },
+  CONFIRMED: { bg: '#dbeafe', text: '#1e40af' },
+  COMPLETED: { bg: '#dcfce7', text: '#166534' },
+  CANCELLED: { bg: '#f1f5f9', text: '#64748b' },
 }
 
 const PET_TYPE_LABEL: Record<string, string> = {
@@ -61,14 +61,12 @@ function NewBookingModal({ defaultDate, onClose, onCreated }: NewBookingModalPro
   const [pets, setPets]             = useState<Pet[]>([])
   const [searchErr, setSearchErr]   = useState('')
   const [searching, setSearching]   = useState(false)
-
   const [petId, setPetId]           = useState('')
   const [date, setDate]             = useState(defaultDate)
   const [time, setTime]             = useState('')
   const [notes, setNotes]           = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [submitErr, setSubmitErr]   = useState('')
-
   const phoneRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => { phoneRef.current?.focus() }, [])
@@ -111,20 +109,16 @@ function NewBookingModal({ defaultDate, onClose, onCreated }: NewBookingModalPro
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
-
-      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 p-6">
+      <div className="absolute inset-0 backdrop-blur-sm" style={{ background: 'rgba(17,28,68,0.4)' }} onClick={onClose} />
+      <div className="relative rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6" style={{ background: '#ffffff', border: '1px solid #e4ebff' }}>
         <div className="flex items-center justify-between mb-5">
-          <h3 className="text-lg font-bold">Nueva cita</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
+          <h3 className="text-lg font-bold" style={{ color: '#0f172a' }}>Nueva cita</h3>
+          <button onClick={onClose} className="text-xl leading-none w-8 h-8 flex items-center justify-center rounded-lg transition-colors" style={{ color: '#94a3b8', background: '#f0f4ff' }}>×</button>
         </div>
 
-        {/* Paso 1: buscar cliente por teléfono */}
-        <div className="mb-5">
-          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-            Teléfono del dueño
-          </label>
+        {/* Teléfono */}
+        <div className="mb-4">
+          <label className="block text-xs font-semibold uppercase tracking-wide mb-1.5" style={{ color: '#94a3b8' }}>Teléfono del dueño</label>
           <div className="flex gap-2">
             <input
               ref={phoneRef}
@@ -133,43 +127,38 @@ function NewBookingModal({ defaultDate, onClose, onCreated }: NewBookingModalPro
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && searchClient()}
-              className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+              className="flex-1 rounded-xl px-3 py-2 text-sm focus:outline-none"
+              style={{ border: '1.5px solid #e4ebff', background: '#f8faff' }}
             />
             <button
               onClick={searchClient}
               disabled={searching}
-              className="px-3 py-2 bg-gray-100 text-gray-700 text-sm rounded-lg hover:bg-gray-200 disabled:opacity-50"
+              className="px-3 py-2 rounded-xl text-sm font-medium disabled:opacity-50"
+              style={{ background: '#f0f4ff', color: '#334155' }}
             >
               {searching ? '...' : 'Buscar'}
             </button>
           </div>
           {searchErr && <p className="text-red-500 text-xs mt-1.5">{searchErr}</p>}
-          {client && (
-            <p className="text-green-700 text-xs mt-1.5 font-medium">
-              ✓ {client.name ?? client.phone}
-            </p>
-          )}
+          {client && <p className="text-xs mt-1.5 font-medium" style={{ color: '#166534' }}>✓ {client.name ?? client.phone}</p>}
         </div>
 
-        {/* Paso 2: seleccionar mascota */}
+        {/* Mascotas */}
         {pets.length > 0 && (
-          <div className="mb-5">
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-              Mascota
-            </label>
+          <div className="mb-4">
+            <label className="block text-xs font-semibold uppercase tracking-wide mb-1.5" style={{ color: '#94a3b8' }}>Mascota</label>
             <div className="flex flex-wrap gap-2">
               {pets.map((p) => (
                 <button
                   key={p.id}
                   onClick={() => setPetId(p.id)}
-                  className={`px-3 py-1.5 rounded-lg text-sm border transition-colors ${
-                    petId === p.id
-                      ? 'border-indigo-500 bg-indigo-50 text-indigo-700 font-medium'
-                      : 'border-gray-200 text-gray-700 hover:border-indigo-300'
-                  }`}
+                  className="px-3 py-1.5 rounded-lg text-sm transition-colors"
+                  style={petId === p.id
+                    ? { background: '#dbeafe', color: '#1e40af', border: '1.5px solid #93c5fd', fontWeight: 600 }
+                    : { background: '#f8faff', color: '#475569', border: '1.5px solid #e4ebff' }
+                  }
                 >
-                  {p.name}
-                  <span className="ml-1 text-xs text-gray-400">({PET_TYPE_LABEL[p.type] ?? p.type})</span>
+                  {p.name} <span style={{ color: '#94a3b8' }}>({PET_TYPE_LABEL[p.type] ?? p.type})</span>
                 </button>
               ))}
             </div>
@@ -177,42 +166,39 @@ function NewBookingModal({ defaultDate, onClose, onCreated }: NewBookingModalPro
         )}
 
         {/* Fecha y hora */}
-        <div className="grid grid-cols-2 gap-3 mb-5">
+        <div className="grid grid-cols-2 gap-3 mb-4">
           <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-              Fecha
-            </label>
+            <label className="block text-xs font-semibold uppercase tracking-wide mb-1.5" style={{ color: '#94a3b8' }}>Fecha</label>
             <input
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
+              className="w-full rounded-xl px-3 py-2 text-sm focus:outline-none"
+              style={{ border: '1.5px solid #e4ebff', background: '#f8faff' }}
             />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-              Hora
-            </label>
+            <label className="block text-xs font-semibold uppercase tracking-wide mb-1.5" style={{ color: '#94a3b8' }}>Hora</label>
             <input
               type="time"
               value={time}
               onChange={(e) => setTime(e.target.value)}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
+              className="w-full rounded-xl px-3 py-2 text-sm focus:outline-none"
+              style={{ border: '1.5px solid #e4ebff', background: '#f8faff' }}
             />
           </div>
         </div>
 
         {/* Notas */}
-        <div className="mb-6">
-          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-            Notas (opcional)
-          </label>
+        <div className="mb-5">
+          <label className="block text-xs font-semibold uppercase tracking-wide mb-1.5" style={{ color: '#94a3b8' }}>Notas (opcional)</label>
           <input
             type="text"
             placeholder="Ej: traer carnet de vacunas"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            className="w-full rounded-xl px-3 py-2 text-sm focus:outline-none"
+            style={{ border: '1.5px solid #e4ebff', background: '#f8faff' }}
           />
         </div>
 
@@ -222,13 +208,15 @@ function NewBookingModal({ defaultDate, onClose, onCreated }: NewBookingModalPro
           <button
             onClick={submit}
             disabled={submitting || !petId || !date || !time}
-            className="flex-1 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+            className="flex-1 py-2.5 text-white text-sm font-semibold rounded-xl disabled:opacity-50"
+            style={{ background: 'var(--blue)' }}
           >
             {submitting ? 'Creando...' : 'Crear cita'}
           </button>
           <button
             onClick={onClose}
-            className="px-4 py-2 border border-gray-200 text-gray-600 text-sm rounded-lg hover:bg-gray-50"
+            className="px-4 py-2.5 text-sm rounded-xl font-medium"
+            style={{ background: '#f0f4ff', color: '#334155' }}
           >
             Cancelar
           </button>
@@ -282,87 +270,80 @@ export default function BookingsPage() {
         />
       )}
 
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold">Agenda</h2>
-        <div className="flex items-center gap-3">
-          <input
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"
-          />
-          <button
-            onClick={() => setShowModal(true)}
-            className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700"
-          >
-            + Nueva cita
-          </button>
-        </div>
+      {/* Controles */}
+      <div className="flex items-center gap-3 mb-5">
+        <input
+          type="date"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          className="rounded-xl px-3 py-2 text-sm focus:outline-none"
+          style={{ background: '#ffffff', border: '1.5px solid #e4ebff' }}
+        />
+        <button
+          onClick={() => setShowModal(true)}
+          className="px-4 py-2 text-white text-sm font-semibold rounded-xl flex items-center gap-2"
+          style={{ background: 'var(--blue)' }}
+        >
+          <span>+</span> Nueva cita
+        </button>
       </div>
 
-      {loading && <p className="text-gray-400 text-sm">Cargando...</p>}
-      {error   && <p className="text-red-500 text-sm">{error}</p>}
+      {loading && <p className="text-sm" style={{ color: '#94a3b8' }}>Cargando...</p>}
+      {error   && <p className="text-sm text-red-500">{error}</p>}
 
       {!loading && !error && (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="rounded-2xl overflow-hidden" style={{ background: '#ffffff', border: '1px solid #e4ebff' }}>
           {bookings.length === 0 ? (
             <div className="text-center py-16">
-              <p className="text-gray-400 text-sm mb-3">No hay turnos para este día.</p>
+              <p className="text-sm mb-3" style={{ color: '#94a3b8' }}>No hay turnos para este día.</p>
               <button
                 onClick={() => setShowModal(true)}
-                className="text-indigo-600 text-sm hover:underline"
+                className="text-sm font-medium"
+                style={{ color: 'var(--blue)' }}
               >
                 + Agregar una cita
               </button>
             </div>
           ) : (
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
+              <thead style={{ background: '#f8faff', borderBottom: '1px solid #e4ebff' }}>
                 <tr>
-                  <th className="text-left px-5 py-3 font-medium text-gray-500">Hora</th>
-                  <th className="text-left px-5 py-3 font-medium text-gray-500">Mascota</th>
-                  <th className="text-left px-5 py-3 font-medium text-gray-500">Tipo</th>
-                  <th className="text-left px-5 py-3 font-medium text-gray-500">Notas</th>
-                  <th className="text-left px-5 py-3 font-medium text-gray-500">Estado</th>
-                  <th className="px-5 py-3"></th>
+                  {['Hora', 'Mascota', 'Tipo', 'Notas', 'Estado', ''].map((h) => (
+                    <th key={h} className="text-left px-5 py-3 text-xs font-semibold uppercase tracking-wide" style={{ color: '#94a3b8' }}>
+                      {h}
+                    </th>
+                  ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
-                {bookings.map((b) => (
-                  <tr key={b.id} className="hover:bg-gray-50">
-                    <td className="px-5 py-3 font-mono font-medium">{b.time}</td>
-                    <td className="px-5 py-3 font-medium">{b.pet.name}</td>
-                    <td className="px-5 py-3 text-gray-500 capitalize">{PET_TYPE_LABEL[b.pet.type] ?? b.pet.type}</td>
-                    <td className="px-5 py-3 text-gray-500">{b.notes ?? '—'}</td>
-                    <td className="px-5 py-3">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${STATUS_COLOR[b.status]}`}>
+              <tbody>
+                {bookings.map((b, i) => (
+                  <tr
+                    key={b.id}
+                    style={{ borderTop: i > 0 ? '1px solid #f0f4ff' : undefined }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = '#f8faff')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                  >
+                    <td className="px-5 py-3.5 font-mono font-bold text-base" style={{ color: '#0f172a' }}>{b.time}</td>
+                    <td className="px-5 py-3.5 font-semibold" style={{ color: '#0f172a' }}>{b.pet.name}</td>
+                    <td className="px-5 py-3.5" style={{ color: '#475569' }}>{PET_TYPE_LABEL[b.pet.type] ?? b.pet.type}</td>
+                    <td className="px-5 py-3.5" style={{ color: '#94a3b8' }}>{b.notes ?? '—'}</td>
+                    <td className="px-5 py-3.5">
+                      <span
+                        className="px-2.5 py-1 rounded-lg text-xs font-semibold"
+                        style={{ background: STATUS_COLOR[b.status].bg, color: STATUS_COLOR[b.status].text }}
+                      >
                         {STATUS_LABEL[b.status]}
                       </span>
                     </td>
-                    <td className="px-5 py-3">
+                    <td className="px-5 py-3.5">
                       <div className="flex gap-2 justify-end">
                         {b.status === 'PENDING' && (
-                          <button
-                            onClick={() => handleAction(b.id, 'confirm')}
-                            className="text-xs px-3 py-1 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
-                          >
-                            Confirmar
-                          </button>
+                          <ActionBtn onClick={() => handleAction(b.id, 'confirm')} variant="blue">Confirmar</ActionBtn>
                         )}
                         {(b.status === 'PENDING' || b.status === 'CONFIRMED') && (
                           <>
-                            <button
-                              onClick={() => handleAction(b.id, 'complete')}
-                              className="text-xs px-3 py-1 rounded-lg bg-green-600 text-white hover:bg-green-700"
-                            >
-                              Completar
-                            </button>
-                            <button
-                              onClick={() => handleAction(b.id, 'cancel')}
-                              className="text-xs px-3 py-1 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-100"
-                            >
-                              Cancelar
-                            </button>
+                            <ActionBtn onClick={() => handleAction(b.id, 'complete')} variant="green">Completar</ActionBtn>
+                            <ActionBtn onClick={() => handleAction(b.id, 'cancel')} variant="ghost">Cancelar</ActionBtn>
                           </>
                         )}
                       </div>
@@ -375,5 +356,26 @@ export default function BookingsPage() {
         </div>
       )}
     </div>
+  )
+}
+
+function ActionBtn({ onClick, variant, children }: {
+  onClick: () => void
+  variant: 'green' | 'blue' | 'ghost'
+  children: React.ReactNode
+}) {
+  const styles = {
+    green: { background: '#dcfce7', color: '#166534' },
+    blue:  { background: '#dbeafe', color: '#1e40af' },
+    ghost: { background: '#f1f5f9', color: '#475569' },
+  }
+  return (
+    <button
+      onClick={onClick}
+      className="text-xs px-3 py-1.5 rounded-lg font-medium transition-opacity hover:opacity-80"
+      style={styles[variant]}
+    >
+      {children}
+    </button>
   )
 }
