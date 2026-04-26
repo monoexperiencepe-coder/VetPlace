@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { api } from '@/lib/api'
+import { useConfirm } from '@/context/ConfirmContext'
 import { useToast } from '@/context/ToastContext'
 
 // ─── Modal nuevo evento ───────────────────────────────────────────────────────
@@ -170,6 +171,7 @@ export default function PetDetailPage() {
   const router   = useRouter()
   const petId    = params.id as string
   const toast    = useToast()
+  const confirm  = useConfirm()
 
   const [pet, setPet]           = useState<Pet | null>(null)
   const [events, setEvents]     = useState<VetEvent[]>([])
@@ -223,7 +225,15 @@ export default function PetDetailPage() {
 
   const handleEventAction = async (id: string, action: 'complete' | 'cancel') => {
     if (action === 'cancel') {
-      if (!window.confirm('¿Cancelar este evento?')) return
+      const ok = await confirm({
+        title: 'Cancelar evento',
+        message:
+          '¿Seguro que querés cancelar este evento? Podés registrar otro más adelante si hace falta.',
+        confirmLabel: 'Sí, cancelar',
+        cancelLabel: 'No, volver',
+        variant: 'danger',
+      })
+      if (!ok) return
     }
     try {
       if (action === 'complete') {
@@ -241,7 +251,15 @@ export default function PetDetailPage() {
 
   const handleBookingAction = async (id: string, action: 'confirm' | 'complete' | 'cancel') => {
     if (action === 'cancel') {
-      if (!window.confirm('¿Cancelar esta cita?')) return
+      const ok = await confirm({
+        title: 'Cancelar cita',
+        message:
+          '¿Seguro que querés cancelar esta cita? El horario quedará libre para otro paciente.',
+        confirmLabel: 'Sí, cancelar',
+        cancelLabel: 'No, volver',
+        variant: 'danger',
+      })
+      if (!ok) return
     }
     try {
       if (action === 'confirm') {

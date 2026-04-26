@@ -9,7 +9,7 @@ import {
   useEffect,
 } from 'react'
 
-type ToastKind = 'success' | 'error' | 'info'
+type ToastKind = 'success' | 'error' | 'info' | 'warning'
 
 export interface ToastItem {
   id: number
@@ -22,6 +22,7 @@ interface ToastContextValue {
   success: (message: string) => void
   error: (message: string) => void
   info: (message: string) => void
+  warning: (message: string) => void
 }
 
 const ToastContext = createContext<ToastContextValue | null>(null)
@@ -46,6 +47,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       success: (m) => show(m, 'success'),
       error: (m) => show(m, 'error'),
       info: (m) => show(m, 'info'),
+      warning: (m) => show(m, 'warning'),
     }),
     [show]
   )
@@ -72,6 +74,7 @@ function Toast({ item, onDismiss }: { item: ToastItem; onDismiss: () => void }) 
     success: { bg: '#ecfdf5', border: '#6ee7b7', text: '#065f46', dot: '#10b981' },
     error:   { bg: '#fef2f2', border: '#fca5a5', text: '#991b1b', dot: '#ef4444' },
     info:    { bg: '#eff6ff', border: '#93c5fd', text: '#1e3a8a', dot: '#2563eb' },
+    warning: { bg: '#fffbeb', border: '#fcd34d', text: '#92400e', dot: '#f59e0b' },
   }[item.kind]
 
   return (

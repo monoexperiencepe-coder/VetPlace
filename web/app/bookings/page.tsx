@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { api } from '@/lib/api'
+import { useConfirm } from '@/context/ConfirmContext'
 import { useToast } from '@/context/ToastContext'
 
 function normalizeTime(t: string): string {
@@ -278,7 +279,8 @@ function NewBookingModal({ defaultDate, onClose, onCreated }: NewBookingModalPro
 
 // ─── Página principal ─────────────────────────────────────────────────────────
 export default function BookingsPage() {
-  const toast = useToast()
+  const toast   = useToast()
+  const confirm = useConfirm()
   const [date, setDate]         = useState(todayStr())
   const [bookings, setBookings] = useState<Booking[]>([])
   const [loading, setLoading]   = useState(true)
@@ -301,7 +303,17 @@ export default function BookingsPage() {
   useEffect(() => { load() }, [load])
 
   const handleAction = async (id: string, action: 'confirm' | 'complete' | 'cancel') => {
-    if (action === 'cancel' && !window.confirm('¿Cancelar esta cita?')) return
+    if (action === 'cancel') {
+      const ok = await confirm({
+        title: 'Cancelar cita',
+        message:
+          '¿Seguro que querés cancelar esta cita? El horario quedará libre para otro paciente.',
+        confirmLabel: 'Sí, cancelar',
+        cancelLabel: 'No, volver',
+        variant: 'danger',
+      })
+      if (!ok) return
+    }
     try {
       if (action === 'confirm') {
         await api.confirmBooking(id)

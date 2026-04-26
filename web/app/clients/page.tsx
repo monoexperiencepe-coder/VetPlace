@@ -3,6 +3,10 @@
 import { useState, useRef } from 'react'
 import Link from 'next/link'
 import { api } from '@/lib/api'
+import { useToast } from '@/context/ToastContext'
+
+const inputClass =
+  'w-full rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200'
 
 // ─── Modal agregar mascota ────────────────────────────────────────────────────
 interface AddPetModalProps {
@@ -13,6 +17,7 @@ interface AddPetModalProps {
 }
 
 function AddPetModal({ clientId, clientName, onClose, onCreated }: AddPetModalProps) {
+  const toast = useToast()
   const [name, setName]   = useState('')
   const [type, setType]   = useState('dog')
   const [birthDate, setBirthDate] = useState('')
@@ -21,7 +26,11 @@ function AddPetModal({ clientId, clientName, onClose, onCreated }: AddPetModalPr
   const [error, setError] = useState('')
 
   const submit = async () => {
-    if (!name.trim()) return setError('El nombre es obligatorio')
+    if (!name.trim()) {
+      setError('El nombre es obligatorio')
+      toast.warning('Completá el nombre de la mascota')
+      return
+    }
     setSubmitting(true)
     setError('')
     try {
@@ -32,27 +41,48 @@ function AddPetModal({ clientId, clientName, onClose, onCreated }: AddPetModalPr
         birth_date:              birthDate || undefined,
         grooming_frequency_days: groomFreq ? Number(groomFreq) : undefined,
       }) as Pet
+      toast.success(`${pet.name} se agregó al cliente`)
       onCreated(pet)
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Error al crear mascota')
+      const msg = e instanceof Error ? e.message : 'Error al crear mascota'
+      setError(msg)
+      toast.error(msg)
     } finally {
       setSubmitting(false)
     }
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 p-6">
-        <div className="flex items-center justify-between mb-5">
-          <h3 className="text-lg font-bold">Nueva mascota</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <button
+        type="button"
+        className="absolute inset-0 cursor-default"
+        style={{ background: 'rgba(17,28,68,0.45)' }}
+        aria-label="Cerrar"
+        onClick={onClose}
+      />
+      <div
+        className="relative w-full max-w-sm rounded-2xl p-6 shadow-2xl"
+        style={{ background: '#ffffff', border: '1px solid #e4ebff' }}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-bold" style={{ color: '#0f172a' }}>Nueva mascota</h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-xl leading-none"
+            style={{ color: '#94a3b8', background: '#f0f4ff' }}
+          >
+            ×
+          </button>
         </div>
-        <p className="text-sm text-gray-500 mb-4">Cliente: <span className="font-medium text-gray-800">{clientName}</span></p>
+        <p className="text-sm mb-4" style={{ color: '#64748b' }}>
+          Cliente: <span className="font-semibold" style={{ color: '#0f172a' }}>{clientName}</span>
+        </p>
 
         <div className="space-y-3">
           <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Nombre *</label>
+            <label className="block text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: '#94a3b8' }}>Nombre *</label>
             <input
               autoFocus
               type="text"
@@ -60,16 +90,18 @@ function AddPetModal({ clientId, clientName, onClose, onCreated }: AddPetModalPr
               onChange={(e) => setName(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && submit()}
               placeholder="Ej: Max"
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+              className={inputClass}
+              style={{ border: '1.5px solid #e4ebff', background: '#f8faff' }}
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Tipo *</label>
+            <label className="block text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: '#94a3b8' }}>Tipo *</label>
             <select
               value={type}
               onChange={(e) => setType(e.target.value)}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
+              className={`${inputClass} bg-white`}
+              style={{ border: '1.5px solid #e4ebff' }}
             >
               <option value="dog">🐶 Perro</option>
               <option value="cat">🐱 Gato</option>
@@ -80,17 +112,18 @@ function AddPetModal({ clientId, clientName, onClose, onCreated }: AddPetModalPr
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Fecha de nacimiento</label>
+            <label className="block text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: '#94a3b8' }}>Fecha de nacimiento</label>
             <input
               type="date"
               value={birthDate}
               onChange={(e) => setBirthDate(e.target.value)}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
+              className={`${inputClass} bg-white`}
+              style={{ border: '1.5px solid #e4ebff' }}
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+            <label className="block text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: '#94a3b8' }}>
               Frecuencia de baño (días)
             </label>
             <input
@@ -98,25 +131,30 @@ function AddPetModal({ clientId, clientName, onClose, onCreated }: AddPetModalPr
               min="1"
               value={groomFreq}
               onChange={(e) => setGroomFreq(e.target.value)}
-              placeholder="Ej: 30"
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+              placeholder="Ej: 30 — para recordatorios automáticos"
+              className={inputClass}
+              style={{ border: '1.5px solid #e4ebff', background: '#f8faff' }}
             />
           </div>
         </div>
 
-        {error && <p className="text-red-500 text-xs mt-3">{error}</p>}
+        {error && <p className="text-red-600 text-xs mt-3">{error}</p>}
 
         <div className="flex gap-3 mt-5">
           <button
+            type="button"
             onClick={submit}
             disabled={submitting}
-            className="flex-1 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+            className="flex-1 py-2.5 text-white text-sm font-semibold rounded-xl disabled:opacity-50"
+            style={{ background: 'var(--blue)' }}
           >
             {submitting ? 'Creando...' : 'Crear mascota'}
           </button>
           <button
+            type="button"
             onClick={onClose}
-            className="px-4 py-2 border border-gray-200 text-gray-600 text-sm rounded-lg hover:bg-gray-50"
+            className="px-4 py-2.5 text-sm font-semibold rounded-xl"
+            style={{ background: '#f0f4ff', color: '#334155' }}
           >
             Cancelar
           </button>
@@ -150,6 +188,7 @@ const PET_TYPE_LABEL: Record<string, string> = {
 }
 
 export default function ClientsPage() {
+  const toast = useToast()
   const [mode, setMode] = useState<'phone' | 'name'>('phone')
 
   // búsqueda
@@ -167,9 +206,14 @@ export default function ClientsPage() {
   const [newPhone, setNewPhone]   = useState('')
   const [newName, setNewName]     = useState('')
   const [creating, setCreating]   = useState(false)
-  const [createMsg, setCreateMsg] = useState('')
 
   const inputRef = useRef<HTMLInputElement>(null)
+
+  const qTrim = query.trim()
+  const searchDisabled =
+    loading ||
+    !qTrim ||
+    (mode === 'name' && qTrim.length < 2)
 
   const reset = () => {
     setClients([])
@@ -179,21 +223,36 @@ export default function ClientsPage() {
   }
 
   const search = async () => {
-    if (!query.trim()) return
+    if (!qTrim) return
+    if (mode === 'name' && qTrim.length < 2) {
+      toast.warning('Escribí al menos 2 caracteres para buscar por nombre')
+      return
+    }
+    if (mode === 'phone' && !/^\+\d{7,15}$/.test(qTrim)) {
+      toast.warning('Usá formato internacional con +: ej. +51987654321')
+      return
+    }
     setLoading(true)
     reset()
     try {
       if (mode === 'phone') {
-        const data = await api.getClientByPhone(query.trim()) as Client
+        const data = await api.getClientByPhone(qTrim) as Client
         setSelected(data)
+        toast.success('Cliente encontrado')
         loadPets(data.id)
       } else {
-        const data = await api.searchClients(query.trim()) as Client[]
+        const data = await api.searchClients(qTrim) as Client[]
         setClients(data)
-        if (data.length === 0) setError('Sin resultados')
+        if (data.length === 0) {
+          setError('Sin resultados para ese criterio')
+        } else {
+          toast.success(`${data.length} resultado${data.length === 1 ? '' : 's'}`)
+        }
       }
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'No encontrado')
+      const msg = e instanceof Error ? e.message : 'No encontrado'
+      setError(msg)
+      toast.error(msg)
     } finally {
       setLoading(false)
     }
@@ -212,22 +271,29 @@ export default function ClientsPage() {
       setPets(data)
     } catch {
       setPets([])
+      toast.error('No se pudieron cargar las mascotas')
     } finally {
       setLoadingPets(false)
     }
   }
 
   const create = async () => {
-    if (!newPhone.trim()) return
+    if (!newPhone.trim()) {
+      toast.warning('Ingresá el teléfono del cliente')
+      return
+    }
+    if (!/^\+\d{7,15}$/.test(newPhone.trim())) {
+      toast.warning('El teléfono debe ser E.164, ej. +51987654321')
+      return
+    }
     setCreating(true)
-    setCreateMsg('')
     try {
       const data = await api.createClient({ phone: newPhone.trim(), name: newName.trim() || undefined }) as Client
-      setCreateMsg(`✓ Cliente creado: ${data.name ?? data.phone}`)
+      toast.success(`Cliente creado: ${data.name ?? data.phone}`)
       setNewPhone('')
       setNewName('')
     } catch (e: unknown) {
-      setCreateMsg(`✗ ${e instanceof Error ? e.message : 'Error'}`)
+      toast.error(e instanceof Error ? e.message : 'No se pudo crear el cliente')
     } finally {
       setCreating(false)
     }
@@ -283,7 +349,7 @@ export default function ClientsPage() {
           />
           <button
             onClick={search}
-            disabled={loading}
+            disabled={searchDisabled}
             className="px-4 py-2 text-white text-sm rounded-xl disabled:opacity-50"
             style={{ background: 'var(--blue)' }}
           >
@@ -291,7 +357,13 @@ export default function ClientsPage() {
           </button>
         </div>
 
-        {error && <p className="text-red-500 text-sm mt-3">{error}</p>}
+        <p className="text-xs mt-2" style={{ color: '#94a3b8' }}>
+          {mode === 'phone'
+            ? 'Formato internacional: + código de país y número, sin espacios.'
+            : 'Mínimo 2 caracteres. Coincide con nombre o teléfono.'}
+        </p>
+
+        {error && <p className="text-red-600 text-sm mt-3">{error}</p>}
 
         {/* Resultados múltiples (búsqueda por nombre) */}
         {clients.length > 0 && (
@@ -335,8 +407,10 @@ export default function ClientsPage() {
               <div className="flex items-center justify-between mb-2">
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Mascotas</p>
                 <button
+                  type="button"
                   onClick={() => setShowAddPet(true)}
-                  className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+                  className="text-xs font-semibold"
+                  style={{ color: 'var(--blue)' }}
                 >
                   + Agregar
                 </button>
@@ -374,7 +448,7 @@ export default function ClientsPage() {
             placeholder="Teléfono (E.164): +51987654321 *"
             value={newPhone}
             onChange={(e) => setNewPhone(e.target.value)}
-            className="rounded-xl px-3 py-2 text-sm focus:outline-none"
+            className="rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
             style={{ border: '1.5px solid #e4ebff', background: '#f8faff' }}
           />
           <input
@@ -383,22 +457,21 @@ export default function ClientsPage() {
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && create()}
-            className="rounded-xl px-3 py-2 text-sm focus:outline-none"
+            className="rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
             style={{ border: '1.5px solid #e4ebff', background: '#f8faff' }}
           />
+          <p className="text-xs" style={{ color: '#94a3b8' }}>
+            El cliente podrá identificarse con ese teléfono en agenda y recordatorios.
+          </p>
           <button
+            type="button"
             onClick={create}
             disabled={creating}
-            className="px-4 py-2 text-white text-sm rounded-xl disabled:opacity-50 self-start font-medium"
+            className="px-4 py-2 text-white text-sm rounded-xl disabled:opacity-50 self-start font-semibold"
             style={{ background: 'var(--blue)' }}
           >
             {creating ? 'Creando...' : 'Crear cliente'}
           </button>
-          {createMsg && (
-            <p className={`text-sm ${createMsg.startsWith('✓') ? 'text-green-600' : 'text-red-500'}`}>
-              {createMsg}
-            </p>
-          )}
         </div>
       </section>
     </div>

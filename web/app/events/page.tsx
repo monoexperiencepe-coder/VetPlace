@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { api } from '@/lib/api'
+import { useConfirm } from '@/context/ConfirmContext'
 import { useToast } from '@/context/ToastContext'
 
 type EventStatus = 'PENDING' | 'NOTIFIED' | 'COMPLETED' | 'CANCELLED'
@@ -44,7 +45,8 @@ const TYPE_ICON: Record<EventType, string> = {
 }
 
 export default function EventsPage() {
-  const toast = useToast()
+  const toast   = useToast()
+  const confirm = useConfirm()
   const [events, setEvents]   = useState<VetEvent[]>([])
   const [status, setStatus]   = useState<string>('')
   const [type, setType]       = useState<string>('')
@@ -70,7 +72,17 @@ export default function EventsPage() {
   useEffect(() => { load() }, [load])
 
   const handleAction = async (id: string, action: 'complete' | 'cancel') => {
-    if (action === 'cancel' && !window.confirm('¿Cancelar este evento?')) return
+    if (action === 'cancel') {
+      const ok = await confirm({
+        title: 'Cancelar evento',
+        message:
+          '¿Seguro que querés cancelar este evento? Podés registrar otro más adelante si hace falta.',
+        confirmLabel: 'Sí, cancelar',
+        cancelLabel: 'No, volver',
+        variant: 'danger',
+      })
+      if (!ok) return
+    }
     try {
       if (action === 'complete') {
         await api.completeEvent(id)

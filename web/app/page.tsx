@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { api } from '@/lib/api'
+import { useToast } from '@/context/ToastContext'
 
 interface Stats {
   bookings_today:     number
@@ -12,6 +13,7 @@ interface Stats {
 }
 
 export default function DashboardPage() {
+  const toast = useToast()
   const [stats, setStats]     = useState<Stats | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -21,8 +23,12 @@ export default function DashboardPage() {
   useEffect(() => {
     api.getStats()
       .then((d) => setStats(d as Stats))
-      .catch(() => setStats({ bookings_today: 0, events_pending: 0, events_upcoming_7d: 0, total_clients: 0 }))
+      .catch(() => {
+        setStats({ bookings_today: 0, events_pending: 0, events_upcoming_7d: 0, total_clients: 0 })
+        toast.warning('No se pudieron cargar las estadísticas. ¿El servidor está encendido?')
+      })
       .finally(() => setLoading(false))
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- toast estable; solo al montar
   }, [])
 
   return (
