@@ -25,10 +25,11 @@ export default function RegisterPage() {
   const router = useRouter()
   const supabase = createClient()
 
-  const [form, setForm]         = useState<FormData>(EMPTY)
-  const [showPass, setShowPass] = useState(false)
-  const [loading, setLoading]   = useState(false)
-  const [error, setError]       = useState<string | null>(null)
+  const [form, setForm]           = useState<FormData>(EMPTY)
+  const [showPass, setShowPass]   = useState(false)
+  const [loading, setLoading]     = useState(false)
+  const [error, setError]         = useState<string | null>(null)
+  const [pendingConfirm, setPendingConfirm] = useState(false)
 
   const set = (k: keyof FormData) => (v: string) => setForm((f) => ({ ...f, [k]: v }))
 
@@ -47,7 +48,7 @@ export default function RegisterPage() {
 
     setLoading(true)
 
-    const { error: signUpError } = await supabase.auth.signUp({
+    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
       email:    form.email.trim(),
       password: form.password,
       options: {
@@ -60,33 +61,55 @@ export default function RegisterPage() {
     })
 
     if (signUpError) {
-      setError(signUpError.message)
+      // Mapear mensajes de Supabase a español
+      const msg = signUpError.message.toLowerCase()
+      if (msg.includes('already registered') || msg.includes('already exists')) {
+        setError('Ya existe una cuenta con ese email. Iniciá sesión.')
+      } else if (msg.includes('password')) {
+        setError('La contraseña no cumple los requisitos mínimos.')
+      } else if (msg.includes('invalid') && msg.includes('email')) {
+        setError('El email ingresado no es válido.')
+      } else {
+        setError(signUpError.message)
+      }
       setLoading(false)
       return
     }
 
-    // Crear clínica en el backend
-    try {
-      const clinic = await api.setupClinic({
-        name:  form.clinicName.trim(),
-        phone: form.phone.trim() || undefined,
-        email: form.email.trim(),
-      }) as { id: string; name: string }
-
-      // Guardar clinic_id en user_metadata para que el JWT lo incluya
-      await supabase.auth.updateUser({
-        data: { clinic_id: clinic.id, clinic_name: clinic.name },
-      })
-    } catch {
-      // No bloqueamos el registro si falla — se puede crear después en settings
-    }
-
-    // Persistir nombre de clínica en localStorage
+    // Persistir nombre de clínica en localStorage (siempre, independiente de la sesión)
     if (form.clinicName.trim()) {
       localStorage.setItem(CLINIC_NAME_STORAGE_KEY, form.clinicName.trim())
     }
 
-    router.push('/')
+    // Si hay sesión activa (confirmación de email desactivada), crear clínica ahora
+    const session = signUpData?.session
+    if (session) {
+      try {
+        const clinic = await api.setupClinic({
+          name:  form.clinicName.trim(),
+          phone: form.phone.trim() || undefined,
+          email: form.email.trim(),
+        }) as { ok: boolean; data: { id: string; name: string } }
+
+        const clinicData = clinic?.data ?? (clinic as unknown as { id: string; name: string })
+        if (clinicData?.id) {
+          await supabase.auth.updateUser({
+            data: { clinic_id: clinicData.id, clinic_name: clinicData.name },
+          })
+        }
+      } catch {
+        // No bloqueamos el flujo — se completa en Settings
+      }
+      router.push('/')
+      router.refresh()
+    } else {
+      // Email de confirmación enviado — mostrar mensaje en vez de redirigir
+      setLoading(false)
+      setError('')
+      // Reutilizamos el estado de error para mostrar un mensaje de éxito
+      // (hacemos un estado separado para esto)
+      setPendingConfirm(true)
+    }
   }
 
   return (
@@ -105,6 +128,27 @@ export default function RegisterPage() {
             <Image src="/logo.png" alt="VetPlace" width={148} height={42} priority style={{ objectFit: 'contain' }} />
           </div>
 
+          {pendingConfirm && (
+            <div className="flex flex-col items-center justify-center flex-1 gap-4 py-12 text-center">
+              <span className="text-5xl">📧</span>
+              <div>
+                <p className="text-lg font-bold" style={{ color: '#0f172a' }}>¡Revisá tu email!</p>
+                <p className="text-sm mt-2" style={{ color: '#64748b' }}>
+                  Te enviamos un link de confirmación a <strong>{form.email}</strong>.
+                  <br />Una vez confirmado podés iniciar sesión.
+                </p>
+              </div>
+              <Link
+                href="/login"
+                className="mt-2 px-6 py-2.5 rounded-xl text-sm font-semibold text-white"
+                style={{ background: 'linear-gradient(135deg,#3b10b5,#601EF9)' }}
+              >
+                Ir al login →
+              </Link>
+            </div>
+          )}
+
+          {!pendingConfirm && (
           <form onSubmit={handleSubmit} className="flex flex-col gap-4 mt-6">
             <div>
               <h1 className="text-2xl font-bold" style={{ color: '#0f172a' }}>Crear cuenta</h1>
@@ -195,6 +239,7 @@ export default function RegisterPage() {
               {loading ? 'Creando cuenta…' : 'Crear cuenta'}
             </button>
           </form>
+          )}
 
           <div className="mt-6 flex flex-col items-center gap-1">
             <p className="text-sm" style={{ color: '#64748b' }}>
