@@ -89,9 +89,6 @@ export const api = {
   searchClients: (q: string) =>
     request(`/api/users/search?q=${encodeURIComponent(q)}`),
 
-  getRecentClients: () =>
-    request('/api/users/recent'),
-
   // Pets
   createPet: (body: Record<string, unknown>) =>
     request('/api/pets', { method: 'POST', body: JSON.stringify(body) }),
