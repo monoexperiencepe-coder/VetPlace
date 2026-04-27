@@ -1,6 +1,8 @@
 import { type NextRequest, NextResponse } from 'next/server'
 
 const PUBLIC_ROUTES = ['/login', '/register', '/join', '/reset-password']
+// Rutas que requieren sesión pero no el layout principal
+const AUTH_ONLY_ROUTES = ['/onboarding']
 
 /**
  * Middleware liviano: no usa @supabase/ssr (incompatible con Turbopack).
@@ -14,9 +16,17 @@ export function middleware(request: NextRequest) {
   // Detectar si hay una cookie de sesión de Supabase activa
   const hasSession = request.cookies.getAll().some((c) => c.name.startsWith('sb-'))
 
+  const isAuthOnly = AUTH_ONLY_ROUTES.some(r => pathname === r || pathname.startsWith(r + '/'))
+
   if (isPublic) {
     // Si ya está logueado y va a login/register, redirigir al dashboard
     if (hasSession) return NextResponse.redirect(new URL('/', request.url))
+    return NextResponse.next()
+  }
+
+  // /onboarding requiere sesión pero no redirige si ya la tiene
+  if (isAuthOnly) {
+    if (!hasSession) return NextResponse.redirect(new URL('/login', request.url))
     return NextResponse.next()
   }
 

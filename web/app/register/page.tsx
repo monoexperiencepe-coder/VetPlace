@@ -100,7 +100,7 @@ export default function RegisterPage() {
       } catch {
         // No bloqueamos el flujo — se completa en Settings
       }
-      window.location.href = '/'
+      window.location.href = '/onboarding'
     } else {
       // Email de confirmación enviado — mostrar mensaje en vez de redirigir
       setLoading(false)
