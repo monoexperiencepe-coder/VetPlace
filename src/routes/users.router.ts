@@ -11,7 +11,7 @@ router.use(authMiddleware)
 // Body: { phone, name?, clinic_id? }
 router.post('/', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { phone, name, clinic_id: bodyClinicId } = req.body
+    const { phone, name, email, address, distrito, notes, clinic_id: bodyClinicId } = req.body
     // QR flow: acepta clinic_id del body; autenticado: usa JWT
     const clinicId = bodyClinicId ?? getClinicId(req)
 
@@ -19,7 +19,15 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
 
     const { data, error } = await supabase
       .from('clients')
-      .insert({ phone, name: name ?? null, clinic_id: clinicId })
+      .insert({
+        phone,
+        name:     name     ?? null,
+        email:    email    ?? null,
+        address:  address  ?? null,
+        distrito: distrito ?? null,
+        notes:    notes    ?? null,
+        clinic_id: clinicId,
+      })
       .select()
       .single()
 

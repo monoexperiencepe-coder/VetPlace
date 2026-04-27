@@ -12,10 +12,27 @@ interface Client {
   name?:      string
   email?:     string
   address?:   string
+  distrito?:  string
   notes?:     string
   created_at: string
   pets?:      { id: string; name: string; type: string }[]
 }
+
+const DISTRITOS_LIMA = [
+  'Ancón','Ate','Barranco','Breña','Carabayllo','Chaclacayo','Chorrillos',
+  'Cieneguilla','Comas','El Agustino','Independencia','Jesús María',
+  'La Molina','La Victoria','Lima (Cercado)','Lince','Los Olivos',
+  'Lurigancho (Chosica)','Lurín','Magdalena del Mar','Miraflores',
+  'Pachacámac','Pucusana','Pueblo Libre','Puente Piedra','Punta Hermosa',
+  'Punta Negra','Rímac','San Bartolo','San Borja','San Isidro',
+  'San Juan de Lurigancho','San Juan de Miraflores','San Luis',
+  'San Martín de Porres','San Miguel','Santa Anita','Santa María del Mar',
+  'Santa Rosa','Santiago de Surco','Surquillo','Villa El Salvador',
+  'Villa María del Triunfo',
+  // Callao
+  'Bellavista','Callao','Carmen de la Legua','La Perla','La Punta',
+  'Mi Perú','Ventanilla',
+]
 
 interface ClientStats {
   clients_total:      number
@@ -48,7 +65,7 @@ const PET_LABEL: Record<string, string>  = { dog: 'Perro', cat: 'Gato', bird: 'A
 // ─── Modal: Nuevo cliente ─────────────────────────────────────────────────────
 function NewClientModal({ onClose, onCreated }: { onClose: () => void; onCreated: (c: Client) => void }) {
   const toast = useToast()
-  const [form, setForm] = useState({ phone: '', name: '', email: '', address: '', notes: '' })
+  const [form, setForm] = useState({ phone: '', name: '', email: '', address: '', distrito: '', notes: '' })
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
 
@@ -60,8 +77,12 @@ function NewClientModal({ onClose, onCreated }: { onClose: () => void; onCreated
     setSaving(true); setErr('')
     try {
       const data = await api.createClient({
-        phone: form.phone.trim(),
-        name:  form.name.trim() || undefined,
+        phone:    form.phone.trim(),
+        name:     form.name.trim()     || undefined,
+        email:    form.email.trim()    || undefined,
+        address:  form.address.trim()  || undefined,
+        distrito: form.distrito        || undefined,
+        notes:    form.notes.trim()    || undefined,
       }) as Client
       toast.success(`Cliente creado: ${data.name ?? data.phone}`)
       onCreated(data)
@@ -76,10 +97,29 @@ function NewClientModal({ onClose, onCreated }: { onClose: () => void; onCreated
   return (
     <Modal title="Nuevo cliente" onClose={onClose}>
       <form onSubmit={submit} className="space-y-3">
-        <MField label="Teléfono *" value={form.phone} onChange={set('phone')} placeholder="+54 9 11 XXXX-XXXX" type="tel" required />
+        <MField label="Teléfono *" value={form.phone} onChange={set('phone')} placeholder="+51 9XX XXX XXX" type="tel" required />
         <MField label="Nombre"     value={form.name}  onChange={set('name')}  placeholder="Juan García" />
         <MField label="Email"      value={form.email} onChange={set('email')} placeholder="juan@email.com" type="email" />
-        <MField label="Dirección"  value={form.address} onChange={set('address')} placeholder="Av. Corrientes 1234" />
+        <MField label="Dirección"  value={form.address} onChange={set('address')} placeholder="Av. Arequipa 1234" />
+
+        {/* Distrito */}
+        <div>
+          <label className="text-xs font-semibold mb-1 block" style={{ color: '#334155' }}>Distrito</label>
+          <select
+            value={form.distrito}
+            onChange={e => set('distrito')(e.target.value)}
+            className="w-full px-3 py-2.5 rounded-xl text-sm outline-none"
+            style={{ background: '#F9F9FB', border: '1.5px solid #E5E7EB', color: form.distrito ? '#0f172a' : '#94a3b8' }}
+            onFocus={e => e.currentTarget.style.border = '1.5px solid #601EF9'}
+            onBlur={e  => e.currentTarget.style.border = '1.5px solid #E5E7EB'}
+          >
+            <option value="">Seleccionar distrito…</option>
+            {DISTRITOS_LIMA.map(d => (
+              <option key={d} value={d}>{d}</option>
+            ))}
+          </select>
+        </div>
+
         <div>
           <label className="text-xs font-semibold mb-1 block" style={{ color: '#334155' }}>Notas</label>
           <textarea
@@ -89,6 +129,8 @@ function NewClientModal({ onClose, onCreated }: { onClose: () => void; onCreated
             placeholder="Observaciones generales..."
             className="w-full px-3 py-2 rounded-xl text-sm outline-none resize-none"
             style={{ background: '#F9F9FB', border: '1.5px solid #E5E7EB', color: '#0f172a' }}
+            onFocus={e => e.currentTarget.style.border = '1.5px solid #601EF9'}
+            onBlur={e  => e.currentTarget.style.border = '1.5px solid #E5E7EB'}
           />
         </div>
         {err && <p className="text-xs" style={{ color: '#dc2626' }}>{err}</p>}
@@ -464,7 +506,9 @@ export default function ClientsPage() {
               <div className="grid grid-cols-2 gap-3">
                 <InfoPill icon="📱" label="Teléfono" value={selected.phone} />
                 <InfoPill icon="📧" label="Email"    value={selected.email ?? '—'} />
-                <InfoPill icon="📍" label="Dirección" value={selected.address ?? '—'} fullWidth />
+                <InfoPill icon="📍" label="Dirección"
+                  value={[selected.address, selected.distrito].filter(Boolean).join(' · ') || '—'}
+                  fullWidth />
                 {selected.notes && (
                   <InfoPill icon="📝" label="Notas" value={selected.notes} fullWidth />
                 )}

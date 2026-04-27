@@ -77,7 +77,7 @@ export const api = {
     request('/api/clinics/me', { method: 'PATCH', body: JSON.stringify(body) }),
 
   // Clients
-  createClient: (body: { phone: string; name?: string }) =>
+  createClient: (body: { phone: string; name?: string; email?: string; address?: string; distrito?: string; notes?: string }) =>
     request('/api/users', { method: 'POST', body: JSON.stringify(body) }),
 
   getClient: (id: string) =>
