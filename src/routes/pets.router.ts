@@ -5,7 +5,8 @@ import {
   getPetWithUser,
   recordGroomingCompleted,
 } from '../services/petService'
-import { ValidationError } from '../utils/errors'
+import { ValidationError, handleSupabaseError } from '../utils/errors'
+import { supabase } from '../config/supabase'
 import { getClinicId } from '../config/clinic'
 import { authMiddleware } from '../middleware/authMiddleware'
 
@@ -31,6 +32,30 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
 
     const pet = await createPet({ clinic_id: clinicId, user_id, name, type, birth_date, grooming_frequency_days })
     res.status(201).json({ ok: true, data: pet })
+  } catch (err) {
+    next(err)
+  }
+})
+
+// GET /api/pets/search?q=nombre
+router.get('/search', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { q } = req.query as { q?: string }
+    const clinicId = getClinicId(req)
+
+    if (!q || q.trim().length < 1) throw new ValidationError('q is required')
+
+    const term = q.trim()
+    const { data, error } = await supabase
+      .from('pets')
+      .select('id, name, type, breed, birth_date, grooming_frequency_days, user_id, client:clients (id, name, phone, email, created_at)')
+      .eq('clinic_id', clinicId)
+      .ilike('name', `%${term}%`)
+      .order('name', { ascending: true })
+      .limit(20)
+
+    if (error) handleSupabaseError(error)
+    res.json({ ok: true, data: data ?? [] })
   } catch (err) {
     next(err)
   }

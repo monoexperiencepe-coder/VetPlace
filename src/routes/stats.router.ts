@@ -28,7 +28,7 @@ function subMonth(dateStr: string): string {
 }
 
 // GET /api/stats
-router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
+router.get('/', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const clinicId = getClinicId(req)
     const today    = todayUTC()

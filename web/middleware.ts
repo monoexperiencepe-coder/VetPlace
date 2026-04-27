@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 
-const PUBLIC_ROUTES = ['/login', '/register', '/join']
+const PUBLIC_ROUTES = ['/login', '/register', '/join', '/reset-password']
 
 /**
  * Middleware liviano: no usa @supabase/ssr (incompatible con Turbopack).

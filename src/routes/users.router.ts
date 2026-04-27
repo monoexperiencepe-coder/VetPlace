@@ -31,6 +31,24 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
   }
 })
 
+// GET /api/users/recent
+router.get('/recent', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const clinicId = getClinicId(req)
+    const { data, error } = await supabase
+      .from('clients')
+      .select('id, name, phone, email, created_at, pets (id, name, type)')
+      .eq('clinic_id', clinicId)
+      .order('created_at', { ascending: false })
+      .limit(10)
+
+    if (error) handleSupabaseError(error)
+    res.json({ ok: true, data: data ?? [] })
+  } catch (err) {
+    next(err)
+  }
+})
+
 // GET /api/users/search?q=...
 router.get('/search', async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -42,7 +60,7 @@ router.get('/search', async (req: Request, res: Response, next: NextFunction) =>
     const term = q.trim()
     const { data, error } = await supabase
       .from('clients')
-      .select('*')
+      .select('*, pets (id, name, type)')
       .eq('clinic_id', clinicId)
       .or(`name.ilike.%${term}%,phone.ilike.%${term}%`)
       .order('name', { ascending: true })
@@ -80,20 +98,20 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
 // GET /api/users/phone/:phone
 router.get('/phone/:phone', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const phone = decodeURIComponent(req.params.phone)
+    const raw = decodeURIComponent(req.params.phone)
+    const normalized = raw.startsWith('+') ? raw : `+51${raw}`
     const clinicId = getClinicId(req)
 
     const { data, error } = await supabase
       .from('clients')
-      .select('*')
-      .eq('phone', phone)
+      .select('*, pets (id, name, type)')
       .eq('clinic_id', clinicId)
-      .single()
+      .or(`phone.eq.${raw},phone.eq.${normalized}`)
+      .maybeSingle()
 
     if (error) handleSupabaseError(error)
-    if (!data) throw new NotFoundError('User', phone)
 
-    res.json({ ok: true, data })
+    res.json({ ok: true, data: data ?? null })
   } catch (err) {
     next(err)
   }

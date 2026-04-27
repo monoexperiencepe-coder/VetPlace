@@ -58,6 +58,14 @@ export const api = {
   getStats: () =>
     request('/api/stats'),
 
+  // Recent clients
+  getRecentClients: () =>
+    request('/api/users/recent'),
+
+  // Search pets by name
+  searchPets: (q: string) =>
+    request(`/api/pets/search?q=${encodeURIComponent(q)}`),
+
   // Clinics
   setupClinic: (body: { name: string; phone?: string; email?: string }) =>
     request('/api/clinics/setup', { method: 'POST', body: JSON.stringify(body) }),
@@ -80,6 +88,9 @@ export const api = {
 
   searchClients: (q: string) =>
     request(`/api/users/search?q=${encodeURIComponent(q)}`),
+
+  getRecentClients: () =>
+    request('/api/users/recent'),
 
   // Pets
   createPet: (body: Record<string, unknown>) =>

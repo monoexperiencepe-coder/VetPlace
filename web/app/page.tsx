@@ -129,8 +129,9 @@ export default function DashboardPage() {
     <div className="space-y-6">
 
       {/* ── Banner ── */}
-      <div
-        className="relative rounded-2xl overflow-hidden px-8 py-6"
+      <Link
+        href="/bookings"
+        className="block relative rounded-2xl overflow-hidden px-8 py-6 cursor-pointer transition-opacity hover:opacity-95"
         style={{ background: 'linear-gradient(135deg, #3b10b5 0%, #601EF9 60%, #7c3aff 100%)' }}
       >
         <div className="absolute -top-10 -right-10 w-48 h-48 rounded-full opacity-20"
@@ -143,17 +144,14 @@ export default function DashboardPage() {
             <h2 className="text-white text-xl font-bold">Bienvenido a VetPlace</h2>
             <p className="text-sm mt-0.5 capitalize" style={{ color: '#c4b5fd' }}>{today}</p>
           </div>
-          <Link
-            href="/bookings"
-            className="hidden md:block px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all"
+          <span
+            className="hidden md:block px-4 py-2 rounded-xl text-sm font-semibold text-white"
             style={{ background: 'rgba(255,255,255,0.18)' }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.28)')}
-            onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.18)')}
           >
             Ver agenda →
-          </Link>
+          </span>
         </div>
-      </div>
+      </Link>
 
       {/* ── Alerta eventos vencidos ── */}
       {overdueEvents.length > 0 && (

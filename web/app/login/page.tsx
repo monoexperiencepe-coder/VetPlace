@@ -10,12 +10,33 @@ export default function LoginPage() {
   const router   = useRouter()
   const supabase = createClient()
 
-  const [showPass, setShowPass] = useState(false)
-  const [email, setEmail]       = useState('')
-  const [password, setPassword] = useState('')
-  const [remember, setRemember] = useState(false)
-  const [loading, setLoading]   = useState(false)
-  const [error, setError]       = useState<string | null>(null)
+  const [showPass, setShowPass]       = useState(false)
+  const [email, setEmail]             = useState('')
+  const [password, setPassword]       = useState('')
+  const [remember, setRemember]       = useState(false)
+  const [loading, setLoading]         = useState(false)
+  const [error, setError]             = useState<string | null>(null)
+  const [resetSent, setResetSent]     = useState(false)
+  const [resetLoading, setResetLoading] = useState(false)
+
+  const handleForgotPassword = async () => {
+    const trimmed = email.trim()
+    if (!trimmed) {
+      setError('Ingresá tu email primero para recuperar la contraseña.')
+      return
+    }
+    setResetLoading(true)
+    setError(null)
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(trimmed, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    })
+    setResetLoading(false)
+    if (resetError) {
+      setError('No se pudo enviar el correo. Verificá el email ingresado.')
+    } else {
+      setResetSent(true)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -130,8 +151,14 @@ export default function LoginPage() {
                 />
                 Recordarme
               </label>
-              <button type="button" className="font-semibold hover:underline" style={{ color: '#601EF9' }}>
-                ¿Olvidaste tu contraseña?
+              <button
+                type="button"
+                onClick={handleForgotPassword}
+                disabled={resetLoading}
+                className="font-semibold hover:underline disabled:opacity-50"
+                style={{ color: '#601EF9' }}
+              >
+                {resetLoading ? 'Enviando…' : '¿Olvidaste tu contraseña?'}
               </button>
             </div>
 
@@ -139,6 +166,13 @@ export default function LoginPage() {
             {error && (
               <div className="px-4 py-3 rounded-xl text-sm font-medium" style={{ background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca' }}>
                 {error}
+              </div>
+            )}
+
+            {/* Reset sent */}
+            {resetSent && (
+              <div className="px-4 py-3 rounded-xl text-sm font-medium" style={{ background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0' }}>
+                ✓ Te enviamos un correo a <strong>{email.trim()}</strong> con el enlace para restablecer tu contraseña.
               </div>
             )}
 
