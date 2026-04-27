@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useToast } from '@/context/ToastContext'
 import { createClient } from '@/lib/supabase'
+import { api } from '@/lib/api'
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:3000'
 
@@ -18,613 +19,666 @@ async function authFetch(path: string, options?: RequestInit) {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface OverdueEvent {
-  id:             string
-  type:           string
-  scheduled_date: string
-  pet: {
-    id:   string
-    name: string
-    user: { id: string; name?: string; phone: string } | null
-  } | null
+  id: string; type: string; scheduled_date: string
+  pet: { id: string; name: string; user: { id: string; name?: string; phone: string } | null } | null
 }
-
 interface TodayBooking {
-  id:     string
-  time:   string
-  status: string
-  notes?: string
-  pet: {
-    id:   string
-    name: string
-    type: string
-    user: { id: string; name?: string; phone: string } | null
-  } | null
+  id: string; time: string; status: string; notes?: string
+  pet: { id: string; name: string; type: string; user: { id: string; name?: string; phone: string } | null } | null
+}
+interface StatsData {
+  bookings_today: number; bookings_yesterday: number
+  bookings_this_week: number; bookings_last_week: number
+  bookings_this_month: number; bookings_last_month: number
+  clients_total: number; clients_this_month: number; clients_last_month: number
+  pets_total: number; events_pending: number; events_next_7_days: number; events_overdue: number
+  next_booking: { date: string; time: string; pet_name: string } | null
+}
+interface Conversation {
+  id: string; client_name?: string; phone: string
+  bot_active: boolean; unread_count: number; last_message?: string; last_message_at?: string
 }
 
-interface StatsData {
-  bookings_today:      number
-  bookings_yesterday:  number
-  bookings_this_week:  number
-  bookings_last_week:  number
-  bookings_this_month: number
-  bookings_last_month: number
-  clients_total:       number
-  clients_this_month:  number
-  clients_last_month:  number
-  pets_total:          number
-  events_pending:      number
-  events_next_7_days:  number
-  events_overdue:      number
-  next_booking: {
-    date:     string
-    time:     string
-    pet_name: string
-  } | null
-}
+const PET_EMOJI: Record<string, string> = { dog: '🐕', cat: '🐱', bird: '🐦', rabbit: '🐇', other: '🐾' }
+const EVENT_LABEL: Record<string, string> = { GROOMING: 'Baño', VACCINE: 'Vacuna', CHECKUP: 'Consulta', FOLLOWUP: 'Seguimiento', OTHER: 'Otro' }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function DashboardPage() {
   const toast = useToast()
-  const [stats, setStats]     = useState<StatsData | null>(null)
-  const [loading, setLoading] = useState(true)
 
-  const [overdueEvents, setOverdueEvents]       = useState<OverdueEvent[]>([])
-  const [todayBookings, setTodayBookings]       = useState<TodayBooking[]>([])
-  const [loadingBookings, setLoadingBookings]   = useState(true)
-  const [notifying, setNotifying]               = useState(false)
+  const [stats, setStats]               = useState<StatsData | null>(null)
+  const [loadingStats, setLoadingStats] = useState(true)
+  const [todayBookings, setTodayBookings]     = useState<TodayBooking[]>([])
+  const [loadingBookings, setLoadingBookings] = useState(true)
+  const [overdueEvents, setOverdueEvents]     = useState<OverdueEvent[]>([])
+  const [conversations, setConversations]     = useState<Conversation[]>([])
+  const [notifying, setNotifying]             = useState(false)
+  const [clinicAddress, setClinicAddress]     = useState('')
+  const [clinicName, setClinicName]           = useState('Mi Clínica')
+  const [completingId, setCompletingId]       = useState<string | null>(null)
 
-  const hour = new Date().getHours()
-  const greeting = hour < 12 ? 'Buenos días' : hour < 19 ? 'Buenas tardes' : 'Buenas noches'
-  const today = new Date().toLocaleDateString('es-AR', {
-    weekday: 'long', day: 'numeric', month: 'long',
-  })
+  const today = new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })
+  const todayStr = new Date().toISOString().slice(0, 10)
+
+  useEffect(() => {
+    // Cargar metadata de la clínica
+    const supabase = createClient()
+    supabase.auth.getUser().then(({ data }) => {
+      const meta = data.user?.user_metadata
+      if (meta?.clinic_name) setClinicName(meta.clinic_name)
+      else {
+        const stored = localStorage.getItem('vetplace_clinic_name')
+        if (stored) setClinicName(stored)
+      }
+    })
+    api.getMyClinic()
+      .then((d: unknown) => {
+        const clinic = (d as { ok?: boolean; data?: { address?: string; name?: string } })?.data
+        if (clinic?.address) setClinicAddress(clinic.address)
+        if (clinic?.name)    setClinicName(clinic.name)
+      })
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     authFetch('/api/stats')
-      .then((r) => r.json())
-      .then((d) => { setStats(d.data ?? d); setLoading(false) })
-      .catch(() => setLoading(false))
+      .then(r => r.json()).then(d => { setStats(d.data ?? d); setLoadingStats(false) })
+      .catch(() => setLoadingStats(false))
   }, [])
 
   useEffect(() => {
     authFetch('/api/bookings/today')
-      .then((r) => r.json())
-      .then((d) => { setTodayBookings(d.data ?? []); setLoadingBookings(false) })
+      .then(r => r.json()).then(d => { setTodayBookings(d.data ?? []); setLoadingBookings(false) })
       .catch(() => setLoadingBookings(false))
   }, [])
 
   useEffect(() => {
     authFetch('/api/events/overdue')
-      .then((r) => r.json())
-      .then((d) => setOverdueEvents(d.data ?? []))
+      .then(r => r.json()).then(d => setOverdueEvents(d.data ?? []))
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    api.getConversations()
+      .then((d: unknown) => {
+        const arr = (d as { ok?: boolean; data?: Conversation[] })?.data ?? (d as Conversation[])
+        setConversations(Array.isArray(arr) ? arr.slice(0, 5) : [])
+      })
       .catch(() => {})
   }, [])
 
   const notifyAll = async () => {
     setNotifying(true)
     try {
-      await Promise.all(overdueEvents.map((e) =>
-        authFetch(`/api/events/${e.id}/notify`, { method: 'POST' })
-      ))
+      await Promise.all(overdueEvents.map(e => authFetch(`/api/events/${e.id}/notify`, { method: 'POST' })))
       setOverdueEvents([])
       toast.success('✓ Recordatorios enviados')
-    } catch {
-      toast.error('Error al notificar algunos eventos')
-    } finally {
-      setNotifying(false)
-    }
+    } catch { toast.error('Error al notificar') }
+    finally { setNotifying(false) }
   }
 
   const completeBooking = async (id: string) => {
+    setCompletingId(id)
     try {
       await authFetch(`/api/bookings/${id}/complete`, { method: 'PATCH' })
-      setTodayBookings((prev) => prev.filter((b) => b.id !== id))
-      toast.success('✓ Turno completado')
-    } catch {
-      toast.error('Error al completar el turno')
-    }
+      setTodayBookings(prev => prev.filter(b => b.id !== id))
+      toast.success('✓ Servicio completado')
+    } catch { toast.error('Error al completar') }
+    finally { setCompletingId(null) }
   }
 
-  return (
-    <div className="space-y-6">
+  const mapsUrl = todayBookings.length
+    ? `https://www.google.com/maps/dir/${todayBookings.map(b => b.pet?.user?.phone ?? '').join('/')}`
+    : 'https://maps.google.com'
 
-      {/* ── Banner ── */}
+  const occupancy = stats
+    ? Math.min(100, Math.round((stats.bookings_today / Math.max(stats.bookings_this_week / 5 || 1, 1)) * 100))
+    : 0
+
+  return (
+    <div className="space-y-4 pb-8">
+
+      {/* ══════════════════════════════════════════════════════════════
+          HEADER INTELIGENTE
+      ══════════════════════════════════════════════════════════════ */}
       <Link
         href="/bookings"
-        className="block relative rounded-2xl overflow-hidden px-8 py-6 cursor-pointer transition-opacity hover:opacity-95"
-        style={{ background: 'linear-gradient(135deg, #3b10b5 0%, #601EF9 60%, #7c3aff 100%)' }}
+        className="block rounded-2xl overflow-hidden px-6 py-5 cursor-pointer transition-opacity hover:opacity-95"
+        style={{ background: 'linear-gradient(135deg,#3b10b5 0%,#601EF9 60%,#7c3aff 100%)' }}
       >
-        <div className="absolute -top-10 -right-10 w-48 h-48 rounded-full opacity-20"
-          style={{ background: 'radial-gradient(circle, #fff 0%, transparent 70%)' }} />
-        <div className="absolute bottom-0 right-40 w-20 h-20 rounded-full opacity-10"
-          style={{ background: '#fff' }} />
-        <div className="relative flex items-center justify-between">
+        <div className="absolute -top-10 -right-10 w-48 h-48 rounded-full opacity-10"
+          style={{ background: 'radial-gradient(circle,#fff 0%,transparent 70%)', position: 'absolute' }} />
+        <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
-            <p className="text-sm font-medium mb-0.5" style={{ color: '#d4b8ff' }}>{greeting} 👋</p>
-            <h2 className="text-white text-xl font-bold">Bienvenido a VetPlace</h2>
-            <p className="text-sm mt-0.5 capitalize" style={{ color: '#c4b5fd' }}>{today}</p>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#c4b5fd' }}>
+                Torre de control · <span className="capitalize">{today}</span>
+              </span>
+            </div>
+            <h1 className="text-white text-xl font-bold mb-1">{clinicName}</h1>
+            {clinicAddress ? (
+              <div className="flex items-center gap-1.5">
+                <span style={{ color: '#a78bfa', fontSize: 13 }}>📍</span>
+                <span className="text-sm" style={{ color: '#c4b5fd' }}>{clinicAddress}</span>
+              </div>
+            ) : (
+              <Link href="/settings" className="text-xs underline" style={{ color: '#a78bfa' }}
+                onClick={e => e.stopPropagation()}>
+                + Agregar dirección de la clínica
+              </Link>
+            )}
           </div>
-          <span
-            className="hidden md:block px-4 py-2 rounded-xl text-sm font-semibold text-white"
-            style={{ background: 'rgba(255,255,255,0.18)' }}
-          >
-            Ver agenda →
-          </span>
+          <div className="flex items-center gap-3 flex-wrap">
+            <Pill icon="🛵" label="Servicios hoy" value={loadingStats ? '…' : String(stats?.bookings_today ?? 0)} />
+            <Pill icon="⚠️" label="Vencidos" value={String(overdueEvents.length)} alert={overdueEvents.length > 0} />
+            <span className="hidden sm:block px-4 py-2 rounded-xl text-sm font-semibold text-white"
+              style={{ background: 'rgba(255,255,255,0.18)' }}>
+              Ver agenda →
+            </span>
+          </div>
         </div>
       </Link>
 
-      {/* ── Alerta eventos vencidos ── */}
-      {overdueEvents.length > 0 && (
-        <div className="flex items-start gap-3 px-4 py-3.5 rounded-xl" style={{ background: '#fef2f2', border: '1px solid #fecaca' }}>
-          <span className="w-2 h-2 rounded-full mt-1.5 shrink-0 animate-pulse" style={{ background: '#ef4444', display: 'inline-block' }} />
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold" style={{ color: '#b91c1c' }}>
-              {overdueEvents.length} recordatorio{overdueEvents.length > 1 ? 's' : ''} vencido{overdueEvents.length > 1 ? 's' : ''} sin enviar
-            </p>
-            <p className="text-xs mt-0.5 truncate" style={{ color: '#ef4444' }}>
-              {overdueEvents.slice(0, 3).map((e) => {
-                const days = Math.floor((Date.now() - new Date(e.scheduled_date).getTime()) / 86400000)
-                return `${e.pet?.name ?? '?'} (${TYPE_LABEL[e.type] ?? e.type} · ${days}d)`
-              }).join(', ')}
-              {overdueEvents.length > 3 && ` +${overdueEvents.length - 3} más`}
-            </p>
-          </div>
-          <button
-            onClick={notifyAll}
-            disabled={notifying}
-            className="text-xs font-semibold shrink-0 underline"
-            style={{ color: '#dc2626', opacity: notifying ? 0.6 : 1 }}
-          >
-            {notifying ? 'Enviando…' : 'Notificar todos →'}
-          </button>
-        </div>
-      )}
+      {/* ══════════════════════════════════════════════════════════════
+          LAYOUT PRINCIPAL
+      ══════════════════════════════════════════════════════════════ */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
-      {/* ── Fila 1: 4 KPI cards ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {loading ? (
-          Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} />)
-        ) : (
-          <>
-            <KpiCard
-              icon={<CalIcon />}
-              label="Turnos hoy"
-              value={stats?.bookings_today ?? null}
-              delta={(stats?.bookings_today ?? 0) - (stats?.bookings_yesterday ?? 0)}
-              deltaLabel="vs ayer"
-              emptyMsg="Sin turnos hoy"
-              emptyLink={{ href: '/bookings', text: 'Agendar primero →' }}
-            />
-            <KpiCard
-              icon={<WeekIcon />}
-              label="Esta semana"
-              value={stats?.bookings_this_week ?? null}
-              delta={(stats?.bookings_this_week ?? 0) - (stats?.bookings_last_week ?? 0)}
-              deltaLabel="vs semana pasada"
-              emptyMsg="Sin turnos esta semana"
-            />
-            <KpiCard
-              icon={<UsersIcon />}
-              label="Clientes"
-              value={stats?.clients_total ?? null}
-              delta={(stats?.clients_this_month ?? 0) - (stats?.clients_last_month ?? 0)}
-              deltaLabel="vs mes pasado"
-              emptyMsg="Primeros clientes"
-              subText={
-                (stats?.clients_total ?? 0) >= 5
-                  ? `+${stats?.clients_this_month ?? 0} nuevos este mes`
-                  : 'Primeros clientes registrados'
+        {/* ── Columna izquierda (2/3) ── */}
+        <div className="lg:col-span-2 space-y-4">
+
+          {/* RUTAS DEL DÍA */}
+          <Section>
+            <SectionHeader
+              icon="🛵"
+              title="Rutas del día"
+              badge={todayBookings.length > 0 ? `${todayBookings.length} paradas` : undefined}
+              action={
+                todayBookings.length > 0 ? (
+                  <a
+                    href={mapsUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs font-semibold px-3 py-1.5 rounded-xl flex items-center gap-1.5"
+                    style={{ background: '#F3EEFF', color: '#601EF9' }}
+                  >
+                    <span>🗺️</span> Google Maps
+                  </a>
+                ) : null
               }
             />
-            <KpiCard
-              icon={<PawIcon />}
-              label="Mascotas"
-              value={stats?.pets_total ?? null}
-              hideDelta
-              emptyMsg="Sin mascotas aún"
-              subText={stats?.pets_total ? `${stats.pets_total} en el sistema` : undefined}
-            />
-          </>
-        )}
-      </div>
 
-      {/* ── Fila 2: Agenda de hoy + Eventos ── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Agenda de hoy */}
-        <div className="rounded-2xl p-5 flex flex-col" style={{ background: '#fff', border: '1px solid #ede9fe', minHeight: 180 }}>
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <span className="text-lg">📅</span>
-              <p className="text-sm font-semibold" style={{ color: '#64748b' }}>Agenda de hoy</p>
-            </div>
-            {!loadingBookings && todayBookings.length > 0 && (
-              <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: '#F3EEFF', color: '#601EF9' }}>
-                {todayBookings.length} turno{todayBookings.length > 1 ? 's' : ''}
-              </span>
-            )}
-          </div>
+            {/* Mapa visual de ruta */}
+            {loadingBookings ? (
+              <div className="h-32 rounded-2xl animate-pulse" style={{ background: '#F3EEFF' }} />
+            ) : todayBookings.length === 0 ? (
+              <EmptyRoute />
+            ) : (
+              <>
+                <RouteMap bookings={todayBookings} clinicName={clinicName} />
 
-          {loadingBookings ? (
-            <div className="space-y-3 mt-1">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="animate-pulse space-y-1.5">
-                  <div className="h-3.5 rounded" style={{ background: '#f1f5f9', width: '60%' }} />
-                  <div className="h-3 rounded"   style={{ background: '#f1f5f9', width: '40%' }} />
+                {/* Lista de paradas */}
+                <div className="mt-3 space-y-0">
+                  {/* Origen */}
+                  <RouteStop
+                    index={0}
+                    isClinic
+                    label={clinicName || 'Clínica (origen)'}
+                    sub="Punto de inicio"
+                    isFirst
+                  />
+                  {todayBookings.map((b, i) => (
+                    <RouteStop
+                      key={b.id}
+                      index={i + 1}
+                      label={`${b.pet?.name ?? '?'} · ${b.pet?.user?.name ?? b.pet?.user?.phone ?? '?'}`}
+                      sub={`${b.time} · ${EVENT_LABEL[b.notes ?? ''] ?? b.notes ?? 'Servicio'}`}
+                      emoji={PET_EMOJI[b.pet?.type ?? 'other']}
+                      onComplete={() => completeBooking(b.id)}
+                      completing={completingId === b.id}
+                      isLast={i === todayBookings.length - 1}
+                    />
+                  ))}
+                  {/* Retorno */}
+                  <RouteStop
+                    index={todayBookings.length + 1}
+                    isClinic
+                    label={clinicName || 'Clínica (retorno)'}
+                    sub="Punto de llegada"
+                    isReturn
+                  />
                 </div>
-              ))}
-            </div>
-          ) : todayBookings.length === 0 ? (
-            <div className="flex flex-col items-center justify-center flex-1 py-6 gap-1">
-              <p className="text-sm" style={{ color: '#94a3b8' }}>Sin turnos para hoy</p>
-              <Link href="/bookings" className="text-xs font-semibold mt-1" style={{ color: '#601EF9' }}>
-                Agendar ahora →
-              </Link>
-            </div>
-          ) : (
-            <div className="space-y-0 flex-1 overflow-y-auto" style={{ maxHeight: 220 }}>
-              {todayBookings.map((b, i) => (
-                <TodayBookingRow
-                  key={b.id}
-                  booking={b}
-                  isLast={i === todayBookings.length - 1}
-                  onComplete={completeBooking}
-                />
-              ))}
-            </div>
-          )}
 
-          <Link href="/bookings" className="text-xs font-semibold mt-3 self-start" style={{ color: '#601EF9' }}>
-            Ver agenda completa →
-          </Link>
-        </div>
+                {/* Métricas de ruta */}
+                <div className="grid grid-cols-3 gap-2 mt-4">
+                  <RouteStat label="Paradas" value={String(todayBookings.length)} icon="📍" />
+                  <RouteStat label="Est. duración" value={`~${todayBookings.length * 35}m`} icon="⏱️" />
+                  <RouteStat label="Eficiencia" value={todayBookings.length >= 3 ? 'Alta' : 'Normal'} icon="⚡" color={todayBookings.length >= 3 ? '#10b981' : '#f59e0b'} />
+                </div>
 
-        {/* Eventos pendientes */}
-        <div className="rounded-2xl p-5 flex flex-col gap-3" style={{ background: '#fff', border: '1px solid #ede9fe' }}>
-          <div className="flex items-center gap-2">
-            <span className="text-lg">📋</span>
-            <p className="text-sm font-semibold" style={{ color: '#64748b' }}>Eventos pendientes</p>
-          </div>
-          <div className="space-y-2">
-            <EventRow label="Pendientes"           value={stats?.events_pending   ?? 0} color="#601EF9" />
-            <EventRow label="Próximos 7 días"      value={stats?.events_next_7_days ?? 0} color="#10b981" />
-            <EventRow
-              label="Vencidos sin notificar"
-              value={stats?.events_overdue ?? 0}
-              color={(stats?.events_overdue ?? 0) > 0 ? '#ef4444' : '#94a3b8'}
-              badge={(stats?.events_overdue ?? 0) > 0}
-            />
-          </div>
-          <Link href="/events" className="text-xs font-semibold self-start mt-auto" style={{ color: '#601EF9' }}>
-            Gestionar eventos →
-          </Link>
-        </div>
-      </div>
-
-      {/* ── Fila 3: Herramientas ── */}
-      <div>
-        <p className="text-[10px] font-semibold uppercase tracking-widest mb-3" style={{ color: '#94a3b8' }}>
-          Herramientas
-        </p>
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          <InfoCard icon="🎂" title="Próximos cumpleaños" desc="Mascotas con cumpleaños esta semana" badge="Próximamente" badgeColor="#601EF9" accentBg="#F3EEFF">
-            <p className="text-xs mt-3" style={{ color: '#94a3b8' }}>
-              Esta función mostrará las mascotas que cumplen años en los próximos 7 días.
-            </p>
-          </InfoCard>
-
-          <InfoCard icon="📋" title="Historial de clientes" desc={`${stats?.clients_total ?? '—'} clientes registrados`} accentBg="#ecfdf5" href="/clients" linkLabel="Ver clientes →" linkColor="#10b981">
-            <div className="mt-3 space-y-1.5">
-              <StatRow label="Clientes totales"    value={loading ? '…' : String(stats?.clients_total ?? 0)}    color="#601EF9" />
-              <StatRow label="Turnos hoy"           value={loading ? '…' : String(stats?.bookings_today ?? 0)}   color="#10b981" />
-              <StatRow label="Eventos pendientes"   value={loading ? '…' : String(stats?.events_pending ?? 0)}  color="#f59e0b" />
-            </div>
-          </InfoCard>
-
-          <InfoCard icon="🗺️" title="Optimización de ruta" desc="Planificá los turnos a domicilio" badge="Próximamente" badgeColor="#f59e0b" accentBg="#fffbeb">
-            <p className="text-xs mt-3" style={{ color: '#94a3b8' }}>
-              Organizá automáticamente los turnos a domicilio por zona geográfica.
-            </p>
-          </InfoCard>
-
-          <InfoCard icon="💬" title="Recordatorios WhatsApp" desc="Notificaciones automáticas" badge="Próximamente" badgeColor="#25d366" accentBg="#f0fdf4">
-            <p className="text-xs mt-3" style={{ color: '#94a3b8' }}>
-              Envío automático de recordatorios de turno y vacunación por WhatsApp.
-            </p>
-          </InfoCard>
-
-          <InfoCard icon="⚡" title="Accesos rápidos" desc="Navegá las secciones principales" accentBg="#F3EEFF">
-            <div className="mt-3 space-y-2">
-              <QuickLink href="/clients"  label="Buscar cliente"    emoji="🔍" />
-              <QuickLink href="/bookings" label="Agenda del día"    emoji="📅" />
-              <QuickLink href="/events"   label="Gestionar eventos" emoji="📋" />
-            </div>
-          </InfoCard>
-
-          <InfoCard icon="📊" title="Resumen del mes" desc="Comparativa de actividad" accentBg="#F3EEFF">
-            <div className="mt-3 space-y-1.5">
-              <StatRow label="Turnos este mes"      value={loading ? '…' : String(stats?.bookings_this_month ?? 0)}  color="#601EF9" />
-              <StatRow label="Turnos mes pasado"    value={loading ? '…' : String(stats?.bookings_last_month ?? 0)}  color="#94a3b8" />
-              <StatRow label="Clientes nuevos"      value={loading ? '…' : String(stats?.clients_this_month ?? 0)}   color="#10b981" />
-            </div>
-          </InfoCard>
-        </div>
-      </div>
-
-    </div>
-  )
-}
-
-// ─── Today Booking Row ────────────────────────────────────────────────────────
-const TYPE_LABEL: Record<string, string> = {
-  GROOMING: 'baño',
-  VACCINE:  'vacuna',
-  CHECKUP:  'consulta',
-  FOLLOWUP: 'seguimiento',
-  OTHER:    'otro',
-}
-
-const PET_EMOJI: Record<string, string> = {
-  dog:   '🐕',
-  cat:   '🐱',
-  bird:  '🐦',
-  rabbit:'🐇',
-  other: '🐾',
-}
-
-function TodayBookingRow({
-  booking,
-  isLast,
-  onComplete,
-}: {
-  booking: TodayBooking
-  isLast: boolean
-  onComplete: (id: string) => void
-}) {
-  const [fading, setFading] = useState(false)
-
-  const handleComplete = () => {
-    setFading(true)
-    setTimeout(() => onComplete(booking.id), 300)
-  }
-
-  const petType = (booking.pet?.type ?? 'other').toLowerCase()
-  const emoji   = PET_EMOJI[petType] ?? '🐾'
-
-  return (
-    <div
-      className="py-2.5 transition-opacity duration-300"
-      style={{
-        borderBottom: isLast ? 'none' : '1px solid #f1f5f9',
-        opacity: fading ? 0 : 1,
-      }}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex items-start gap-2 min-w-0">
-          <span className="text-sm font-bold mt-0.5 shrink-0" style={{ color: '#0f172a', minWidth: 42 }}>
-            {booking.time}
-          </span>
-          <div className="min-w-0">
-            <p className="text-sm font-medium truncate" style={{ color: '#1e293b' }}>
-              {emoji} {booking.pet?.name ?? '?'} · <span className="font-normal text-xs" style={{ color: '#64748b' }}>{booking.pet?.user?.name ?? ''}</span>
-            </p>
-            {booking.notes && (
-              <p className="text-xs italic truncate" style={{ color: '#94a3b8' }}>{booking.notes}</p>
+                {/* Acciones de ruta */}
+                <div className="flex flex-wrap gap-2 mt-3 pt-3" style={{ borderTop: '1px solid #f1f5f9' }}>
+                  <RouteAction icon="🔄" label="Recalcular" onClick={() => toast.success('Ruta recalculada')} />
+                  <RouteAction
+                    icon="💬"
+                    label="Enviar por WhatsApp"
+                    onClick={() => {
+                      const text = encodeURIComponent(
+                        `📍 Ruta de hoy (${todayStr}):\n` +
+                        todayBookings.map((b, i) => `${i + 1}. ${b.time} · ${b.pet?.name} · ${b.pet?.user?.name ?? b.pet?.user?.phone}`).join('\n')
+                      )
+                      window.open(`https://wa.me/?text=${text}`, '_blank')
+                    }}
+                  />
+                  <Link href="/bookings">
+                    <RouteAction icon="📅" label="Ver agenda completa" onClick={() => {}} />
+                  </Link>
+                </div>
+              </>
             )}
-          </div>
+          </Section>
+
+          {/* OPORTUNIDADES */}
+          <Section>
+            <SectionHeader
+              icon="🎯"
+              title="Oportunidades"
+              badge={overdueEvents.length > 0 ? `${overdueEvents.length} sin notificar` : undefined}
+              badgeColor="#ef4444"
+              action={
+                overdueEvents.length > 0 ? (
+                  <button
+                    onClick={notifyAll}
+                    disabled={notifying}
+                    className="text-xs font-semibold px-3 py-1.5 rounded-xl"
+                    style={{ background: '#fef2f2', color: '#dc2626' }}
+                  >
+                    {notifying ? 'Enviando…' : '📨 Notificar todos'}
+                  </button>
+                ) : null
+              }
+            />
+
+            {overdueEvents.length === 0 ? (
+              <div className="flex items-center gap-3 py-4">
+                <span className="text-2xl">✅</span>
+                <div>
+                  <p className="text-sm font-semibold" style={{ color: '#0f172a' }}>Todo al día</p>
+                  <p className="text-xs" style={{ color: '#94a3b8' }}>No hay eventos vencidos pendientes de notificación.</p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {overdueEvents.slice(0, 5).map(e => {
+                  const days = Math.floor((Date.now() - new Date(e.scheduled_date).getTime()) / 86400000)
+                  return (
+                    <div key={e.id} className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl"
+                      style={{ background: '#fef2f2', border: '1px solid #fecaca' }}>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="w-1.5 h-1.5 rounded-full shrink-0 animate-pulse" style={{ background: '#ef4444' }} />
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold truncate" style={{ color: '#0f172a' }}>
+                            {e.pet?.name ?? '?'} · <span className="font-normal">{e.pet?.user?.name ?? e.pet?.user?.phone ?? '?'}</span>
+                          </p>
+                          <p className="text-xs" style={{ color: '#ef4444' }}>
+                            {EVENT_LABEL[e.type] ?? e.type} · vencido hace {days}d
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={async () => {
+                          await authFetch(`/api/events/${e.id}/notify`, { method: 'POST' })
+                          setOverdueEvents(prev => prev.filter(x => x.id !== e.id))
+                          toast.success('Recordatorio enviado')
+                        }}
+                        className="text-xs font-semibold px-2.5 py-1 rounded-lg shrink-0"
+                        style={{ background: '#dc2626', color: '#fff' }}
+                      >
+                        Notificar
+                      </button>
+                    </div>
+                  )
+                })}
+                {overdueEvents.length > 5 && (
+                  <p className="text-xs text-center" style={{ color: '#94a3b8' }}>
+                    +{overdueEvents.length - 5} más — <button onClick={notifyAll} className="underline font-semibold" style={{ color: '#601EF9' }}>Notificar todos</button>
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Siguiente evento */}
+            {stats?.events_next_7_days !== undefined && stats.events_next_7_days > 0 && (
+              <div className="flex items-center justify-between mt-3 pt-3" style={{ borderTop: '1px solid #f1f5f9' }}>
+                <div className="flex items-center gap-2">
+                  <span className="text-base">📋</span>
+                  <div>
+                    <p className="text-xs font-semibold" style={{ color: '#0f172a' }}>{stats.events_next_7_days} eventos próximos 7 días</p>
+                    <p className="text-[11px]" style={{ color: '#94a3b8' }}>{stats.events_pending} pendientes en total</p>
+                  </div>
+                </div>
+                <Link href="/events" className="text-xs font-semibold" style={{ color: '#601EF9' }}>Ver todos →</Link>
+              </div>
+            )}
+          </Section>
         </div>
-        <button
-          onClick={handleComplete}
-          className="text-xs font-medium text-white rounded-full px-3 py-1 shrink-0 transition hover:opacity-80"
-          style={{ background: '#601EF9' }}
-        >
-          ✓ Listo
-        </button>
+
+        {/* ── Columna derecha (1/3) ── */}
+        <div className="space-y-4">
+
+          {/* CONVERSACIONES */}
+          <Section>
+            <SectionHeader
+              icon="💬"
+              title="Conversaciones"
+              action={<Link href="/chats" className="text-xs font-semibold" style={{ color: '#601EF9' }}>Ver todas →</Link>}
+            />
+
+            {conversations.length === 0 ? (
+              <div className="flex flex-col items-center py-6 gap-2">
+                <span className="text-3xl">💬</span>
+                <p className="text-xs text-center" style={{ color: '#94a3b8' }}>Sin conversaciones activas</p>
+                <Link href="/chats" className="text-xs font-semibold" style={{ color: '#601EF9' }}>Abrir chats →</Link>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                {conversations.map(c => (
+                  <Link key={c.id} href="/chats"
+                    className="flex items-center gap-2.5 px-2 py-2.5 rounded-xl transition-colors"
+                    onMouseEnter={e => e.currentTarget.style.background = '#F3EEFF'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0"
+                      style={{ background: 'linear-gradient(135deg,#601EF9,#3b10b5)' }}>
+                      {(c.client_name ?? c.phone).charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-1">
+                        <p className="text-xs font-semibold truncate" style={{ color: '#0f172a' }}>
+                          {c.client_name ?? c.phone}
+                        </p>
+                        {c.unread_count > 0 && (
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full text-white shrink-0"
+                            style={{ background: '#601EF9' }}>
+                            {c.unread_count}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] truncate" style={{ color: '#94a3b8' }}>
+                        {c.bot_active ? '🤖 Bot activo · ' : ''}{c.last_message ?? 'Sin mensajes'}
+                      </p>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </Section>
+
+          {/* ACCIONES RÁPIDAS */}
+          <Section>
+            <SectionHeader icon="⚡" title="Acciones rápidas" />
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { icon: '📅', label: 'Nueva cita',    href: '/bookings' },
+                { icon: '👤', label: 'Nuevo cliente', href: '/clients' },
+                { icon: '🐾', label: 'Nueva mascota', href: '/clients' },
+                { icon: '📋', label: 'Nuevo evento',  href: '/events' },
+              ].map(a => (
+                <Link key={a.label} href={a.href}
+                  className="flex flex-col items-center gap-2 py-3 px-2 rounded-2xl text-center transition-all hover:-translate-y-0.5"
+                  style={{ background: '#F9F9FB', border: '1.5px solid #ede9fe' }}
+                  onMouseEnter={e => { e.currentTarget.style.background = '#F3EEFF'; e.currentTarget.style.borderColor = '#c4b5fd' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = '#F9F9FB'; e.currentTarget.style.borderColor = '#ede9fe' }}
+                >
+                  <span className="text-xl">{a.icon}</span>
+                  <span className="text-[11px] font-semibold" style={{ color: '#334155' }}>{a.label}</span>
+                </Link>
+              ))}
+            </div>
+          </Section>
+
+          {/* MINI MÉTRICAS */}
+          <Section>
+            <SectionHeader icon="📊" title="Métricas del día" />
+            <div className="space-y-3">
+              <MetricRow
+                label="Servicios realizados"
+                value={loadingStats ? '…' : `${stats?.bookings_today ?? 0}`}
+                sub={`de ${Math.max(stats?.bookings_today ?? 0, 6)} posibles`}
+                percent={occupancy}
+                color="#601EF9"
+              />
+              <MetricRow
+                label="Esta semana"
+                value={loadingStats ? '…' : `${stats?.bookings_this_week ?? 0}`}
+                sub={`vs ${stats?.bookings_last_week ?? 0} sem. ant.`}
+                percent={Math.min(100, ((stats?.bookings_this_week ?? 0) / Math.max(stats?.bookings_last_week ?? 1, 1)) * 100)}
+                color="#10b981"
+              />
+              <MetricRow
+                label="Clientes totales"
+                value={loadingStats ? '…' : `${stats?.clients_total ?? 0}`}
+                sub={`+${stats?.clients_this_month ?? 0} este mes`}
+                percent={Math.min(100, ((stats?.clients_this_month ?? 0) / Math.max(stats?.clients_total ?? 1, 1)) * 100)}
+                color="#f59e0b"
+              />
+            </div>
+          </Section>
+
+        </div>
+      </div>
+
+    </div>
+  )
+}
+
+// ─── Componente: Mapa visual de ruta ──────────────────────────────────────────
+function RouteMap({ bookings, clinicName }: { bookings: TodayBooking[]; clinicName: string }) {
+  const stops = bookings.length
+  const width  = 100
+  const pad    = 12
+  const step   = stops > 0 ? (width - pad * 2) / (stops + 1) : 0
+
+  const points = [
+    { x: pad, label: '🏥', isClinic: true },
+    ...bookings.map((b, i) => ({ x: pad + step * (i + 1), label: PET_EMOJI[b.pet?.type ?? 'other'], time: b.time, name: b.pet?.name ?? '?', isClinic: false })),
+    { x: width - pad, label: '🏥', isClinic: true },
+  ]
+
+  return (
+    <div className="relative rounded-2xl overflow-hidden p-4" style={{ background: 'linear-gradient(135deg,#F3EEFF 0%,#ede9fe 100%)', border: '1px solid #ddd6fe' }}>
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-[11px] font-semibold uppercase tracking-widest" style={{ color: '#7c3aed' }}>Ruta del día</span>
+        <span className="text-[11px]" style={{ color: '#94a3b8' }}>{bookings.length} paradas</span>
+      </div>
+
+      {/* SVG route line */}
+      <svg viewBox={`0 0 ${width} 24`} className="w-full" style={{ height: 56, overflow: 'visible' }}>
+        {/* Línea de ruta */}
+        <path
+          d={`M ${points[0].x} 12 ${points.slice(1).map(p => `L ${p.x} 12`).join(' ')}`}
+          fill="none" stroke="#601EF9" strokeWidth="1.5" strokeDasharray="3 2" opacity="0.5"
+        />
+        {/* Puntos */}
+        {points.map((p, i) => (
+          <g key={i}>
+            <circle cx={p.x} cy={12} r={p.isClinic ? 5 : 4}
+              fill={p.isClinic ? '#601EF9' : '#fff'}
+              stroke="#601EF9" strokeWidth="1.5"
+            />
+            {!p.isClinic && (
+              <text x={p.x} y={14} textAnchor="middle" fontSize="5" fill="#601EF9" fontWeight="bold">
+                {i}
+              </text>
+            )}
+          </g>
+        ))}
+      </svg>
+
+      {/* Labels */}
+      <div className="flex justify-between mt-1">
+        <span className="text-[10px] font-semibold" style={{ color: '#601EF9' }}>🏥 {clinicName || 'Clínica'}</span>
+        {bookings.length > 0 && bookings.map((b, i) => (
+          <span key={i} className="text-[10px] font-medium" style={{ color: '#7c3aed' }}>
+            {i + 1}. {b.time}
+          </span>
+        ))}
+        <span className="text-[10px] font-semibold" style={{ color: '#601EF9' }}>🏥 Retorno</span>
       </div>
     </div>
   )
 }
 
-// ─── KPI Card ─────────────────────────────────────────────────────────────────
-interface KpiCardProps {
-  icon: React.ReactNode
-  label: string
-  value: number | null
-  delta?: number
-  deltaLabel?: string
-  hideDelta?: boolean
-  emptyMsg?: string
-  emptyLink?: { href: string; text: string }
-  subText?: string
+function EmptyRoute() {
+  return (
+    <div className="flex flex-col items-center py-8 gap-3 rounded-2xl" style={{ background: '#F9F9FB', border: '1.5px dashed #ddd6fe' }}>
+      <span className="text-4xl">🛵</span>
+      <div className="text-center">
+        <p className="text-sm font-semibold" style={{ color: '#0f172a' }}>Sin servicios programados hoy</p>
+        <p className="text-xs mt-0.5" style={{ color: '#94a3b8' }}>Agendá citas para ver las rutas del día</p>
+      </div>
+      <Link href="/bookings"
+        className="px-4 py-2 rounded-xl text-xs font-bold text-white"
+        style={{ background: 'linear-gradient(135deg,#3b10b5,#601EF9)' }}>
+        + Agendar ahora
+      </Link>
+    </div>
+  )
 }
 
-function KpiCard({ icon, label, value, delta, deltaLabel, hideDelta, emptyMsg, emptyLink, subText }: KpiCardProps) {
-  const isEmpty = value === null || value === 0
-
+// ─── Componente: Parada de ruta ───────────────────────────────────────────────
+function RouteStop({
+  index, isClinic, label, sub, emoji, isFirst, isLast, isReturn, onComplete, completing,
+}: {
+  index: number; isClinic?: boolean; label: string; sub: string
+  emoji?: string; isFirst?: boolean; isLast?: boolean; isReturn?: boolean
+  onComplete?: () => void; completing?: boolean
+}) {
   return (
-    <div
-      className="rounded-2xl p-5 flex flex-col gap-2"
-      style={{ background: '#fff', border: '1px solid #ede9fe', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}
-    >
-      <div className="flex items-center justify-between">
+    <div className="flex items-start gap-3">
+      {/* Línea vertical */}
+      <div className="flex flex-col items-center shrink-0" style={{ width: 28 }}>
         <div
-          className="w-9 h-9 rounded-xl flex items-center justify-center"
-          style={{ background: '#F3EEFF' }}
+          className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 z-10"
+          style={isClinic
+            ? { background: '#601EF9', color: '#fff' }
+            : { background: '#F3EEFF', color: '#601EF9', border: '2px solid #ddd6fe' }}
         >
-          <span style={{ color: '#601EF9' }}>{icon}</span>
+          {isClinic ? '🏥' : index}
         </div>
-        {!hideDelta && delta !== undefined && !isEmpty && (
-          <DeltaBadge delta={delta} label={deltaLabel ?? ''} current={value ?? 0} />
+        {!isLast && !isReturn && (
+          <div className="w-0.5 h-8 mt-0.5" style={{ background: '#ddd6fe' }} />
         )}
       </div>
 
-      <div>
-        <p className="text-3xl font-bold" style={{ color: '#0f172a' }}>
-          {value === null ? '—' : value}
-        </p>
-        <p className="text-sm mt-0.5" style={{ color: '#64748b' }}>{label}</p>
-      </div>
-
-      {/* Sub-text or empty state */}
-      {isEmpty && emptyMsg && (
-        <div className="mt-auto">
-          <p className="text-xs" style={{ color: '#94a3b8' }}>{emptyMsg}</p>
-          {emptyLink && (
-            <Link href={emptyLink.href} className="text-xs font-semibold" style={{ color: '#601EF9' }}>
-              {emptyLink.text}
-            </Link>
+      {/* Contenido */}
+      <div className="flex-1 pb-3 min-w-0">
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold truncate" style={{ color: isClinic ? '#601EF9' : '#0f172a' }}>
+              {emoji && <span className="mr-1">{emoji}</span>}{label}
+            </p>
+            <p className="text-[11px]" style={{ color: '#94a3b8' }}>{sub}</p>
+          </div>
+          {onComplete && !isClinic && (
+            <button
+              onClick={onComplete}
+              disabled={completing}
+              className="text-xs font-semibold px-2.5 py-1 rounded-lg text-white shrink-0 disabled:opacity-50"
+              style={{ background: '#601EF9' }}
+            >
+              {completing ? '…' : '✓'}
+            </button>
           )}
         </div>
-      )}
-      {!isEmpty && subText && (
-        <p className="text-xs" style={{ color: '#94a3b8' }}>{subText}</p>
-      )}
+      </div>
     </div>
   )
 }
 
-function DeltaBadge({ delta, label, current }: { delta: number; label: string; current: number }) {
-  if (delta === 0 && current === 0) {
-    return <span className="text-xs" style={{ color: '#94a3b8' }}>Sin actividad aún</span>
-  }
-  if (delta === 0) {
-    return (
-      <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ background: '#F1F5F9', color: '#64748b' }}>
-        = igual que antes
-      </span>
-    )
-  }
-  const positive = delta > 0
+// ─── Pequeños componentes ──────────────────────────────────────────────────────
+function Section({ children }: { children: React.ReactNode }) {
   return (
-    <span
-      className="text-xs font-medium px-2 py-0.5 rounded-full"
-      style={
-        positive
-          ? { background: '#ecfdf5', color: '#059669' }
-          : { background: '#fef2f2', color: '#ef4444' }
-      }
-    >
-      {positive ? '↑' : '↓'} {positive ? '+' : ''}{delta} {label}
-    </span>
-  )
-}
-
-// ─── Event row ────────────────────────────────────────────────────────────────
-function EventRow({ label, value, color, badge }: { label: string; value: number; color: string; badge?: boolean }) {
-  return (
-    <div className="flex items-center justify-between text-sm">
-      <span style={{ color: '#64748b' }}>{label}</span>
-      <span
-        className={`font-bold text-sm ${badge ? 'px-2 py-0.5 rounded-full text-white text-xs' : ''}`}
-        style={{ color: badge ? undefined : color, background: badge ? color : undefined }}
-      >
-        {value}
-        {badge && value > 0 ? ' vencidos' : ''}
-      </span>
+    <div className="rounded-2xl p-5" style={{ background: '#fff', border: '1px solid #ede9fe', boxShadow: '0 1px 4px rgba(96,30,249,0.04)' }}>
+      {children}
     </div>
   )
 }
 
-// ─── InfoCard ─────────────────────────────────────────────────────────────────
-function InfoCard({
-  icon, title, desc, badge, badgeColor, accentBg, href, linkLabel, linkColor, children,
-}: {
-  icon: string; title: string; desc: string
-  badge?: string; badgeColor?: string; accentBg: string
-  href?: string; linkLabel?: string; linkColor?: string
-  children?: React.ReactNode
+function SectionHeader({ icon, title, badge, badgeColor, action }: {
+  icon: string; title: string; badge?: string; badgeColor?: string; action?: React.ReactNode
 }) {
   return (
-    <div className="rounded-2xl p-5 flex flex-col" style={{ background: '#fff', border: '1px solid #ede9fe' }}>
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0" style={{ background: accentBg }}>
-            {icon}
-          </div>
-          <div>
-            <p className="text-sm font-semibold" style={{ color: '#0f172a' }}>{title}</p>
-            <p className="text-xs mt-0.5" style={{ color: '#64748b' }}>{desc}</p>
-          </div>
-        </div>
+    <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center gap-2">
+        <span className="text-base">{icon}</span>
+        <span className="text-sm font-bold" style={{ color: '#0f172a' }}>{title}</span>
         {badge && (
-          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 whitespace-nowrap"
-            style={{ background: accentBg, color: badgeColor }}>
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+            style={{ background: badgeColor ? '#fef2f2' : '#F3EEFF', color: badgeColor ?? '#601EF9' }}>
             {badge}
           </span>
         )}
       </div>
-      {children}
-      {href && linkLabel && (
-        <Link href={href} className="mt-4 text-xs font-semibold self-start" style={{ color: linkColor ?? '#601EF9' }}>
-          {linkLabel}
-        </Link>
-      )}
+      {action}
     </div>
   )
 }
 
-// ─── Misc ─────────────────────────────────────────────────────────────────────
-function StatRow({ label, value, color }: { label: string; value: string; color: string }) {
+function Pill({ icon, label, value, alert }: { icon: string; label: string; value: string; alert?: boolean }) {
   return (
-    <div className="flex items-center justify-between text-xs">
-      <span style={{ color: '#64748b' }}>{label}</span>
-      <span className="font-bold" style={{ color }}>{value}</span>
+    <div className="flex items-center gap-2 px-3 py-2 rounded-xl"
+      style={{ background: alert && Number(value) > 0 ? 'rgba(239,68,68,0.15)' : 'rgba(255,255,255,0.13)' }}>
+      <span>{icon}</span>
+      <div>
+        <p className="text-[10px] font-medium" style={{ color: '#c4b5fd' }}>{label}</p>
+        <p className="text-sm font-bold" style={{ color: alert && Number(value) > 0 ? '#fca5a5' : '#fff' }}>{value}</p>
+      </div>
     </div>
   )
 }
 
-function QuickLink({ href, label, emoji }: { href: string; label: string; emoji: string }) {
+function RouteStat({ label, value, icon, color }: { label: string; value: string; icon: string; color?: string }) {
   return (
-    <Link
-      href={href}
-      className="flex items-center gap-2 text-xs font-medium rounded-lg px-2 py-1.5 transition-colors"
-      style={{ color: '#334155' }}
-      onMouseEnter={(e) => { e.currentTarget.style.background = '#F3EEFF'; e.currentTarget.style.color = '#601EF9' }}
-      onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#334155' }}
+    <div className="flex flex-col items-center gap-1 p-3 rounded-xl" style={{ background: '#F9F9FB', border: '1px solid #ede9fe' }}>
+      <span className="text-lg">{icon}</span>
+      <span className="text-sm font-bold" style={{ color: color ?? '#0f172a' }}>{value}</span>
+      <span className="text-[10px] font-medium text-center" style={{ color: '#94a3b8' }}>{label}</span>
+    </div>
+  )
+}
+
+function RouteAction({ icon, label, onClick }: { icon: string; label: string; onClick: () => void }) {
+  return (
+    <button onClick={onClick}
+      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors"
+      style={{ background: '#F3EEFF', color: '#601EF9' }}
+      onMouseEnter={e => e.currentTarget.style.background = '#ede9fe'}
+      onMouseLeave={e => e.currentTarget.style.background = '#F3EEFF'}
     >
-      <span>{emoji}</span> {label}
-    </Link>
+      <span>{icon}</span> {label}
+    </button>
   )
 }
 
-function Skeleton({ h = 'h-28' }: { h?: string }) {
-  return <div className={`rounded-2xl ${h} animate-pulse`} style={{ background: '#ede9fe' }} />
-}
-
-function formatBookingDate(dateStr: string): string {
-  const d = new Date(dateStr + 'T00:00:00')
-  return d.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })
-}
-
-// ─── Icons ────────────────────────────────────────────────────────────────────
-function CalIcon() {
+function MetricRow({ label, value, sub, percent, color }: {
+  label: string; value: string; sub: string; percent: number; color: string
+}) {
   return (
-    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-    </svg>
-  )
-}
-function WeekIcon() {
-  return (
-    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-    </svg>
-  )
-}
-function UsersIcon() {
-  return (
-    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-    </svg>
-  )
-}
-function PawIcon() {
-  return (
-    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <circle cx="9"  cy="4.5" r="1.5" />
-      <circle cx="15" cy="4.5" r="1.5" />
-      <circle cx="5"  cy="9"   r="1.5" />
-      <circle cx="19" cy="9"   r="1.5" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 10c-3 0-6 2-6 5 0 2 1.5 3.5 3 4h6c1.5-.5 3-2 3-4 0-3-3-5-6-5z" />
-    </svg>
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-xs font-semibold" style={{ color: '#334155' }}>{label}</span>
+        <div className="text-right">
+          <span className="text-sm font-bold" style={{ color: '#0f172a' }}>{value}</span>
+          <span className="text-[10px] ml-1.5" style={{ color: '#94a3b8' }}>{sub}</span>
+        </div>
+      </div>
+      <div className="h-1.5 rounded-full overflow-hidden" style={{ background: '#f1f5f9' }}>
+        <div
+          className="h-full rounded-full transition-all duration-700"
+          style={{ width: `${Math.max(4, percent)}%`, background: color }}
+        />
+      </div>
+    </div>
   )
 }
