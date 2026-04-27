@@ -2,18 +2,20 @@ import { Router, Request, Response, NextFunction } from 'express'
 import { supabase } from '../config/supabase'
 import { handleSupabaseError, NotFoundError, ValidationError } from '../utils/errors'
 import { getClinicId } from '../config/clinic'
+import { authMiddleware } from '../middleware/authMiddleware'
 
 const router = Router()
+router.use(authMiddleware)
 
-// POST /api/users
-// Body: { phone: string, name?: string }
+// POST /api/users — público también (registro via QR)
+// Body: { phone, name?, clinic_id? }
 router.post('/', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { phone, name } = req.body
-    const clinicId = getClinicId()
+    const { phone, name, clinic_id: bodyClinicId } = req.body
+    // QR flow: acepta clinic_id del body; autenticado: usa JWT
+    const clinicId = bodyClinicId ?? getClinicId(req)
 
     if (!phone) throw new ValidationError('phone is required')
-    if (!/^\+\d{7,15}$/.test(phone)) throw new ValidationError('phone must be E.164 format: +51987654321')
 
     const { data, error } = await supabase
       .from('clients')
@@ -30,18 +32,14 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
 })
 
 // GET /api/users/search?q=...
-// Buscar clientes por nombre o teléfono (parcial, case-insensitive)
 router.get('/search', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { q } = req.query as { q?: string }
-    const clinicId = getClinicId()
+    const clinicId = getClinicId(req)
 
-    if (!q || q.trim().length < 2) {
-      throw new ValidationError('q must be at least 2 characters')
-    }
+    if (!q || q.trim().length < 2) throw new ValidationError('q must be at least 2 characters')
 
     const term = q.trim()
-
     const { data, error } = await supabase
       .from('clients')
       .select('*')
@@ -61,7 +59,7 @@ router.get('/search', async (req: Request, res: Response, next: NextFunction) =>
 // GET /api/users/:id
 router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const clinicId = getClinicId()
+    const clinicId = getClinicId(req)
 
     const { data, error } = await supabase
       .from('clients')
@@ -80,11 +78,10 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
 })
 
 // GET /api/users/phone/:phone
-// Buscar cliente por número (útil para el webhook de WhatsApp)
 router.get('/phone/:phone', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const phone = decodeURIComponent(req.params.phone)
-    const clinicId = getClinicId()
+    const clinicId = getClinicId(req)
 
     const { data, error } = await supabase
       .from('clients')

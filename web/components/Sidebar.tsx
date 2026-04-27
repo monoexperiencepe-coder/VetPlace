@@ -145,13 +145,16 @@ export default function Sidebar() {
       >
         {/* Config */}
         <Link
-          href="#"
+          href="/settings"
           className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors"
-          style={{ color: '#64748b' }}
-          onMouseEnter={(e) => { e.currentTarget.style.background = '#F1F5F9'; e.currentTarget.style.color = '#0f172a' }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#64748b' }}
+          style={{
+            background: pathname === '/settings' ? '#F3EEFF' : 'transparent',
+            color: pathname === '/settings' ? '#601EF9' : '#64748b',
+          }}
+          onMouseEnter={(e) => { if (pathname !== '/settings') { e.currentTarget.style.background = '#F1F5F9'; e.currentTarget.style.color = '#0f172a' } }}
+          onMouseLeave={(e) => { if (pathname !== '/settings') { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#64748b' } }}
         >
-          <GearIcon active={false} />
+          <GearIcon active={pathname === '/settings'} />
           Configuración
         </Link>
 

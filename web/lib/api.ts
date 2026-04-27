@@ -1,12 +1,29 @@
+import { createClient } from '@/lib/supabase'
+
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:3000'
 
+/** Obtiene el access token de Supabase si hay sesión activa */
+async function getToken(): Promise<string | null> {
+  try {
+    const supabase = createClient()
+    const { data } = await supabase.auth.getSession()
+    return data.session?.access_token ?? null
+  } catch {
+    return null
+  }
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const token = await getToken()
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (token) headers['Authorization'] = `Bearer ${token}`
+
   const res = await fetch(`${BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
     ...options,
+    headers: { ...headers, ...(options?.headers as Record<string, string> ?? {}) },
   })
   const json = await res.json()
-  if (!json.ok) throw new Error(json.message ?? 'API error')
+  if (!json.ok) throw new Error(json.message ?? json.error ?? 'API error')
   return json.data as T
 }
 
@@ -15,10 +32,41 @@ export interface GroomingCompletedMeta {
   next_grooming_event_created: boolean
 }
 
+export interface Conversation {
+  id:              string
+  clinic_id:       string
+  client_id:       string | null
+  phone:           string
+  client_name:     string | null
+  bot_active:      boolean
+  unread_count:    number
+  last_message:    string | null
+  last_message_at: string | null
+  created_at:      string
+}
+
+export interface Message {
+  id:              string
+  conversation_id: string
+  from_type:       'client' | 'bot' | 'staff'
+  body:            string
+  created_at:      string
+}
+
 export const api = {
   // Stats
   getStats: () =>
     request('/api/stats'),
+
+  // Clinics
+  setupClinic: (body: { name: string; phone?: string; email?: string }) =>
+    request('/api/clinics/setup', { method: 'POST', body: JSON.stringify(body) }),
+
+  getMyClinic: () =>
+    request('/api/clinics/me'),
+
+  updateMyClinic: (body: Record<string, string>) =>
+    request('/api/clinics/me', { method: 'PATCH', body: JSON.stringify(body) }),
 
   // Clients
   createClient: (body: { phone: string; name?: string }) =>
@@ -47,9 +95,12 @@ export const api = {
     petId: string,
     completed_date?: string
   ): Promise<{ pet: unknown; meta?: GroomingCompletedMeta }> => {
+    const token = await getToken()
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (token) headers['Authorization'] = `Bearer ${token}`
     const res = await fetch(`${BASE}/api/pets/${petId}/grooming-completed`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ completed_date }),
     })
     const json = await res.json()
@@ -98,4 +149,24 @@ export const api = {
 
   completeBooking: (id: string) =>
     request(`/api/bookings/${id}/complete`, { method: 'PATCH' }),
+
+  // Conversations (chats)
+  getConversations: () =>
+    request<Conversation[]>('/api/conversations'),
+
+  createConversation: (body: { phone: string; client_name?: string; client_id?: string }) =>
+    request<Conversation>('/api/conversations', { method: 'POST', body: JSON.stringify(body) }),
+
+  toggleBot: (id: string, bot_active: boolean) =>
+    request(`/api/conversations/${id}/bot`, { method: 'PATCH', body: JSON.stringify({ bot_active }) }),
+
+  markRead: (id: string) =>
+    request(`/api/conversations/${id}/read`, { method: 'PATCH' }),
+
+  // Messages
+  getMessages: (conversationId: string) =>
+    request<Message[]>(`/api/messages/${conversationId}`),
+
+  sendMessage: (conversationId: string, body: string) =>
+    request<Message>(`/api/messages/${conversationId}`, { method: 'POST', body: JSON.stringify({ body }) }),
 }

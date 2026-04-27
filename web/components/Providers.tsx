@@ -1,12 +1,15 @@
 'use client'
 
 import { ConfirmProvider } from '@/context/ConfirmContext'
-import { ToastProvider } from '@/context/ToastContext'
+import { ToastProvider }   from '@/context/ToastContext'
+import { AuthProvider }    from '@/context/AuthContext'
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <ToastProvider>
-      <ConfirmProvider>{children}</ConfirmProvider>
-    </ToastProvider>
+    <AuthProvider>
+      <ToastProvider>
+        <ConfirmProvider>{children}</ConfirmProvider>
+      </ToastProvider>
+    </AuthProvider>
   )
 }

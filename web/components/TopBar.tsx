@@ -3,11 +3,12 @@
 import { usePathname } from 'next/navigation'
 
 const PAGE_TITLES: Record<string, string> = {
-  '/':         'Dashboard',
-  '/clients':  'Clientes',
-  '/events':   'Eventos',
-  '/bookings': 'Agenda',
-  '/chats':    'Chats',
+  '/':          'Dashboard',
+  '/clients':   'Clientes',
+  '/events':    'Eventos',
+  '/bookings':  'Agenda',
+  '/chats':     'Chats',
+  '/settings':  'Configuración',
 }
 
 function getTitle(pathname: string): string {

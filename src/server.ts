@@ -9,6 +9,9 @@ import eventsRouter from './routes/events.router'
 import bookingsRouter from './routes/bookings.router'
 import devRouter from './routes/dev.router'
 import statsRouter from './routes/stats.router'
+import clinicsRouter from './routes/clinics.router'
+import conversationsRouter from './routes/conversations.router'
+import messagesRouter from './routes/messages.router'
 
 const app = express()
 const allowedOrigins = process.env.ALLOWED_ORIGINS
@@ -35,7 +38,10 @@ app.use('/api/users',    usersRouter)
 app.use('/api/pets',     petsRouter)
 app.use('/api/events',   eventsRouter)
 app.use('/api/bookings', bookingsRouter)
-app.use('/api/stats',   statsRouter)
+app.use('/api/stats',         statsRouter)
+app.use('/api/clinics',       clinicsRouter)
+app.use('/api/conversations', conversationsRouter)
+app.use('/api/messages',      messagesRouter)
 
 // Solo en desarrollo: disparar jobs manualmente
 if (process.env.NODE_ENV !== 'production') {
