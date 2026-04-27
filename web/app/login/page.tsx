@@ -54,8 +54,8 @@ export default function LoginPage() {
       return
     }
 
-    router.push('/')
-    router.refresh()
+    // Forzar reload completo para que Next.js middleware lea las cookies nuevas
+    window.location.href = '/'
   }
 
   return (

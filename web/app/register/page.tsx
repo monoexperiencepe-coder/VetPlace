@@ -100,8 +100,7 @@ export default function RegisterPage() {
       } catch {
         // No bloqueamos el flujo — se completa en Settings
       }
-      router.push('/')
-      router.refresh()
+      window.location.href = '/'
     } else {
       // Email de confirmación enviado — mostrar mensaje en vez de redirigir
       setLoading(false)

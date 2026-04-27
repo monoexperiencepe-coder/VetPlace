@@ -1,20 +1,10 @@
-import { createClient as _createClient } from '@supabase/supabase-js'
+import { createBrowserClient } from '@supabase/ssr'
 
 const supabaseUrl  = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseAnon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
-// Singleton – reutiliza la misma instancia en toda la app del lado del cliente
-let _instance: ReturnType<typeof _createClient> | null = null
-
+// createBrowserClient de @supabase/ssr sincroniza la sesión en cookies
+// automáticamente, lo que permite que el middleware de Next.js las lea.
 export function createClient() {
-  if (!_instance) {
-    _instance = _createClient(supabaseUrl, supabaseAnon, {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: true,
-      },
-    })
-  }
-  return _instance
+  return createBrowserClient(supabaseUrl, supabaseAnon)
 }

@@ -48,7 +48,7 @@ function ResetPasswordForm() {
       setError('No se pudo actualizar la contraseña. El enlace puede haber expirado.')
     } else {
       setSuccess(true)
-      setTimeout(() => router.push('/'), 2000)
+      setTimeout(() => { window.location.href = '/' }, 2000)
     }
   }
 
