@@ -8,6 +8,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/events':    'Eventos',
   '/bookings':  'Agenda',
   '/chats':     'Chats',
+  '/routes':    'Rutas del día',
   '/settings':  'Configuración',
 }
 
