@@ -63,29 +63,52 @@ const PET_EMOJI: Record<string, string>  = { dog: '🐶', cat: '🐱', bird: '�
 const PET_LABEL: Record<string, string>  = { dog: 'Perro', cat: 'Gato', bird: 'Ave', rabbit: 'Conejo', other: 'Otro' }
 
 // ─── Modal: Nuevo cliente ─────────────────────────────────────────────────────
+interface PetDraft { name: string; type: string; breed: string; birthDate: string; groomFreq: string }
+const EMPTY_PET: PetDraft = { name: '', type: 'dog', breed: '', birthDate: '', groomFreq: '' }
+
 function NewClientModal({ onClose, onCreated }: { onClose: () => void; onCreated: (c: Client) => void }) {
   const toast = useToast()
   const [form, setForm] = useState({ phone: '', name: '', email: '', address: '', distrito: '', notes: '' })
+  const [petDrafts, setPetDrafts] = useState<PetDraft[]>([{ ...EMPTY_PET }])
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
 
   const set = (k: keyof typeof form) => (v: string) => setForm(f => ({ ...f, [k]: v }))
+  const addPet = () => setPetDrafts(p => [...p, { ...EMPTY_PET }])
+  const removePet = (i: number) => setPetDrafts(p => p.filter((_, idx) => idx !== i))
+  const setPetField = (i: number, k: keyof PetDraft) => (v: string) =>
+    setPetDrafts(p => p.map((pet, idx) => idx === i ? { ...pet, [k]: v } : pet))
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!form.phone.trim()) { toast.warning('El teléfono es obligatorio'); return }
     setSaving(true); setErr('')
     try {
-      const data = await api.createClient({
+      const client = await api.createClient({
         phone:    form.phone.trim(),
-        name:     form.name.trim()     || undefined,
-        email:    form.email.trim()    || undefined,
-        address:  form.address.trim()  || undefined,
-        distrito: form.distrito        || undefined,
-        notes:    form.notes.trim()    || undefined,
+        name:     form.name.trim()    || undefined,
+        email:    form.email.trim()   || undefined,
+        address:  form.address.trim() || undefined,
+        distrito: form.distrito       || undefined,
+        notes:    form.notes.trim()   || undefined,
       }) as Client
-      toast.success(`Cliente creado: ${data.name ?? data.phone}`)
-      onCreated(data)
+
+      const createdPets: { id: string; name: string; type: string }[] = []
+      for (const pd of petDrafts) {
+        if (!pd.name.trim()) continue
+        const pet = await api.createPet({
+          user_id:                 client.id,
+          name:                    pd.name.trim(),
+          type:                    pd.type,
+          breed:                   pd.breed.trim() || undefined,
+          birth_date:              pd.birthDate    || undefined,
+          grooming_frequency_days: pd.groomFreq ? Number(pd.groomFreq) : undefined,
+        }) as Pet
+        createdPets.push({ id: pet.id, name: pet.name, type: pet.type })
+      }
+
+      toast.success(`Cliente creado: ${client.name ?? client.phone}`)
+      onCreated({ ...client, pets: createdPets })
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Error al crear cliente'
       setErr(msg); toast.error(msg)
@@ -97,49 +120,112 @@ function NewClientModal({ onClose, onCreated }: { onClose: () => void; onCreated
   return (
     <Modal title="Nuevo cliente" onClose={onClose}>
       <form onSubmit={submit} className="space-y-3">
-        <MField label="Teléfono *" value={form.phone} onChange={set('phone')} placeholder="+51 9XX XXX XXX" type="tel" required />
-        <MField label="Nombre"     value={form.name}  onChange={set('name')}  placeholder="Juan García" />
-        <MField label="Email"      value={form.email} onChange={set('email')} placeholder="juan@email.com" type="email" />
-        <MField label="Dirección"  value={form.address} onChange={set('address')} placeholder="Av. Arequipa 1234" />
 
-        {/* Distrito */}
-        <div>
-          <label className="text-xs font-semibold mb-1 block" style={{ color: '#334155' }}>Distrito</label>
-          <select
-            value={form.distrito}
-            onChange={e => set('distrito')(e.target.value)}
-            className="w-full px-3 py-2.5 rounded-xl text-sm outline-none"
-            style={{ background: '#F9F9FB', border: '1.5px solid #E5E7EB', color: form.distrito ? '#0f172a' : '#94a3b8' }}
-            onFocus={e => e.currentTarget.style.border = '1.5px solid #601EF9'}
-            onBlur={e  => e.currentTarget.style.border = '1.5px solid #E5E7EB'}
-          >
-            <option value="">Seleccionar distrito…</option>
-            {DISTRITOS_LIMA.map(d => (
-              <option key={d} value={d}>{d}</option>
+        {/* ── Datos del dueño ── */}
+        <div className="pb-1">
+          <p className="text-[10px] font-bold uppercase tracking-widest mb-2.5" style={{ color: '#94a3b8' }}>Datos del dueño</p>
+          <div className="space-y-2.5">
+            <MField label="Teléfono *" value={form.phone} onChange={set('phone')} placeholder="+51 9XX XXX XXX" type="tel" required />
+            <MField label="Nombre"     value={form.name}  onChange={set('name')}  placeholder="Juan García" />
+            <MField label="Email"      value={form.email} onChange={set('email')} placeholder="juan@email.com" type="email" />
+            <MField label="Dirección"  value={form.address} onChange={set('address')} placeholder="Av. Arequipa 1234" />
+            <div>
+              <label className="text-xs font-semibold mb-1 block" style={{ color: '#334155' }}>Distrito</label>
+              <select
+                value={form.distrito}
+                onChange={e => set('distrito')(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl text-sm outline-none"
+                style={{ background: '#F9F9FB', border: '1.5px solid #E5E7EB', color: form.distrito ? '#0f172a' : '#94a3b8' }}
+                onFocus={e => e.currentTarget.style.border = '1.5px solid #601EF9'}
+                onBlur={e  => e.currentTarget.style.border = '1.5px solid #E5E7EB'}
+              >
+                <option value="">Seleccionar distrito…</option>
+                {DISTRITOS_LIMA.map(d => <option key={d} value={d}>{d}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-semibold mb-1 block" style={{ color: '#334155' }}>Notas</label>
+              <textarea rows={2} value={form.notes} onChange={e => set('notes')(e.target.value)}
+                placeholder="Observaciones generales..."
+                className="w-full px-3 py-2 rounded-xl text-sm outline-none resize-none"
+                style={{ background: '#F9F9FB', border: '1.5px solid #E5E7EB', color: '#0f172a' }}
+                onFocus={e => e.currentTarget.style.border = '1.5px solid #601EF9'}
+                onBlur={e  => e.currentTarget.style.border = '1.5px solid #E5E7EB'}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* ── Mascotas ── */}
+        <div className="pt-1">
+          <div className="flex items-center justify-between mb-2.5">
+            <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: '#94a3b8' }}>Mascotas</p>
+            <button type="button" onClick={addPet}
+              className="text-xs font-semibold px-2.5 py-1 rounded-lg"
+              style={{ background: '#F3EEFF', color: '#601EF9' }}
+            >
+              + Agregar otra
+            </button>
+          </div>
+
+          <div className="space-y-3">
+            {petDrafts.map((pet, i) => (
+              <div key={i} className="rounded-xl p-3 space-y-2" style={{ background: '#F3EEFF', border: '1px solid #ddd6fe' }}>
+                <div className="flex items-center gap-2 mb-0.5">
+                  <span className="text-base">{PET_EMOJI[pet.type] ?? '🐾'}</span>
+                  <span className="text-xs font-bold" style={{ color: '#601EF9' }}>
+                    {pet.name.trim() || `Mascota ${i + 1}`}
+                  </span>
+                  {petDrafts.length > 1 && (
+                    <button type="button" onClick={() => removePet(i)}
+                      className="ml-auto text-xs px-2 py-0.5 rounded-lg"
+                      style={{ background: '#ede9fe', color: '#94a3b8' }}
+                    >
+                      ✕ Quitar
+                    </button>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="col-span-2">
+                    <MField label="Nombre" value={pet.name} onChange={setPetField(i, 'name')} placeholder="Rex, Luna…" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold mb-1 block" style={{ color: '#334155' }}>Especie</label>
+                    <select value={pet.type} onChange={e => setPetField(i, 'type')(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl text-sm outline-none"
+                      style={{ background: '#fff', border: '1.5px solid #E5E7EB', color: '#0f172a' }}
+                      onFocus={e => e.currentTarget.style.border = '1.5px solid #601EF9'}
+                      onBlur={e  => e.currentTarget.style.border = '1.5px solid #E5E7EB'}
+                    >
+                      <option value="dog">🐶 Perro</option>
+                      <option value="cat">🐱 Gato</option>
+                      <option value="bird">🐦 Ave</option>
+                      <option value="rabbit">🐰 Conejo</option>
+                      <option value="other">🐾 Otro</option>
+                    </select>
+                  </div>
+                  <div>
+                    <MField label="Raza" value={pet.breed} onChange={setPetField(i, 'breed')} placeholder="Labrador…" />
+                  </div>
+                  <div>
+                    <MField label="Nacimiento" value={pet.birthDate} onChange={setPetField(i, 'birthDate')} type="date" />
+                  </div>
+                  <div>
+                    <MField label="Baño cada (días)" value={pet.groomFreq} onChange={setPetField(i, 'groomFreq')} placeholder="30" type="number" />
+                  </div>
+                </div>
+              </div>
             ))}
-          </select>
+          </div>
         </div>
 
-        <div>
-          <label className="text-xs font-semibold mb-1 block" style={{ color: '#334155' }}>Notas</label>
-          <textarea
-            rows={2}
-            value={form.notes}
-            onChange={(e) => set('notes')(e.target.value)}
-            placeholder="Observaciones generales..."
-            className="w-full px-3 py-2 rounded-xl text-sm outline-none resize-none"
-            style={{ background: '#F9F9FB', border: '1.5px solid #E5E7EB', color: '#0f172a' }}
-            onFocus={e => e.currentTarget.style.border = '1.5px solid #601EF9'}
-            onBlur={e  => e.currentTarget.style.border = '1.5px solid #E5E7EB'}
-          />
-        </div>
         {err && <p className="text-xs" style={{ color: '#dc2626' }}>{err}</p>}
         <div className="flex gap-3 pt-1">
           <button type="submit" disabled={saving}
             className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white"
             style={{ background: 'linear-gradient(135deg,#3b10b5,#601EF9)', opacity: saving ? 0.7 : 1 }}
           >
-            {saving ? 'Guardando…' : 'Crear cliente'}
+            {saving ? 'Guardando…' : 'Crear perfil'}
           </button>
           <button type="button" onClick={onClose}
             className="px-4 py-2.5 rounded-xl text-sm font-semibold"
@@ -770,15 +856,17 @@ function ActionBtn({ icon, label, onClick, primary }: {
 function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(15,23,42,0.4)' }}>
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6">
-        <div className="flex items-center justify-between mb-4">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl flex flex-col" style={{ maxHeight: '90vh' }}>
+        <div className="flex items-center justify-between px-6 pt-6 pb-4 shrink-0">
           <h3 className="text-base font-bold" style={{ color: '#0f172a' }}>{title}</h3>
           <button onClick={onClose}
             className="w-8 h-8 rounded-xl flex items-center justify-center text-lg"
             style={{ background: '#F1F5F9', color: '#94a3b8' }}
           >×</button>
         </div>
-        {children}
+        <div className="overflow-y-auto px-6 pb-6">
+          {children}
+        </div>
       </div>
     </div>
   )

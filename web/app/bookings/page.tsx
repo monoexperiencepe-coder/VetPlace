@@ -97,11 +97,13 @@ function NewBookingModal({ defaultDate, onClose, onCreated }: NewBookingModalPro
   const [newPetType, setNewPetType]   = useState('dog')
 
   // not-found inline create
-  const [newOwnerName, setNewOwnerName]   = useState('')
-  const [inlinePetName, setInlinePetName] = useState('')
-  const [inlinePetType, setInlinePetType] = useState('dog')
-  const [creating, setCreating]           = useState(false)
-  const [createErr, setCreateErr]         = useState('')
+  const [newOwnerName, setNewOwnerName]     = useState('')
+  const [inlinePetName, setInlinePetName]   = useState('')
+  const [inlinePetType, setInlinePetType]   = useState('dog')
+  const [inlinePetBreed, setInlinePetBreed] = useState('')
+  const [inlineBirthDate, setInlineBirthDate] = useState('')
+  const [creating, setCreating]             = useState(false)
+  const [createErr, setCreateErr]           = useState('')
 
   // form
   const [date, setDate]             = useState(defaultDate)
@@ -162,16 +164,17 @@ function NewBookingModal({ defaultDate, onClose, onCreated }: NewBookingModalPro
   const doCreateInline = async () => {
     if (newOwnerName.trim().length < 2) { setCreateErr('Nombre del dueño muy corto'); return }
     if (!inlinePetName.trim())          { setCreateErr('Ingresá el nombre de la mascota'); return }
+    const raw = phone.trim()
+    if (!raw || raw.replace(/\D/g, '').length < 7) { setCreateErr('Ingresá un teléfono válido'); return }
     setCreating(true); setCreateErr('')
     try {
-      const raw = phone.trim()
       const normalized = raw.startsWith('+') ? raw : `+51${raw}`
 
       const cRes  = await authFetch('/api/users', { method: 'POST', body: JSON.stringify({ phone: normalized, name: newOwnerName.trim() }) })
       const cJson = await cRes.json() as { data: Client }
       const newClient = cJson.data
 
-      const pRes  = await authFetch('/api/pets', { method: 'POST', body: JSON.stringify({ user_id: newClient.id, name: inlinePetName.trim(), type: inlinePetType }) })
+      const pRes  = await authFetch('/api/pets', { method: 'POST', body: JSON.stringify({ user_id: newClient.id, name: inlinePetName.trim(), type: inlinePetType, breed: inlinePetBreed.trim() || undefined, birth_date: inlineBirthDate || undefined }) })
       const pJson = await pRes.json() as { data: Pet }
       const newPet = pJson.data
 
@@ -265,7 +268,17 @@ function NewBookingModal({ defaultDate, onClose, onCreated }: NewBookingModalPro
               </div>
               {searchErr && <p className="text-xs mt-1.5 text-red-500">{searchErr}</p>}
             </div>
-            <button onClick={onClose} className="text-xs text-gray-400 hover:underline">Cancelar</button>
+            <div className="flex items-center gap-3">
+              <button onClick={onClose} className="text-xs text-gray-400 hover:underline">Cancelar</button>
+              <span className="text-gray-200 text-xs">|</span>
+              <button
+                onClick={() => { setPhone(''); setStep('notfound') }}
+                className="text-xs font-semibold hover:underline"
+                style={{ color: '#601EF9' }}
+              >
+                + Nuevo cliente
+              </button>
+            </div>
           </div>
         )}
 
@@ -346,34 +359,64 @@ function NewBookingModal({ defaultDate, onClose, onCreated }: NewBookingModalPro
         {/* ── STEP 3: No encontrado — crear inline ── */}
         {step === 'notfound' && (
           <div className="space-y-4">
-            <div className="flex items-center gap-2 px-3 py-2 rounded-xl" style={{ background: '#fffbeb', border: '1px solid #fde68a' }}>
-              <span>⚠️</span>
-              <span className="text-sm font-medium" style={{ color: '#92400e' }}>No encontramos el número <strong>{phone}</strong></span>
-            </div>
+            {phone ? (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-xl" style={{ background: '#fffbeb', border: '1px solid #fde68a' }}>
+                <span>⚠️</span>
+                <span className="text-sm font-medium" style={{ color: '#92400e' }}>No encontramos el número <strong>{phone}</strong></span>
+              </div>
+            ) : (
+              <div className="px-3 py-2 rounded-xl" style={{ background: '#F3EEFF', border: '1px solid #ddd6fe' }}>
+                <p className="text-xs font-semibold mb-1.5" style={{ color: '#601EF9' }}>NUEVO CLIENTE</p>
+                <input
+                  type="text"
+                  placeholder="Teléfono (+51987654321)"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className={INPUT}
+                  style={INPUT_STYLE}
+                />
+              </div>
+            )}
 
             <div>
               <Label>Nombre del dueño</Label>
               <input type="text" placeholder="María García" value={newOwnerName} onChange={(e) => setNewOwnerName(e.target.value)} className={INPUT} style={INPUT_STYLE} />
             </div>
-            <div>
-              <Label>Nombre mascota</Label>
-              <input type="text" placeholder="Draco" value={inlinePetName} onChange={(e) => setInlinePetName(e.target.value)} className={INPUT} style={INPUT_STYLE} />
-            </div>
-            <div>
-              <Label>Tipo</Label>
-              <select value={inlinePetType} onChange={(e) => setInlinePetType(e.target.value)} className={INPUT} style={INPUT_STYLE}>
-                <option value="dog">Perro</option>
-                <option value="cat">Gato</option>
-                <option value="bird">Ave</option>
-                <option value="rabbit">Conejo</option>
-                <option value="other">Otro</option>
-              </select>
+            {/* Mascota */}
+            <div className="rounded-xl p-3 space-y-2.5" style={{ background: '#F3EEFF', border: '1px solid #ddd6fe' }}>
+              <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: '#7c3aed' }}>
+                {['🐶','🐱','🐦','🐰','🐾'][['dog','cat','bird','rabbit','other'].indexOf(inlinePetType)] ?? '🐾'} Mascota
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="col-span-2">
+                  <Label>Nombre de la mascota</Label>
+                  <input type="text" placeholder="Draco, Luna…" value={inlinePetName} onChange={(e) => setInlinePetName(e.target.value)} className={INPUT} style={INPUT_STYLE} />
+                </div>
+                <div>
+                  <Label>Especie</Label>
+                  <select value={inlinePetType} onChange={(e) => setInlinePetType(e.target.value)} className={INPUT} style={INPUT_STYLE}>
+                    <option value="dog">🐶 Perro</option>
+                    <option value="cat">🐱 Gato</option>
+                    <option value="bird">🐦 Ave</option>
+                    <option value="rabbit">🐰 Conejo</option>
+                    <option value="other">🐾 Otro</option>
+                  </select>
+                </div>
+                <div>
+                  <Label>Raza (opcional)</Label>
+                  <input type="text" placeholder="Labrador…" value={inlinePetBreed} onChange={(e) => setInlinePetBreed(e.target.value)} className={INPUT} style={INPUT_STYLE} />
+                </div>
+                <div className="col-span-2">
+                  <Label>Fecha de nacimiento (opcional)</Label>
+                  <input type="date" value={inlineBirthDate} onChange={(e) => setInlineBirthDate(e.target.value)} className={INPUT} style={INPUT_STYLE} />
+                </div>
+              </div>
             </div>
 
             {createErr && <p className="text-xs text-red-500">{createErr}</p>}
 
             <div className="flex gap-2">
-              <button onClick={() => setStep('search')} className="text-xs font-medium px-3 py-2 rounded-xl" style={{ background: '#f0f4ff', color: '#334155' }}>
+              <button onClick={() => { setStep('search'); setNewOwnerName(''); setInlinePetName(''); setInlinePetBreed(''); setInlineBirthDate(''); setCreateErr('') }} className="text-xs font-medium px-3 py-2 rounded-xl" style={{ background: '#f0f4ff', color: '#334155' }}>
                 ← Volver
               </button>
               <button
