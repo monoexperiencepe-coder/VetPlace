@@ -2,7 +2,6 @@ import { createClient } from '@/lib/supabase'
 
 const BASE = ''
 
-/** Obtiene el access token de Supabase si hay sesión activa */
 async function getToken(): Promise<string | null> {
   try {
     const supabase = createClient()
@@ -17,7 +16,6 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const token = await getToken()
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   if (token) headers['Authorization'] = `Bearer ${token}`
-
   const res = await fetch(`${BASE}${path}`, {
     ...options,
     headers: { ...headers, ...(options?.headers as Record<string, string> ?? {}) },
@@ -132,6 +130,36 @@ export const api = {
     request<{ available: boolean }>(
       `/api/bookings/slot-available?date=${encodeURIComponent(date)}&time=${encodeURIComponent(time)}`
     ),
+
+  // Historia clinica
+  getMedicalRecords: (petId: string) =>
+    request(`/api/medical-records/pet/${petId}`),
+
+  createMedicalRecord: (body: {
+    pet_id: string
+    date: string
+    type?: string
+    diagnosis?: string
+    treatment?: string
+    notes?: string
+    vet?: string
+    weight?: number | null
+  }) =>
+    request('/api/medical-records', { method: 'POST', body: JSON.stringify(body) }),
+
+  updateMedicalRecord: (id: string, body: {
+    date?: string
+    type?: string
+    diagnosis?: string
+    treatment?: string
+    notes?: string
+    vet?: string
+    weight?: number | null
+  }) =>
+    request(`/api/medical-records/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+
+  deleteMedicalRecord: (id: string) =>
+    request(`/api/medical-records/${id}`, { method: 'DELETE' }),
 
   // Events
   getEventsByPet: (petId: string) =>
