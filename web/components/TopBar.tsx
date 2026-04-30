@@ -5,7 +5,10 @@ import { usePathname } from 'next/navigation'
 const PAGE_TITLES: Record<string, string> = {
   '/':          'Dashboard',
   '/clients':   'Clientes',
-  '/events':    'Eventos',
+  '/pets':      'Mascotas',
+  '/events':        'Eventos',
+  '/automations':   'Automatizaciones',
+  '/reports':       'Reportes',
   '/bookings':  'Agenda',
   '/chats':     'Chats',
   '/routes':    'Rutas del día',
@@ -13,6 +16,7 @@ const PAGE_TITLES: Record<string, string> = {
 }
 
 function getTitle(pathname: string): string {
+  if (pathname === '/pets')          return 'Mascotas'
   if (pathname.startsWith('/pets/')) return 'Detalle de mascota'
   return PAGE_TITLES[pathname] ?? 'VetPlace'
 }

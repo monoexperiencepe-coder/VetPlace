@@ -233,13 +233,16 @@ function NewBookingModal({ defaultDate, onClose, onCreated }: NewBookingModalPro
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 backdrop-blur-sm" style={{ background: 'rgba(17,28,68,0.4)' }} onClick={onClose} />
-      <div className="relative rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6" style={{ background: '#ffffff', border: '1px solid #e4ebff' }}>
+      <div className="relative rounded-2xl shadow-2xl w-full max-w-md mx-4 flex flex-col" style={{ background: '#ffffff', border: '1px solid #e4ebff', maxHeight: '90vh' }}>
 
-        {/* Header */}
-        <div className="flex items-center justify-between mb-5">
+        {/* Header — fijo */}
+        <div className="flex items-center justify-between px-6 pt-6 pb-4 shrink-0" style={{ borderBottom: '1px solid #f0f4ff' }}>
           <h3 className="text-lg font-bold" style={{ color: '#0f172a' }}>Nueva cita</h3>
           <button onClick={onClose} className="text-xl leading-none w-8 h-8 flex items-center justify-center rounded-lg" style={{ color: '#94a3b8', background: '#f0f4ff' }}>×</button>
         </div>
+
+        {/* Contenido — scrollable */}
+        <div className="overflow-y-auto px-6 py-5 flex-1">
 
         {/* ── STEP 1: Buscar ── */}
         {step === 'search' && (
@@ -496,69 +499,99 @@ function NewBookingModal({ defaultDate, onClose, onCreated }: NewBookingModalPro
           </div>
         )}
 
+        </div>{/* fin scrollable */}
       </div>
     </div>
   )
 }
 
 // ─── Página principal ─────────────────────────────────────────────────────────
+type QuickFilter = 'today' | 'tomorrow' | 'pending' | 'all'
+
+const FILTER_STATUSES: Record<QuickFilter, BookingStatus[]> = {
+  today:    ['PENDING', 'CONFIRMED'],
+  tomorrow: ['PENDING', 'CONFIRMED'],
+  pending:  ['PENDING'],
+  all:      ['PENDING', 'CONFIRMED', 'COMPLETED', 'CANCELLED'],
+}
+
 export default function BookingsPage() {
   const toast   = useToast()
   const confirm = useConfirm()
-  const [date, setDate]         = useState(todayStr())
-  const [bookings, setBookings] = useState<Booking[]>([])
-  const [loading, setLoading]   = useState(true)
-  const [error, setError]       = useState('')
+
+  const [filter, setFilter]       = useState<QuickFilter>('today')
+  const [date, setDate]           = useState(todayStr())
+  const [bookings, setBookings]   = useState<Booking[]>([])
+  const [loading, setLoading]     = useState(true)
+  const [error, setError]         = useState('')
   const [showModal, setShowModal] = useState(false)
+  const [actionId, setActionId]   = useState<string | null>(null)
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location.search.includes('new=1')) {
+      setShowModal(true)
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+  }, [])
+
+  // Sync date with filter
+  useEffect(() => {
+    if (filter === 'today')    setDate(todayStr())
+    if (filter === 'tomorrow') {
+      const d = new Date(); d.setDate(d.getDate() + 1)
+      setDate(d.toISOString().slice(0, 10))
+    }
+  }, [filter])
 
   const load = useCallback(async () => {
-    setLoading(true)
-    setError('')
+    setLoading(true); setError('')
     try {
-      const data = await api.getBookings(date) as Booking[]
+      const data = await api.getBookings(filter === 'pending' ? todayStr() : date) as Booking[]
       setBookings(data)
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Error al cargar agenda')
-    } finally {
-      setLoading(false)
-    }
-  }, [date])
+      setError(e instanceof Error ? e.message : 'Error al cargar servicios')
+    } finally { setLoading(false) }
+  }, [date, filter])
 
   useEffect(() => { load() }, [load])
 
   const handleAction = async (id: string, action: 'confirm' | 'complete' | 'cancel') => {
     if (action === 'cancel') {
       const ok = await confirm({
-        title: 'Cancelar cita',
-        message:
-          '¿Seguro que querés cancelar esta cita? El horario quedará libre para otro paciente.',
-        confirmLabel: 'Sí, cancelar',
-        cancelLabel: 'No, volver',
-        variant: 'danger',
+        title: 'Cancelar servicio',
+        message: '¿Cancelar este servicio? El horario quedará libre.',
+        confirmLabel: 'Sí, cancelar', cancelLabel: 'No, volver', variant: 'danger',
       })
       if (!ok) return
     }
+    setActionId(id)
     try {
-      if (action === 'confirm') {
-        await api.confirmBooking(id)
-        toast.success('Cita confirmada')
-      }
-      if (action === 'complete') {
-        await api.completeBooking(id)
-        toast.success('Cita completada')
-      }
-      if (action === 'cancel') {
-        await api.cancelBooking(id)
-        toast.info('Cita cancelada')
-      }
+      if (action === 'confirm')  { await api.confirmBooking(id);  toast.success('Servicio confirmado') }
+      if (action === 'complete') { await api.completeBooking(id); toast.success('Servicio completado ✓') }
+      if (action === 'cancel')   { await api.cancelBooking(id);   toast.info('Servicio cancelado') }
       load()
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Error al actualizar')
-    }
+    } finally { setActionId(null) }
+  }
+
+  // Client-side filter by status
+  const allowedStatuses = FILTER_STATUSES[filter]
+  const visible = bookings.filter(b => allowedStatuses.includes(b.status))
+
+  // Summary counts
+  const counts = {
+    pending:   bookings.filter(b => b.status === 'PENDING').length,
+    confirmed: bookings.filter(b => b.status === 'CONFIRMED').length,
+    completed: bookings.filter(b => b.status === 'COMPLETED').length,
+  }
+
+  const filterLabels: Record<QuickFilter, string> = {
+    today: 'Hoy', tomorrow: 'Mañana', pending: 'Pendientes', all: 'Todos',
   }
 
   return (
-    <div>
+    <div className="space-y-4">
       {showModal && (
         <NewBookingModal
           defaultDate={date}
@@ -567,112 +600,284 @@ export default function BookingsPage() {
         />
       )}
 
-      {/* Controles */}
-      <div className="flex items-center gap-3 mb-5">
-        <input
-          type="date"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-          className="rounded-xl px-3 py-2 text-sm focus:outline-none"
-          style={{ background: '#ffffff', border: '1.5px solid #e4ebff' }}
-        />
-        <button
-          onClick={() => setShowModal(true)}
-          className="px-4 py-2 text-white text-sm font-semibold rounded-xl flex items-center gap-2"
-          style={{ background: 'var(--blue)' }}
-        >
-          <span>+</span> Nueva cita
-        </button>
+      {/* ── Header ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        {/* Filtros rápidos */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex p-1 rounded-xl gap-1" style={{ background: '#F3EEFF' }}>
+            {(Object.keys(filterLabels) as QuickFilter[]).map(f => (
+              <button key={f} onClick={() => setFilter(f)}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+                style={filter === f
+                  ? { background: '#601EF9', color: '#fff' }
+                  : { color: '#601EF9' }}
+              >
+                {filterLabels[f]}
+                {f === 'pending' && counts.pending > 0 && (
+                  <span className="ml-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+                    style={{ background: filter === 'pending' ? 'rgba(255,255,255,0.25)' : '#601EF9', color: '#fff' }}>
+                    {counts.pending}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+          {/* Date picker para filtro custom */}
+          {(filter === 'all') && (
+            <input type="date" value={date} onChange={e => setDate(e.target.value)}
+              className="text-xs px-3 py-2 rounded-xl outline-none"
+              style={{ background: '#fff', border: '1.5px solid #ede9fe', color: '#0f172a' }}
+            />
+          )}
+        </div>
+
+        {/* Resumen + acción */}
+        <div className="flex items-center gap-3">
+          {/* Mini stats */}
+          <div className="hidden sm:flex items-center gap-3 px-3 py-2 rounded-xl text-xs"
+            style={{ background: '#fff', border: '1px solid #ede9fe' }}>
+            <span style={{ color: '#94a3b8' }}>
+              <span className="font-bold" style={{ color: '#f59e0b' }}>{counts.pending}</span> pendientes
+            </span>
+            <span className="w-px h-3" style={{ background: '#ede9fe' }} />
+            <span style={{ color: '#94a3b8' }}>
+              <span className="font-bold" style={{ color: '#1d4ed8' }}>{counts.confirmed}</span> confirmados
+            </span>
+            <span className="w-px h-3" style={{ background: '#ede9fe' }} />
+            <span style={{ color: '#94a3b8' }}>
+              <span className="font-bold" style={{ color: '#16a34a' }}>{counts.completed}</span> completados
+            </span>
+          </div>
+          <button onClick={() => setShowModal(true)}
+            className="flex items-center gap-2 px-4 py-2 text-white text-sm font-semibold rounded-xl"
+            style={{ background: 'linear-gradient(135deg,#3b10b5,#601EF9)' }}>
+            <span className="text-base leading-none">+</span> Nuevo servicio
+          </button>
+        </div>
       </div>
 
-      {loading && <p className="text-sm" style={{ color: '#94a3b8' }}>Cargando...</p>}
-      {error   && <p className="text-sm text-red-500">{error}</p>}
+      {/* ── Lista principal ── */}
+      {loading && (
+        <div className="space-y-2">
+          {[1,2,3].map(i => (
+            <div key={i} className="h-16 rounded-2xl animate-pulse" style={{ background: '#F3EEFF' }} />
+          ))}
+        </div>
+      )}
+      {error && (
+        <div className="py-4 px-5 rounded-2xl text-sm" style={{ background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca' }}>
+          {error}
+        </div>
+      )}
 
-      {!loading && !error && (
-        <div className="rounded-2xl overflow-hidden" style={{ background: '#ffffff', border: '1px solid #e4ebff' }}>
-          {bookings.length === 0 ? (
-            <div className="text-center py-16">
-              <p className="text-sm mb-3" style={{ color: '#94a3b8' }}>No hay turnos para este día.</p>
-              <button
-                onClick={() => setShowModal(true)}
-                className="text-sm font-medium"
-                style={{ color: 'var(--blue)' }}
-              >
-                + Agregar una cita
-              </button>
-            </div>
-          ) : (
-            <table className="w-full text-sm">
-              <thead style={{ background: '#f8faff', borderBottom: '1px solid #e4ebff' }}>
-                <tr>
-                  {['Hora', 'Mascota', 'Tipo', 'Notas', 'Estado', ''].map((h) => (
-                    <th key={h} className="text-left px-5 py-3 text-xs font-semibold uppercase tracking-wide" style={{ color: '#94a3b8' }}>
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {bookings.map((b, i) => (
-                  <tr
-                    key={b.id}
-                    style={{ borderTop: i > 0 ? '1px solid #f0f4ff' : undefined }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = '#f8faff')}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-                  >
-                    <td className="px-5 py-3.5 font-mono font-bold text-base" style={{ color: '#0f172a' }}>{b.time}</td>
-                    <td className="px-5 py-3.5 font-semibold" style={{ color: '#0f172a' }}>{b.pet.name}</td>
-                    <td className="px-5 py-3.5" style={{ color: '#475569' }}>{PET_TYPE_LABEL[b.pet.type] ?? b.pet.type}</td>
-                    <td className="px-5 py-3.5" style={{ color: '#94a3b8' }}>{b.notes ?? '—'}</td>
-                    <td className="px-5 py-3.5">
-                      <span
-                        className="px-2.5 py-1 rounded-lg text-xs font-semibold"
-                        style={{ background: STATUS_COLOR[b.status].bg, color: STATUS_COLOR[b.status].text }}
-                      >
-                        {STATUS_LABEL[b.status]}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <div className="flex gap-2 justify-end">
-                        {b.status === 'PENDING' && (
-                          <ActionBtn onClick={() => handleAction(b.id, 'confirm')} variant="blue">Confirmar</ActionBtn>
-                        )}
-                        {(b.status === 'PENDING' || b.status === 'CONFIRMED') && (
-                          <>
-                            <ActionBtn onClick={() => handleAction(b.id, 'complete')} variant="green">Completar</ActionBtn>
-                            <ActionBtn onClick={() => handleAction(b.id, 'cancel')} variant="ghost">Cancelar</ActionBtn>
-                          </>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+      {!loading && !error && visible.length === 0 && (
+        <EmptyState onNew={() => setShowModal(true)} filter={filter} />
+      )}
+
+      {!loading && !error && visible.length > 0 && (
+        <div className="rounded-2xl overflow-hidden" style={{ background: '#fff', border: '1px solid #ede9fe' }}>
+          {/* Table header */}
+          <div className="grid text-[10px] font-semibold uppercase tracking-widest px-4 py-2.5"
+            style={{ gridTemplateColumns: '70px 1fr 90px 90px 110px 200px', background: '#F9F9FB', borderBottom: '1px solid #ede9fe', color: '#94a3b8' }}>
+            <span>Hora</span>
+            <span>Servicio</span>
+            <span>Tipo</span>
+            <span>Fecha</span>
+            <span>Estado</span>
+            <span className="text-right">Acciones</span>
+          </div>
+
+          {/* Rows */}
+          <div className="divide-y" style={{ borderColor: '#f1f5f9' }}>
+            {visible.map(b => (
+              <ServiceRow
+                key={b.id}
+                booking={b}
+                isActioning={actionId === b.id}
+                onConfirm={() => handleAction(b.id, 'confirm')}
+                onComplete={() => handleAction(b.id, 'complete')}
+                onCancel={() => handleAction(b.id, 'cancel')}
+                onAssignRoute={() => toast.success('Asignación a ruta — próximamente 🛵')}
+              />
+            ))}
+          </div>
         </div>
       )}
     </div>
   )
 }
 
-function ActionBtn({ onClick, variant, children }: {
-  onClick: () => void
-  variant: 'green' | 'blue' | 'ghost'
-  children: React.ReactNode
+// ─── Fila de servicio ─────────────────────────────────────────────────────────
+const STATUS_ROW_BG: Record<BookingStatus, string> = {
+  PENDING:   'transparent',
+  CONFIRMED: 'transparent',
+  COMPLETED: '#f8fffe',
+  CANCELLED: '#fafafa',
+}
+
+function ServiceRow({ booking: b, isActioning, onConfirm, onComplete, onCancel, onAssignRoute }: {
+  booking: Booking
+  isActioning: boolean
+  onConfirm: () => void
+  onComplete: () => void
+  onCancel: () => void
+  onAssignRoute: () => void
 }) {
-  const styles = {
-    green: { background: '#dcfce7', color: '#166534' },
-    blue:  { background: '#dbeafe', color: '#1e40af' },
-    ghost: { background: '#f1f5f9', color: '#475569' },
-  }
+  const [open, setOpen] = useState(false)
+  const isPending   = b.status === 'PENDING'
+  const isActive    = b.status === 'PENDING' || b.status === 'CONFIRMED'
+  const isCompleted = b.status === 'COMPLETED'
+
+  const dateLabel = new Date(b.date + 'T00:00:00').toLocaleDateString('es-AR', {
+    day: 'numeric', month: 'short',
+  })
+
   return (
-    <button
-      onClick={onClick}
-      className="text-xs px-3 py-1.5 rounded-lg font-medium transition-opacity hover:opacity-80"
-      style={styles[variant]}
+    <div
+      className="relative"
+      style={{ background: STATUS_ROW_BG[b.status] }}
     >
-      {children}
+      {/* Indicador lateral de estado */}
+      <div className="absolute left-0 top-0 bottom-0 w-0.5 rounded-r-full"
+        style={{ background: isPending ? '#f59e0b' : b.status === 'CONFIRMED' ? '#601EF9' : isCompleted ? '#10b981' : '#e2e8f0' }} />
+
+      <div
+        className="grid items-center px-4 py-3.5 transition-colors"
+        style={{ gridTemplateColumns: '70px 1fr 90px 90px 110px 200px' }}
+        onMouseEnter={e => { if (!isCompleted) e.currentTarget.style.background = '#FAFAFF' }}
+        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+      >
+        {/* Hora */}
+        <span className="font-mono text-sm font-bold" style={{ color: isCompleted ? '#94a3b8' : '#0f172a' }}>
+          {b.time}
+        </span>
+
+        {/* Servicio (mascota) */}
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="text-base">{PET_EMOJI[b.pet.type] ?? '🐾'}</span>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold truncate"
+                style={{ color: isCompleted ? '#94a3b8' : '#0f172a', textDecoration: isCompleted ? 'line-through' : 'none' }}>
+                {b.pet.name}
+              </p>
+              {b.notes && (
+                <p className="text-[11px] truncate" style={{ color: '#94a3b8' }}>{b.notes}</p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Tipo */}
+        <span className="text-xs font-medium" style={{ color: '#475569' }}>
+          {PET_TYPE_LABEL[b.pet.type] ?? b.pet.type}
+        </span>
+
+        {/* Fecha */}
+        <span className="text-xs font-medium" style={{ color: '#64748b' }}>{dateLabel}</span>
+
+        {/* Badge estado */}
+        <span className="px-2.5 py-1 rounded-lg text-[11px] font-semibold w-fit flex items-center gap-1"
+          style={{ background: STATUS_COLOR[b.status].bg, color: STATUS_COLOR[b.status].text }}>
+          <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: STATUS_COLOR[b.status].text }} />
+          {STATUS_LABEL[b.status]}
+        </span>
+
+        {/* Acciones */}
+        <div className="flex items-center justify-end gap-1.5">
+          {isActioning ? (
+            <span className="text-xs" style={{ color: '#94a3b8' }}>Procesando…</span>
+          ) : (
+            <>
+              {/* Asignar a ruta — siempre visible si activo */}
+              {isActive && (
+                <button onClick={onAssignRoute}
+                  className="text-[11px] font-semibold px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition-colors"
+                  style={{ background: '#F3EEFF', color: '#601EF9' }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#ede9fe'}
+                  onMouseLeave={e => e.currentTarget.style.background = '#F3EEFF'}>
+                  🛵 Ruta
+                </button>
+              )}
+              {isPending && (
+                <button onClick={onConfirm}
+                  className="text-[11px] font-semibold px-2.5 py-1.5 rounded-lg transition-colors"
+                  style={{ background: '#dbeafe', color: '#1e40af' }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#bfdbfe'}
+                  onMouseLeave={e => e.currentTarget.style.background = '#dbeafe'}>
+                  Confirmar
+                </button>
+              )}
+              {isActive && (
+                <button onClick={onComplete}
+                  className="text-[11px] font-semibold px-2.5 py-1.5 rounded-lg transition-colors"
+                  style={{ background: '#dcfce7', color: '#166534' }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#bbf7d0'}
+                  onMouseLeave={e => e.currentTarget.style.background = '#dcfce7'}>
+                  ✓ Listo
+                </button>
+              )}
+              {isActive && (
+                <div className="relative">
+                  <button onClick={() => setOpen(o => !o)}
+                    className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors"
+                    style={{ background: '#f1f5f9', color: '#64748b' }}
+                    onMouseEnter={e => e.currentTarget.style.background = '#e2e8f0'}
+                    onMouseLeave={e => e.currentTarget.style.background = '#f1f5f9'}>
+                    ⋯
+                  </button>
+                  {open && (
+                    <div className="absolute right-0 top-8 z-20 rounded-xl shadow-lg py-1 min-w-[140px]"
+                      style={{ background: '#fff', border: '1px solid #ede9fe' }}>
+                      <DropItem label="📅 Reprogramar" onClick={() => { setOpen(false); }} />
+                      <DropItem label="🗑️ Cancelar" onClick={() => { setOpen(false); onCancel() }} danger />
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function DropItem({ label, onClick, danger }: { label: string; onClick: () => void; danger?: boolean }) {
+  return (
+    <button onClick={onClick}
+      className="w-full text-left px-3 py-2 text-xs font-medium transition-colors"
+      style={{ color: danger ? '#dc2626' : '#334155' }}
+      onMouseEnter={e => e.currentTarget.style.background = danger ? '#fef2f2' : '#F3EEFF'}
+      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+      {label}
     </button>
   )
 }
+
+function EmptyState({ onNew, filter }: { onNew: () => void; filter: QuickFilter }) {
+  const messages: Record<QuickFilter, { icon: string; title: string; sub: string }> = {
+    today:    { icon: '📅', title: 'Sin servicios para hoy',      sub: 'Agendá el primer servicio del día.' },
+    tomorrow: { icon: '📅', title: 'Sin servicios para mañana',   sub: 'Planificá la jornada de mañana.' },
+    pending:  { icon: '✅', title: 'Todo confirmado',             sub: 'No hay servicios pendientes de confirmar.' },
+    all:      { icon: '📋', title: 'Sin servicios en esta fecha', sub: 'Creá un nuevo servicio para este día.' },
+  }
+  const m = messages[filter]
+  return (
+    <div className="flex flex-col items-center py-16 gap-4 rounded-2xl"
+      style={{ background: '#fff', border: '1.5px dashed #ddd6fe' }}>
+      <span className="text-5xl">{m.icon}</span>
+      <div className="text-center">
+        <p className="text-sm font-semibold" style={{ color: '#0f172a' }}>{m.title}</p>
+        <p className="text-xs mt-1" style={{ color: '#94a3b8' }}>{m.sub}</p>
+      </div>
+      <button onClick={onNew}
+        className="px-5 py-2.5 rounded-xl text-sm font-bold text-white"
+        style={{ background: 'linear-gradient(135deg,#3b10b5,#601EF9)' }}>
+        + Nuevo servicio
+      </button>
+    </div>
+  )
+}
+
+const PET_EMOJI: Record<string, string> = { dog: '🐕', cat: '🐱', bird: '🐦', rabbit: '🐇', other: '🐾' }

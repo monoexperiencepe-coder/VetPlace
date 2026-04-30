@@ -419,7 +419,7 @@ export default function DashboardPage() {
             <SectionHeader icon="⚡" title="Acciones rápidas" />
             <div className="grid grid-cols-2 gap-2">
               {[
-                { icon: '📅', label: 'Nueva cita',    href: '/bookings' },
+                { icon: '📅', label: 'Nueva cita',    href: '/bookings?new=1' },
                 { icon: '👤', label: 'Nuevo cliente', href: '/clients' },
                 { icon: '🐾', label: 'Nueva mascota', href: '/clients' },
                 { icon: '📋', label: 'Nuevo evento',  href: '/events' },
@@ -537,7 +537,7 @@ function EmptyRoute() {
         <p className="text-sm font-semibold" style={{ color: '#0f172a' }}>Sin servicios programados hoy</p>
         <p className="text-xs mt-0.5" style={{ color: '#94a3b8' }}>Agendá citas para ver las rutas del día</p>
       </div>
-      <Link href="/bookings"
+      <Link href="/bookings?new=1"
         className="px-4 py-2 rounded-xl text-xs font-bold text-white"
         style={{ background: 'linear-gradient(135deg,#3b10b5,#601EF9)' }}>
         + Agendar ahora

@@ -7,55 +7,448 @@ import { CLINIC_NAME_STORAGE_KEY } from '@/hooks/useClinicName'
 import { useAuth } from '@/context/AuthContext'
 import { createClient } from '@/lib/supabase'
 
-// ─── Tabs ─────────────────────────────────────────────────────────────────────
-type Tab = 'negocio' | 'qr' | 'bot' | 'notificaciones' | 'cuenta'
+// ─── Nav sections ─────────────────────────────────────────────────────────────
+type Section =
+  | 'clinica' | 'horarios' | 'logistica' | 'zonas'
+  | 'whatsapp' | 'qr'
+  | 'bot' | 'notificaciones'
+  | 'cuenta'
 
-const TABS: { id: Tab; label: string; icon: string }[] = [
-  { id: 'negocio',        label: 'Datos del negocio',    icon: '🏥' },
-  { id: 'qr',             label: 'QR & Registro',         icon: '📲' },
-  { id: 'bot',            label: 'Bot',                   icon: '🤖' },
-  { id: 'notificaciones', label: 'Notificaciones',         icon: '🔔' },
-  { id: 'cuenta',         label: 'Cuenta',                 icon: '👤' },
+interface NavItem { id: Section; label: string; icon: string }
+
+const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
+  {
+    label: 'Negocio',
+    items: [
+      { id: 'clinica',    label: 'Clínica',    icon: '🏥' },
+      { id: 'horarios',   label: 'Horarios',   icon: '⏰' },
+      { id: 'logistica',  label: 'Logística',  icon: '🛵' },
+      { id: 'zonas',      label: 'Zonas',      icon: '🗺️' },
+    ],
+  },
+  {
+    label: 'Canales',
+    items: [
+      { id: 'whatsapp', label: 'WhatsApp', icon: '💬' },
+      { id: 'qr',       label: 'QR & Registro', icon: '📲' },
+    ],
+  },
+  {
+    label: 'Sistema',
+    items: [
+      { id: 'bot',            label: 'Bot',            icon: '🤖' },
+      { id: 'notificaciones', label: 'Notificaciones', icon: '🔔' },
+    ],
+  },
+  {
+    label: 'Cuenta',
+    items: [
+      { id: 'cuenta', label: 'Mi cuenta', icon: '👤' },
+    ],
+  },
 ]
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState<Tab>('negocio')
+  const [section, setSection] = useState<Section>('clinica')
   const router = useRouter()
 
-  return (
-    <div className="max-w-4xl mx-auto space-y-6">
+  const sectionTitle = NAV_GROUPS.flatMap(g => g.items).find(i => i.id === section)
 
-      {/* ── Tab bar ── */}
-      <div
-        className="flex gap-1 p-1 rounded-2xl"
-        style={{ background: '#F3EEFF' }}
-      >
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setActiveTab(t.id)}
-            className="flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-sm font-medium transition-all"
-            style={
-              activeTab === t.id
-                ? { background: '#601EF9', color: '#ffffff', boxShadow: '0 2px 8px rgba(96,30,249,0.25)' }
-                : { background: 'transparent', color: '#64748b' }
-            }
-          >
-            <span>{t.icon}</span>
-            <span className="hidden sm:inline">{t.label}</span>
-          </button>
-        ))}
-      </div>
+  return (
+    <div className="flex gap-6" style={{ height: 'calc(100vh - 88px)' }}>
+
+      {/* ── Left nav ── */}
+      <aside className="w-52 shrink-0 overflow-y-auto">
+        <div className="space-y-5">
+          {NAV_GROUPS.map(group => (
+            <div key={group.label}>
+              <p className="text-[10px] font-bold uppercase tracking-widest px-3 mb-1"
+                style={{ color: '#94a3b8' }}>
+                {group.label}
+              </p>
+              <div className="space-y-0.5">
+                {group.items.map(item => {
+                  const active = section === item.id
+                  return (
+                    <button key={item.id} onClick={() => setSection(item.id)}
+                      className="w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors relative"
+                      style={{
+                        background: active ? '#F3EEFF' : 'transparent',
+                        color:      active ? '#601EF9' : '#334155',
+                      }}
+                      onMouseEnter={e => { if (!active) e.currentTarget.style.background = '#F1F5F9' }}
+                      onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent' }}
+                    >
+                      {active && (
+                        <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-3/5 rounded-r-full"
+                          style={{ background: '#601EF9' }} />
+                      )}
+                      <span>{item.icon}</span>
+                      <span className="flex-1">{item.label}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      </aside>
+
+      {/* ── Divider ── */}
+      <div className="w-px shrink-0" style={{ background: '#ede9fe' }} />
 
       {/* ── Content ── */}
-      {activeTab === 'negocio'        && <TabNegocio />}
-      {activeTab === 'qr'             && <TabQR />}
-      {activeTab === 'bot'            && <TabBot />}
-      {activeTab === 'notificaciones' && <TabNotificaciones />}
-      {activeTab === 'cuenta'         && <TabCuenta router={router} />}
+      <main className="flex-1 overflow-y-auto">
+        <div className="max-w-2xl space-y-1 pb-8">
+          {/* Section title */}
+          <div className="mb-6">
+            <h2 className="text-lg font-bold" style={{ color: '#0f172a' }}>
+              {sectionTitle?.icon} {sectionTitle?.label}
+            </h2>
+          </div>
 
+          {section === 'clinica'        && <TabNegocio />}
+          {section === 'horarios'       && <TabHorarios />}
+          {section === 'logistica'      && <TabLogistica />}
+          {section === 'zonas'          && <TabZonas />}
+          {section === 'whatsapp'       && <TabWhatsApp />}
+          {section === 'qr'             && <TabQR />}
+          {section === 'bot'            && <TabBot />}
+          {section === 'notificaciones' && <TabNotificaciones />}
+          {section === 'cuenta'         && <TabCuenta router={router} />}
+        </div>
+      </main>
     </div>
+  )
+}
+
+// ─── New sections ────────────────────────────────────────────────────────────
+
+const DISTRITOS_LIMA = [
+  'Ancón','Ate','Barranco','Breña','Carabayllo','Chorrillos','Comas',
+  'El Agustino','Independencia','Jesús María','La Molina','La Victoria',
+  'Lima (Cercado)','Lince','Los Olivos','Lurín','Magdalena del Mar',
+  'Miraflores','Pueblo Libre','Puente Piedra','Rímac','San Borja',
+  'San Isidro','San Juan de Lurigancho','San Juan de Miraflores','San Luis',
+  'San Martín de Porres','San Miguel','Santa Anita','Santiago de Surco',
+  'Surquillo','Villa El Salvador','Villa María del Triunfo',
+  'Bellavista','Callao','La Perla','Ventanilla',
+]
+
+function TabHorarios() {
+  const SK = 'vetplace_horarios'
+  const load = () => {
+    try { return JSON.parse(localStorage.getItem(SK) ?? 'null') } catch { return null }
+  }
+  const [saved, setSaved] = useState(false)
+  const [morning,   setMorning]   = useState(() => load()?.morning   ?? true)
+  const [afternoon, setAfternoon] = useState(() => load()?.afternoon ?? true)
+  const [days, setDays] = useState<string[]>(() => load()?.days ?? ['lun','mar','mié','jue','vie'])
+
+  const DAYS = ['lun','mar','mié','jue','vie','sáb','dom']
+
+  const toggleDay = (d: string) =>
+    setDays(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d])
+
+  const save = () => {
+    localStorage.setItem(SK, JSON.stringify({ morning, afternoon, days }))
+    setSaved(true); setTimeout(() => setSaved(false), 2500)
+  }
+
+  return (
+    <Card title="Horarios operativos" subtitle="Definí en qué franjas y días opera tu clínica.">
+      <div className="space-y-5">
+        {/* Franjas */}
+        <div>
+          <label className="text-xs font-semibold mb-3 block" style={{ color: '#334155' }}>
+            Franjas horarias disponibles
+          </label>
+          <div className="space-y-2.5">
+            <div
+              className="flex items-center justify-between px-4 py-3.5 rounded-xl cursor-pointer"
+              style={{ background: morning ? '#F3EEFF' : '#F9F9FB', border: `1.5px solid ${morning ? '#a78bfa' : '#E5E7EB'}` }}
+              onClick={() => setMorning((v: boolean) => !v)}
+            >
+              <div>
+                <p className="text-sm font-semibold" style={{ color: morning ? '#601EF9' : '#334155' }}>
+                  Mañana — 9:00 a 13:00
+                </p>
+                <p className="text-xs mt-0.5" style={{ color: '#94a3b8' }}>Franja de la mañana</p>
+              </div>
+              <ToggleSwitch value={morning} onChange={setMorning} />
+            </div>
+            <div
+              className="flex items-center justify-between px-4 py-3.5 rounded-xl cursor-pointer"
+              style={{ background: afternoon ? '#F3EEFF' : '#F9F9FB', border: `1.5px solid ${afternoon ? '#a78bfa' : '#E5E7EB'}` }}
+              onClick={() => setAfternoon((v: boolean) => !v)}
+            >
+              <div>
+                <p className="text-sm font-semibold" style={{ color: afternoon ? '#601EF9' : '#334155' }}>
+                  Tarde — 14:00 a 18:00
+                </p>
+                <p className="text-xs mt-0.5" style={{ color: '#94a3b8' }}>Franja de la tarde</p>
+              </div>
+              <ToggleSwitch value={afternoon} onChange={setAfternoon} />
+            </div>
+          </div>
+        </div>
+
+        {/* Días */}
+        <div>
+          <label className="text-xs font-semibold mb-3 block" style={{ color: '#334155' }}>
+            Días de operación
+          </label>
+          <div className="flex gap-2 flex-wrap">
+            {DAYS.map(d => {
+              const on = days.includes(d)
+              return (
+                <button key={d} onClick={() => toggleDay(d)}
+                  className="px-3 py-2 rounded-xl text-xs font-bold capitalize transition-all"
+                  style={on
+                    ? { background: '#601EF9', color: '#fff' }
+                    : { background: '#F9F9FB', color: '#94a3b8', border: '1.5px solid #E5E7EB' }}>
+                  {d}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+      <SaveBtn onSave={save} saved={saved} />
+    </Card>
+  )
+}
+
+function TabLogistica() {
+  const SK = 'vetplace_logistica'
+  const load = () => { try { return JSON.parse(localStorage.getItem(SK) ?? 'null') } catch { return null } }
+  const [saved, setSaved]         = useState(false)
+  const [pickup, setPickup]       = useState(() => load()?.pickup   ?? false)
+  const [maxKm, setMaxKm]         = useState(() => load()?.maxKm    ?? '10')
+  const [costPerKm, setCost]      = useState(() => load()?.costPerKm ?? '5')
+  const [minOrder, setMinOrder]   = useState(() => load()?.minOrder  ?? '0')
+
+  const save = () => {
+    localStorage.setItem(SK, JSON.stringify({ pickup, maxKm, costPerKm, minOrder }))
+    setSaved(true); setTimeout(() => setSaved(false), 2500)
+  }
+
+  return (
+    <Card title="Logística de recojo" subtitle="Configurá si tu clínica realiza recojo a domicilio.">
+      <div className="space-y-5">
+        <Toggle
+          label="Activar recojo a domicilio"
+          desc="El sistema mostrará la opción de recojo al agendar servicios"
+          value={pickup}
+          onChange={setPickup}
+        />
+
+        {pickup && (
+          <div className="grid grid-cols-2 gap-4 pt-2">
+            <Field
+              label="Distancia máxima (km)"
+              value={maxKm}
+              onChange={setMaxKm}
+              placeholder="Ej: 10"
+              type="number"
+            />
+            <Field
+              label="Costo por km (S/)"
+              value={costPerKm}
+              onChange={setCost}
+              placeholder="Ej: 5"
+              type="number"
+            />
+            <Field
+              label="Pedido mínimo para recojo (S/)"
+              value={minOrder}
+              onChange={setMinOrder}
+              placeholder="0 = sin mínimo"
+              type="number"
+            />
+            <div className="flex items-end pb-1">
+              <p className="text-xs" style={{ color: '#94a3b8' }}>
+                El costo se suma automáticamente al total del servicio.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {!pickup && (
+          <div className="px-4 py-3 rounded-xl" style={{ background: '#F9F9FB', border: '1px solid #ede9fe' }}>
+            <p className="text-xs" style={{ color: '#94a3b8' }}>
+              🚶 Los clientes llevan a sus mascotas a la clínica.
+            </p>
+          </div>
+        )}
+      </div>
+      <SaveBtn onSave={save} saved={saved} />
+    </Card>
+  )
+}
+
+function TabZonas() {
+  const SK = 'vetplace_zonas'
+  const load = () => { try { return JSON.parse(localStorage.getItem(SK) ?? 'null') } catch { return null } }
+  const [saved, setSaved]   = useState(false)
+  const [selected, setSelected] = useState<string[]>(() => load() ?? [])
+  const [q, setQ]           = useState('')
+
+  const filtered = DISTRITOS_LIMA.filter(d => d.toLowerCase().includes(q.toLowerCase()))
+  const toggle = (d: string) =>
+    setSelected(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d])
+  const save = () => {
+    localStorage.setItem(SK, JSON.stringify(selected))
+    setSaved(true); setTimeout(() => setSaved(false), 2500)
+  }
+
+  return (
+    <Card title="Zonas de operación" subtitle="Seleccioná los distritos donde opera tu clínica. Se usan para asignar rutas.">
+      <div className="space-y-3">
+        {/* Selected pills */}
+        {selected.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 p-3 rounded-xl min-h-[3rem]"
+            style={{ background: '#F3EEFF', border: '1px solid #ede9fe' }}>
+            {selected.map(d => (
+              <button key={d} onClick={() => toggle(d)}
+                className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors"
+                style={{ background: '#601EF9', color: '#fff' }}>
+                {d} <span className="opacity-70">✕</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Search */}
+        <div className="relative">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm" style={{ color: '#94a3b8' }}>🔍</span>
+          <input value={q} onChange={e => setQ(e.target.value)}
+            placeholder="Buscar distrito…"
+            className="w-full pl-9 pr-3 py-2.5 rounded-xl text-sm outline-none"
+            style={{ background: '#F9F9FB', border: '1.5px solid #E5E7EB', color: '#0f172a' }}
+            onFocus={e => e.currentTarget.style.border = '1.5px solid #601EF9'}
+            onBlur={e  => e.currentTarget.style.border = '1.5px solid #E5E7EB'}
+          />
+        </div>
+
+        {/* District list */}
+        <div className="rounded-xl overflow-hidden max-h-56 overflow-y-auto"
+          style={{ border: '1.5px solid #E5E7EB' }}>
+          {filtered.map((d, i) => {
+            const on = selected.includes(d)
+            return (
+              <button key={d} onClick={() => toggle(d)}
+                className="w-full text-left flex items-center justify-between px-4 py-2.5 text-sm transition-colors"
+                style={{
+                  borderTop: i > 0 ? '1px solid #f1f5f9' : undefined,
+                  background: on ? '#F3EEFF' : 'transparent',
+                  color: on ? '#601EF9' : '#334155',
+                  fontWeight: on ? 600 : 400,
+                }}
+                onMouseEnter={e => { if (!on) e.currentTarget.style.background = '#FAFAFF' }}
+                onMouseLeave={e => { if (!on) e.currentTarget.style.background = 'transparent' }}
+              >
+                {d}
+                {on && <span className="text-[11px]">✓</span>}
+              </button>
+            )
+          })}
+          {filtered.length === 0 && (
+            <p className="text-center py-6 text-sm" style={{ color: '#94a3b8' }}>Sin resultados</p>
+          )}
+        </div>
+
+        <p className="text-[11px]" style={{ color: '#94a3b8' }}>
+          {selected.length} distrito{selected.length !== 1 ? 's' : ''} seleccionado{selected.length !== 1 ? 's' : ''}
+        </p>
+      </div>
+      <SaveBtn onSave={save} saved={saved} />
+    </Card>
+  )
+}
+
+function TabWhatsApp() {
+  const [saved, setSaved]     = useState(false)
+  const [number, setNumber]   = useState('')
+  const [connected] = useState(false) // placeholder — real integration goes here
+
+  return (
+    <Card title="WhatsApp Business" subtitle="Conectá tu número para enviar mensajes automáticos a tus clientes.">
+      <div className="space-y-5">
+
+        {/* Status badge */}
+        <div className="flex items-center gap-3 px-4 py-3.5 rounded-xl"
+          style={{ background: connected ? '#dcfce7' : '#fef9c3', border: `1px solid ${connected ? '#bbf7d0' : '#fde68a'}` }}>
+          <span className="text-xl">{connected ? '✅' : '⚠️'}</span>
+          <div>
+            <p className="text-sm font-bold" style={{ color: connected ? '#16a34a' : '#854d0e' }}>
+              {connected ? 'Número conectado' : 'Sin número conectado'}
+            </p>
+            <p className="text-xs mt-0.5" style={{ color: connected ? '#166534' : '#92400e' }}>
+              {connected
+                ? 'Los mensajes automáticos se enviarán correctamente'
+                : 'Conectá tu número para activar las automatizaciones'}
+            </p>
+          </div>
+        </div>
+
+        {/* Number input */}
+        <Field
+          label="Número de WhatsApp Business"
+          value={number}
+          onChange={setNumber}
+          placeholder="+51 9XX XXX XXX"
+          type="tel"
+        />
+
+        {/* How to connect */}
+        <div className="px-4 py-4 rounded-xl space-y-3" style={{ background: '#F9F9FB', border: '1px solid #ede9fe' }}>
+          <p className="text-xs font-bold uppercase tracking-widest" style={{ color: '#94a3b8' }}>
+            Cómo conectar WhatsApp
+          </p>
+          {[
+            'Abrí WhatsApp Business en tu celular',
+            'Andá a Configuración → Herramientas para empresas → API',
+            'Escaneá el código QR que aparece en pantalla',
+            'Tu número quedará vinculado automáticamente',
+          ].map((step, i) => (
+            <div key={i} className="flex items-start gap-3">
+              <span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 mt-0.5"
+                style={{ background: '#601EF9' }}>
+                {i + 1}
+              </span>
+              <p className="text-xs" style={{ color: '#64748b' }}>{step}</p>
+            </div>
+          ))}
+        </div>
+
+        <button
+          className="w-full py-3 rounded-xl text-sm font-bold transition-opacity hover:opacity-90 flex items-center justify-center gap-2"
+          style={{ background: '#25D366', color: '#fff' }}
+          onClick={() => { setSaved(true); setTimeout(() => setSaved(false), 2500) }}
+        >
+          <span className="text-lg">💬</span> Conectar WhatsApp Business
+        </button>
+        {saved && <p className="text-xs text-center" style={{ color: '#10b981' }}>✓ Solicitud enviada</p>}
+      </div>
+    </Card>
+  )
+}
+
+// Reusable toggle switch (used in horarios)
+function ToggleSwitch({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button
+      onClick={e => { e.stopPropagation(); onChange(!value) }}
+      className="relative w-11 h-6 rounded-full transition-colors duration-200 shrink-0"
+      style={{ background: value ? '#601EF9' : '#E5E7EB' }}
+    >
+      <span
+        className="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform duration-200"
+        style={{ transform: value ? 'translateX(20px)' : 'translateX(0)' }}
+      />
+    </button>
   )
 }
 
@@ -83,7 +476,7 @@ function TabNegocio() {
   }
 
   return (
-    <Card title="Datos del negocio" subtitle="Esta información aparece en el sistema y en las comunicaciones con clientes.">
+    <Card title="Datos de la clínica" subtitle="Esta información aparece en el sistema y en las comunicaciones con clientes.">
       {/* Logo upload placeholder */}
       <div className="flex items-center gap-5 mb-6">
         <div

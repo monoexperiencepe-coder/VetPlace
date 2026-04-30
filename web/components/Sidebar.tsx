@@ -22,15 +22,18 @@ const navSections = [
   {
     label: 'Gestión',
     items: [
-      { href: '/clients',  label: 'Clientes', icon: ClientIcon },
-      { href: '/bookings', label: 'Agenda',   icon: CalIcon },
-      { href: '/routes',   label: 'Rutas',    icon: RouteIcon },
+      { href: '/clients',  label: 'Clientes',  icon: ClientIcon },
+      { href: '/pets',     label: 'Mascotas',  icon: PawIcon },
+      { href: '/bookings', label: 'Agenda',    icon: CalIcon },
+      { href: '/routes',   label: 'Rutas',     icon: RouteIcon },
     ],
   },
   {
     label: 'Seguimiento',
     items: [
-      { href: '/events', label: 'Eventos', icon: EventIcon },
+      { href: '/events',       label: 'Eventos',          icon: EventIcon },
+      { href: '/automations',  label: 'Automatizaciones', icon: BoltIcon },
+      { href: '/reports',      label: 'Reportes',         icon: ChartIcon },
     ],
   },
 ]
@@ -42,7 +45,8 @@ export default function Sidebar() {
   const isActive = (href: string) => {
     if (href === '/') return pathname === '/'
     if (href === '/chats') return pathname === '/chats' || pathname.startsWith('/chats/')
-    if (href === '/clients') return pathname === '/clients' || pathname.startsWith('/pets/')
+    if (href === '/pets')    return pathname === '/pets' || pathname.startsWith('/pets/')
+    if (href === '/clients') return pathname === '/clients'
     return pathname === href || pathname.startsWith(href + '/')
   }
 
@@ -230,6 +234,35 @@ function ChatIcon({ active }: { active: boolean }) {
   return (
     <svg className="w-[18px] h-[18px] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={active ? 2.5 : 1.8}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+    </svg>
+  )
+}
+
+function ChartIcon({ active }: { active: boolean }) {
+  return (
+    <svg className="w-[18px] h-[18px] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={active ? 2.5 : 1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+    </svg>
+  )
+}
+
+function BoltIcon({ active }: { active: boolean }) {
+  return (
+    <svg className="w-[18px] h-[18px] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={active ? 2.5 : 1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+    </svg>
+  )
+}
+
+function PawIcon({ active }: { active: boolean }) {
+  return (
+    <svg className="w-[18px] h-[18px] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={active ? 2.5 : 1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 19c-4 0-7-2.686-7-6 0-1.5.75-3 2-4m10 10c4 0 7-2.686 7-6 0-1.5-.75-3-2-4" />
+      <circle cx="9"  cy="7"  r="1.5" fill="currentColor" stroke="none" />
+      <circle cx="15" cy="7"  r="1.5" fill="currentColor" stroke="none" />
+      <circle cx="6"  cy="11" r="1.2" fill="currentColor" stroke="none" />
+      <circle cx="18" cy="11" r="1.2" fill="currentColor" stroke="none" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 13c0 2.21 1.343 4 3 4s3-1.79 3-4c0-1.5-1.343-2-3-2s-3 .5-3 2z" />
     </svg>
   )
 }

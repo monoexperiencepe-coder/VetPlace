@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase'
 
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:3000'
+const BASE = ''
 
 /** Obtiene el access token de Supabase si hay sesión activa */
 async function getToken(): Promise<string | null> {
@@ -106,7 +106,7 @@ export const api = {
     const token = await getToken()
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     if (token) headers['Authorization'] = `Bearer ${token}`
-    const res = await fetch(`${BASE}/api/pets/${petId}/grooming-completed`, {
+    const res = await fetch(`/api/pets/${petId}/grooming-completed`, {
       method: 'PATCH',
       headers,
       body: JSON.stringify({ completed_date }),

@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { api } from '@/lib/api'
 import { useToast } from '@/context/ToastContext'
+import { BookingDrawer } from '@/components/BookingDrawer'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Client {
@@ -313,368 +314,362 @@ function AddPetModal({ clientId, clientName, onClose, onCreated }: {
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
+type ClientFilter = 'all' | 'active' | 'inactive'
+
 export default function ClientsPage() {
   const toast = useToast()
-  const [mode, setMode]           = useState<'phone' | 'name' | 'pet'>('name')
+
   const [query, setQuery]         = useState('')
-  const [results, setResults]     = useState<Client[]>([])
+  const [filter, setFilter]       = useState<ClientFilter>('all')
+  const [clients, setClients]     = useState<Client[]>([])
+  const [loading, setLoading]     = useState(true)
+  const [searching, setSearching] = useState(false)
   const [selected, setSelected]   = useState<Client | null>(null)
   const [pets, setPets]           = useState<Pet[]>([])
-  const [loadingSearch, setLS]    = useState(false)
   const [loadingPets, setLP]      = useState(false)
   const [showNewClient, setSNC]   = useState(false)
   const [showAddPet, setSAP]      = useState(false)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const [showDrawer, setDrawer]   = useState(false)
 
-  const [stats, setStats]             = useState<ClientStats | null>(null)
-  const [loadingStats, setLoadingStats] = useState(true)
-  const [recentClients, setRecentClients] = useState<RecentClient[]>([])
-  const [loadingRecent, setLR]        = useState(true)
+  const [stats, setStats]           = useState<ClientStats | null>(null)
+  const [loadingStats, setLStats]   = useState(true)
 
   useEffect(() => {
     api.getStats()
       .then((d: unknown) => {
         const s = d as Record<string, number>
-        setStats({
-          clients_total:      s.clients_total      ?? 0,
-          clients_this_month: s.clients_this_month ?? 0,
-          clients_last_month: s.clients_last_month ?? 0,
-          pets_total:         s.pets_total         ?? 0,
-        })
-        setLoadingStats(false)
+        setStats({ clients_total: s.clients_total ?? 0, clients_this_month: s.clients_this_month ?? 0, clients_last_month: s.clients_last_month ?? 0, pets_total: s.pets_total ?? 0 })
       })
-      .catch(() => setLoadingStats(false))
+      .catch(() => {})
+      .finally(() => setLStats(false))
   }, [])
 
   useEffect(() => {
     api.getRecentClients()
-      .then((d: unknown) => {
-        setRecentClients(Array.isArray(d) ? (d as RecentClient[]) : [])
-        setLR(false)
-      })
-      .catch(() => setLR(false))
+      .then((d: unknown) => setClients(Array.isArray(d) ? (d as Client[]) : []))
+      .catch(() => {})
+      .finally(() => setLoading(false))
   }, [])
 
-  const doSearch = async () => {
+  useEffect(() => {
     const q = query.trim()
-    if (!q) return
-    setLS(true); setResults([]); setSelected(null); setPets([])
-    try {
-      if (mode === 'phone') {
-        // Teléfono es único → va directo al perfil
-        const d = await api.getClientByPhone(q) as Client
-        if (!d) { toast.warning('Número no encontrado'); return }
-        pickClient(d)
-      } else if (mode === 'pet') {
-        const foundPets = await api.searchPets(q) as Array<Pet & { client?: Client }>
-        if (foundPets.length === 0) { toast.warning('Sin mascotas con ese nombre'); return }
-        // Deduplicar clientes, adjuntarles sus mascotas encontradas
-        const clientMap = new Map<string, Client & { pets: { id: string; name: string; type: string }[] }>()
-        for (const p of foundPets) {
-          if (!p.client) continue
-          if (!clientMap.has(p.client.id)) clientMap.set(p.client.id, { ...p.client, pets: [] })
-          clientMap.get(p.client.id)!.pets.push({ id: p.id, name: p.name, type: p.type })
-        }
-        setResults(Array.from(clientMap.values()))
-      } else {
-        // Búsqueda por nombre — siempre muestra cards, nunca auto-selecciona
-        const d = await api.searchClients(q) as Client[]
-        if (d.length === 0) toast.warning('Sin resultados')
-        setResults(d)
-      }
-    } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : 'No encontrado')
-    } finally {
-      setLS(false)
+    if (!q) {
+      setSearching(true)
+      api.getRecentClients()
+        .then((d: unknown) => setClients(Array.isArray(d) ? (d as Client[]) : []))
+        .catch(() => {})
+        .finally(() => setSearching(false))
+      return
     }
-  }
+    const t = setTimeout(async () => {
+      setSearching(true)
+      try {
+        const isPhone = /^\+?\d[\d\s\-]{5,}$/.test(q.replace(/\s/g, ''))
+        if (isPhone) {
+          const c = await api.getClientByPhone(q) as Client | null
+          setClients(c ? [c] : [])
+        } else {
+          const d = await api.searchClients(q) as Client[]
+          setClients(Array.isArray(d) ? d : [])
+        }
+      } catch { setClients([]) }
+      finally { setSearching(false) }
+    }, 400)
+    return () => clearTimeout(t)
+  }, [query])
+
+  const filtered = clients.filter(c => {
+    if (filter === 'active')   return (c.pets?.length ?? 0) > 0
+    if (filter === 'inactive') return (c.pets?.length ?? 0) === 0
+    return true
+  })
 
   const pickClient = async (c: Client) => {
-    setSelected(c); setResults([])
-    setLP(true)
-    try {
-      const d = await api.getPetsByUser(c.id) as Pet[]
-      setPets(d)
-    } catch {
-      toast.error('No se pudieron cargar las mascotas')
-    } finally {
-      setLP(false)
-    }
+    setSelected(c); setLP(true)
+    try { setPets(await api.getPetsByUser(c.id) as Pet[]) }
+    catch { toast.error('No se pudieron cargar las mascotas') }
+    finally { setLP(false) }
   }
 
-  const petAge = (birthDate?: string) => {
-    if (!birthDate) return null
-    const months = Math.floor((Date.now() - new Date(birthDate).getTime()) / (1000 * 60 * 60 * 24 * 30.5))
-    if (months < 12) return `${months}m`
-    return `${Math.floor(months / 12)}a`
+  const relTime = (date: string) => {
+    const days = Math.floor((Date.now() - new Date(date).getTime()) / 86400000)
+    if (days === 0) return 'Hoy'
+    if (days === 1) return 'Ayer'
+    if (days < 7)  return `Hace ${days}d`
+    if (days < 30) return `Hace ${Math.floor(days / 7)}sem`
+    return `Hace ${Math.floor(days / 30)}m`
   }
 
   return (
-    <div>
-    <StatsBar stats={stats} loading={loadingStats} />
-    <div className="flex gap-6 h-[calc(100vh-160px)]">
+    <div className="flex flex-col gap-4" style={{ height: 'calc(100vh - 88px)' }}>
+      <StatsBar stats={stats} loading={loadingStats} />
 
-      {/* ── Panel izquierdo: buscador ── */}
-      <div className="w-80 shrink-0 flex flex-col gap-4">
-
-        {/* Buscador */}
-        <div className="rounded-2xl p-5" style={{ background: '#fff', border: '1px solid #ede9fe' }}>
-          <p className="text-[10px] font-semibold uppercase tracking-widest mb-3" style={{ color: '#94a3b8' }}>Buscar cliente</p>
-
-          {/* Modo toggle */}
-          <div className="flex gap-1 mb-3 p-1 rounded-xl" style={{ background: '#F3EEFF' }}>
-            {([
-              ['name',  'Nombre'],
-              ['phone', 'Teléfono'],
-              ['pet',   '🐾 Mascota'],
-            ] as [typeof mode, string][]).map(([m, label]) => (
-              <button key={m} onClick={() => { setMode(m); setQuery(''); setResults([]); setSelected(null); setPets([]) }}
-                className="flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all"
-                style={mode === m ? { background: '#601EF9', color: '#fff' } : { color: '#601EF9' }}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-
-          <div className="flex gap-2">
-            <input
-              ref={inputRef}
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && doSearch()}
-              placeholder={mode === 'name' ? 'Nombre del dueño…' : mode === 'phone' ? '+51 9XX XXX XXX' : 'Nombre de mascota…'}
-              className="flex-1 px-3 py-2 rounded-xl text-sm outline-none"
-              style={{ background: '#F9F9FB', border: '1.5px solid #E5E7EB', color: '#0f172a' }}
-              onFocus={e => e.currentTarget.style.border = '1.5px solid #601EF9'}
-              onBlur={e  => e.currentTarget.style.border = '1.5px solid #E5E7EB'}
-            />
-            <button onClick={doSearch} disabled={loadingSearch}
-              className="px-3 py-2 rounded-xl text-sm font-semibold text-white shrink-0"
-              style={{ background: '#601EF9', opacity: loadingSearch ? 0.7 : 1 }}
-            >
-              {loadingSearch ? '…' : '🔍'}
-            </button>
-          </div>
+      {/* ── Header ── */}
+      <div className="flex items-center gap-3 flex-wrap">
+        {/* Search */}
+        <div className="relative flex-1" style={{ minWidth: 200, maxWidth: 360 }}>
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm pointer-events-none" style={{ color: '#94a3b8' }}>🔍</span>
+          <input
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder="Buscar por nombre o teléfono…"
+            className="w-full pl-9 pr-8 py-2 rounded-xl text-sm outline-none"
+            style={{ background: '#fff', border: '1.5px solid #ede9fe', color: '#0f172a' }}
+            onFocus={e => e.currentTarget.style.border = '1.5px solid #601EF9'}
+            onBlur={e  => e.currentTarget.style.border = '1.5px solid #ede9fe'}
+          />
+          {searching && (
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs animate-pulse" style={{ color: '#601EF9' }}>…</span>
+          )}
+          {query && !searching && (
+            <button onClick={() => setQuery('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-xs"
+              style={{ color: '#94a3b8' }}>✕</button>
+          )}
         </div>
 
-        {/* Botón nuevo cliente */}
-        <button onClick={() => setSNC(true)}
-          className="w-full py-3 rounded-2xl text-sm font-bold text-white flex items-center justify-center gap-2"
-          style={{ background: 'linear-gradient(135deg,#3b10b5,#601EF9)' }}
-        >
-          <span className="text-lg">+</span> Nuevo cliente
-        </button>
+        {/* Filter pills */}
+        <div className="flex p-1 rounded-xl gap-0.5" style={{ background: '#F3EEFF' }}>
+          {(['all', 'active', 'inactive'] as ClientFilter[]).map(f => (
+            <button key={f} onClick={() => setFilter(f)}
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+              style={filter === f ? { background: '#601EF9', color: '#fff' } : { color: '#601EF9' }}>
+              {f === 'all' ? 'Todos' : f === 'active' ? 'Activos' : 'Inactivos'}
+            </button>
+          ))}
+        </div>
 
-        {/* Clientes recientes */}
-        {!selected && (
-          <div className="rounded-2xl overflow-hidden flex-1" style={{ background: '#fff', border: '1px solid #ede9fe' }}>
-            <p className="text-[10px] font-semibold uppercase tracking-widest px-4 pt-4 pb-2" style={{ color: '#94a3b8' }}>
-              Recientes
-            </p>
+        <div className="ml-auto shrink-0">
+          <button onClick={() => setSNC(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-white"
+            style={{ background: 'linear-gradient(135deg,#3b10b5,#601EF9)' }}>
+            + Nuevo cliente
+          </button>
+        </div>
+      </div>
 
-            {loadingRecent && (
-              <div className="space-y-2 px-4 pb-4">
-                {[1,2,3].map(i => (
-                  <div key={i} className="h-12 rounded-xl animate-pulse" style={{ background: '#F3EEFF' }} />
-                ))}
+      {/* ── Main ── */}
+      <div className="flex gap-4 flex-1 min-h-0">
+
+        {/* ── Client list ── */}
+        <div className="flex-1 overflow-y-auto rounded-2xl" style={{ background: '#fff', border: '1px solid #ede9fe' }}>
+          {loading ? (
+            <div className="p-3 space-y-2">
+              {[1,2,3,4,5].map(i => (
+                <div key={i} className="h-14 rounded-xl animate-pulse" style={{ background: '#F3EEFF' }} />
+              ))}
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full gap-3 py-20">
+              <span className="text-5xl">👥</span>
+              <p className="text-sm font-semibold" style={{ color: '#334155' }}>
+                {query ? 'Sin resultados' : 'Aún no hay clientes'}
+              </p>
+              <p className="text-xs" style={{ color: '#94a3b8' }}>
+                {query ? 'Intentá con otro nombre o teléfono' : 'Agregá el primer cliente de la clínica'}
+              </p>
+              {!query && (
+                <button onClick={() => setSNC(true)}
+                  className="mt-1 px-5 py-2.5 rounded-xl text-sm font-bold text-white"
+                  style={{ background: 'linear-gradient(135deg,#3b10b5,#601EF9)' }}>
+                  + Agregar cliente
+                </button>
+              )}
+            </div>
+          ) : (
+            <>
+              {/* Table header */}
+              <div
+                className="grid text-[10px] font-semibold uppercase tracking-widest px-5 py-2.5 sticky top-0 z-10"
+                style={{ gridTemplateColumns: '1fr 140px 120px 90px 80px 20px', background: '#F9F9FB', borderBottom: '1px solid #ede9fe', color: '#94a3b8' }}>
+                <span>Cliente</span>
+                <span>Teléfono</span>
+                <span>Distrito</span>
+                <span>Mascotas</span>
+                <span>Ingresó</span>
+                <span />
               </div>
-            )}
 
-            {!loadingRecent && recentClients.length === 0 && (
-              <div className="flex flex-col items-center py-8 gap-2" style={{ color: '#94a3b8' }}>
-                <span className="text-3xl">👥</span>
-                <p className="text-xs">Aún no hay clientes</p>
-              </div>
-            )}
-
-            {!loadingRecent && recentClients.length > 0 && (
-              <div className="overflow-y-auto max-h-80">
-                {recentClients.map(c => (
-                  <button key={c.id} onClick={() => pickClient(c as Client)}
-                    className="w-full text-left px-4 py-3 flex items-center gap-3 transition-colors"
-                    style={{ borderTop: '1px solid #F1F5F9' }}
-                    onMouseEnter={e => e.currentTarget.style.background = '#F3EEFF'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+              <div className="divide-y" style={{ borderColor: '#f1f5f9' }}>
+                {filtered.map(c => (
+                  <button key={c.id} onClick={() => pickClient(c)}
+                    className="w-full text-left grid items-center px-5 py-3 transition-colors"
+                    style={{
+                      gridTemplateColumns: '1fr 140px 120px 90px 80px 20px',
+                      background: selected?.id === c.id ? '#FAFAFF' : 'transparent',
+                      borderLeft: selected?.id === c.id ? '3px solid #601EF9' : '3px solid transparent',
+                    }}
+                    onMouseEnter={e => { if (selected?.id !== c.id) e.currentTarget.style.background = '#FAFAFF' }}
+                    onMouseLeave={e => { if (selected?.id !== c.id) e.currentTarget.style.background = 'transparent' }}
                   >
-                    <Avatar name={c.name ?? c.phone} size={32} />
-                    <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <Avatar name={c.name ?? c.phone} size={34} />
                       <p className="text-sm font-semibold truncate" style={{ color: '#0f172a' }}>
-                        {c.name ?? c.phone}
-                      </p>
-                      <p className="text-[10px]" style={{ color: '#94a3b8' }}>
-                        {c.pets?.length
-                          ? c.pets.map(p => `${PET_EMOJI[p.type] ?? '🐾'} ${p.name}`).join(' · ')
-                          : 'Sin mascotas'}
+                        {c.name ?? 'Sin nombre'}
                       </p>
                     </div>
+                    <span className="text-xs font-mono truncate" style={{ color: '#64748b' }}>{c.phone}</span>
+                    <span className="text-xs truncate" style={{ color: '#64748b' }}>{c.distrito ?? '—'}</span>
+                    <span className="text-sm">
+                      {(c.pets?.length ?? 0) === 0
+                        ? <span style={{ color: '#cbd5e1' }}>—</span>
+                        : <span title={c.pets!.map(p => p.name).join(', ')}>
+                            {c.pets!.slice(0, 3).map(p => PET_EMOJI[p.type] ?? '🐾').join('')}
+                            {c.pets!.length > 3 && <span className="text-[10px] ml-1" style={{ color: '#94a3b8' }}>+{c.pets!.length - 3}</span>}
+                          </span>
+                      }
+                    </span>
+                    <span className="text-[11px]" style={{ color: '#94a3b8' }}>{relTime(c.created_at)}</span>
+                    <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="#c4b5fd" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                    </svg>
                   </button>
                 ))}
               </div>
-            )}
-          </div>
-        )}
-      </div>
 
-      {/* ── Panel derecho: resultados o perfil ── */}
-      <div className="flex-1 overflow-y-auto">
+              <p className="text-center text-[11px] py-3" style={{ color: '#cbd5e1' }}>
+                {query
+                  ? `${filtered.length} resultado${filtered.length !== 1 ? 's' : ''}`
+                  : `${filtered.length} cliente${filtered.length !== 1 ? 's' : ''} recientes · buscá para ver más`}
+              </p>
+            </>
+          )}
+        </div>
 
-        {/* Estado: resultados de búsqueda */}
-        {!selected && results.length > 0 && (
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-widest mb-3" style={{ color: '#94a3b8' }}>
-              {results.length} resultado{results.length !== 1 ? 's' : ''}
-            </p>
-            <div className="grid grid-cols-1 gap-3">
-              {results.map(c => (
-                <button key={c.id} onClick={() => pickClient(c)}
-                  className="w-full text-left rounded-2xl p-4 flex items-center gap-4 transition-all hover:-translate-y-0.5 hover:shadow-md"
-                  style={{ background: '#fff', border: '1px solid #ede9fe' }}
-                >
-                  <Avatar name={c.name ?? c.phone} size={44} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-base font-bold truncate" style={{ color: '#0f172a' }}>
-                      {c.name ?? 'Sin nombre'}
-                    </p>
-                    <p className="text-xs mt-0.5" style={{ color: '#64748b' }}>{c.phone}</p>
-                    {c.pets && c.pets.length > 0 && (
-                      <p className="text-xs mt-1.5" style={{ color: '#94a3b8' }}>
-                        {c.pets.map(p => `${PET_EMOJI[p.type] ?? '🐾'} ${p.name}`).join('  ·  ')}
-                      </p>
-                    )}
-                    {(!c.pets || c.pets.length === 0) && (
-                      <p className="text-xs mt-1" style={{ color: '#cbd5e1' }}>Sin mascotas registradas</p>
-                    )}
-                  </div>
-                  <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="#c4b5fd" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                  </svg>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Estado: vacío (sin búsqueda ni selección) */}
-        {!selected && results.length === 0 && (
-          <div className="h-full flex flex-col items-center justify-center gap-3" style={{ color: '#94a3b8' }}>
-            <span className="text-5xl">🔍</span>
-            <p className="text-sm font-medium">Buscá un cliente para ver su perfil</p>
-            <p className="text-xs" style={{ color: '#cbd5e1' }}>Por nombre, teléfono o mascota</p>
-          </div>
-        )}
-
-        {/* Estado: perfil del cliente */}
+        {/* ── Side panel ── */}
         {selected && (
-          <div className="space-y-4">
+          <div className="w-72 shrink-0 overflow-y-auto rounded-2xl flex flex-col"
+            style={{ background: '#fff', border: '1px solid #ede9fe' }}>
 
-            {/* Tarjeta principal del cliente */}
-            <div className="rounded-2xl p-6" style={{ background: '#fff', border: '1px solid #ede9fe' }}>
-              {/* Header */}
-              <div className="flex items-start gap-4 mb-5">
-                <Avatar name={selected.name ?? selected.phone} size={56} />
-                <div className="flex-1 min-w-0">
-                  <h2 className="text-xl font-bold leading-tight" style={{ color: '#0f172a' }}>
+            {/* Header */}
+            <div className="px-4 pt-4 pb-3 flex items-start justify-between shrink-0"
+              style={{ borderBottom: '1px solid #f1f5f9' }}>
+              <div className="flex items-center gap-3 min-w-0">
+                <Avatar name={selected.name ?? selected.phone} size={42} />
+                <div className="min-w-0">
+                  <p className="text-sm font-bold leading-tight truncate" style={{ color: '#0f172a' }}>
                     {selected.name ?? 'Sin nombre'}
-                  </h2>
-                  <p className="text-sm mt-0.5" style={{ color: '#64748b' }}>{selected.phone}</p>
-                  <p className="text-xs mt-1" style={{ color: '#94a3b8' }}>
-                    Cliente desde {new Date(selected.created_at).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })}
                   </p>
+                  <p className="text-[11px] mt-0.5 font-mono" style={{ color: '#94a3b8' }}>{selected.phone}</p>
                 </div>
-                <button onClick={() => { setSelected(null); setPets([]) }}
-                  className="w-8 h-8 rounded-xl flex items-center justify-center text-lg"
-                  style={{ background: '#F1F5F9', color: '#94a3b8' }}
-                >×</button>
               </div>
-
-              {/* Info grid */}
-              <div className="grid grid-cols-2 gap-3">
-                <InfoPill icon="📱" label="Teléfono" value={selected.phone} />
-                <InfoPill icon="📧" label="Email"    value={selected.email ?? '—'} />
-                <InfoPill icon="📍" label="Dirección"
-                  value={[selected.address, selected.distrito].filter(Boolean).join(' · ') || '—'}
-                  fullWidth />
-                {selected.notes && (
-                  <InfoPill icon="📝" label="Notas" value={selected.notes} fullWidth />
-                )}
-              </div>
-
-              {/* Acciones */}
-              <div className="flex gap-2 mt-5 pt-4" style={{ borderTop: '1px solid #F1F5F9' }}>
-                <ActionBtn icon="💬" label="WhatsApp" onClick={() => window.open(`https://wa.me/${selected.phone.replace(/\D/g, '')}`, '_blank')} />
-                <ActionBtn icon="📅" label="Nuevo turno" onClick={() => {}} primary />
-              </div>
+              <button onClick={() => { setSelected(null); setPets([]) }}
+                className="w-7 h-7 rounded-lg flex items-center justify-center text-sm shrink-0 ml-2 mt-0.5"
+                style={{ background: '#F1F5F9', color: '#94a3b8' }}>×</button>
             </div>
 
-            {/* Lista de mascotas */}
-            <div className="rounded-2xl p-6" style={{ background: '#fff', border: '1px solid #ede9fe' }}>
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <p className="text-sm font-bold" style={{ color: '#0f172a' }}>Mascotas</p>
-                  <p className="text-xs mt-0.5" style={{ color: '#94a3b8' }}>{pets.length} registrada{pets.length !== 1 ? 's' : ''}</p>
+            {/* Contact info */}
+            <div className="px-4 py-3 space-y-1.5" style={{ borderBottom: '1px solid #f1f5f9' }}>
+              {selected.distrito && (
+                <div className="flex items-start gap-2.5">
+                  <span className="text-sm shrink-0 mt-px">📍</span>
+                  <span className="text-xs" style={{ color: '#334155' }}>{selected.distrito}</span>
                 </div>
+              )}
+              {selected.address && (
+                <div className="flex items-start gap-2.5">
+                  <span className="text-sm shrink-0 mt-px">🏠</span>
+                  <span className="text-xs" style={{ color: '#334155' }}>{selected.address}</span>
+                </div>
+              )}
+              {selected.email && (
+                <div className="flex items-start gap-2.5">
+                  <span className="text-sm shrink-0 mt-px">✉️</span>
+                  <span className="text-xs truncate" style={{ color: '#334155' }}>{selected.email}</span>
+                </div>
+              )}
+              <div className="flex items-start gap-2.5">
+                <span className="text-sm shrink-0 mt-px">📅</span>
+                <span className="text-xs" style={{ color: '#94a3b8' }}>
+                  Cliente desde {new Date(selected.created_at).toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: 'numeric' })}
+                </span>
+              </div>
+              {selected.notes && (
+                <div className="flex items-start gap-2.5">
+                  <span className="text-sm shrink-0 mt-px">📝</span>
+                  <span className="text-xs" style={{ color: '#475569' }}>{selected.notes}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Quick actions */}
+            <div className="px-4 py-3 grid grid-cols-2 gap-2" style={{ borderBottom: '1px solid #f1f5f9' }}>
+              <button
+                onClick={() => window.open(`https://wa.me/${selected.phone.replace(/\D/g, '')}`, '_blank')}
+                className="flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold transition-colors"
+                style={{ background: '#F3EEFF', color: '#601EF9' }}
+                onMouseEnter={e => e.currentTarget.style.background = '#ede9fe'}
+                onMouseLeave={e => e.currentTarget.style.background = '#F3EEFF'}>
+                💬 Chat
+              </button>
+              <button
+                onClick={() => setDrawer(true)}
+                className="flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold text-white transition-opacity hover:opacity-90"
+                style={{ background: '#601EF9' }}>
+                📅 Agendar
+              </button>
+            </div>
+
+            {/* Pets */}
+            <div className="px-4 py-3 flex-1">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: '#94a3b8' }}>
+                  Mascotas
+                </p>
                 <button onClick={() => setSAP(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-white"
-                  style={{ background: '#601EF9' }}
-                >
-                  <span>+</span> Agregar
+                  className="text-[11px] font-semibold px-2.5 py-1 rounded-lg transition-colors"
+                  style={{ background: '#F3EEFF', color: '#601EF9' }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#ede9fe'}
+                  onMouseLeave={e => e.currentTarget.style.background = '#F3EEFF'}>
+                  + Agregar
                 </button>
               </div>
 
               {loadingPets && (
-                <div className="space-y-3">
-                  {[1, 2].map(i => <div key={i} className="h-16 rounded-xl animate-pulse" style={{ background: '#ede9fe' }} />)}
+                <div className="space-y-2">
+                  {[1, 2].map(i => (
+                    <div key={i} className="h-12 rounded-xl animate-pulse" style={{ background: '#F3EEFF' }} />
+                  ))}
                 </div>
               )}
 
               {!loadingPets && pets.length === 0 && (
-                <div className="flex flex-col items-center py-8 gap-2" style={{ color: '#94a3b8' }}>
-                  <span className="text-4xl">🐾</span>
-                  <p className="text-sm">Sin mascotas registradas</p>
+                <div className="text-center py-6">
+                  <span className="text-3xl">🐾</span>
+                  <p className="text-xs mt-2" style={{ color: '#94a3b8' }}>Sin mascotas registradas</p>
                   <button onClick={() => setSAP(true)}
-                    className="text-xs font-semibold mt-1" style={{ color: '#601EF9' }}
-                  >
-                    Agregar primera mascota →
+                    className="text-xs font-semibold mt-2 block mx-auto"
+                    style={{ color: '#601EF9' }}>
+                    + Agregar primera
                   </button>
                 </div>
               )}
 
               {!loadingPets && pets.length > 0 && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="space-y-2">
                   {pets.map(pet => (
                     <Link key={pet.id} href={`/pets/${pet.id}`}
-                      className="flex items-center gap-3 p-4 rounded-xl transition-all hover:-translate-y-0.5 hover:shadow-md"
-                      style={{ background: '#F9F9FB', border: '1.5px solid #ede9fe' }}
+                      className="flex items-center gap-2.5 p-2.5 rounded-xl transition-colors block"
+                      style={{ background: '#F9F9FB', border: '1px solid #ede9fe' }}
+                      onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = '#F3EEFF'}
+                      onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = '#F9F9FB'}
                     >
-                      {/* Emoji especie */}
-                      <div className="w-11 h-11 rounded-xl flex items-center justify-center text-2xl shrink-0"
-                        style={{ background: '#F3EEFF' }}
-                      >
+                      <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
+                        style={{ background: '#F3EEFF', fontSize: '1.15rem' }}>
                         {PET_EMOJI[pet.type] ?? '🐾'}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm font-bold truncate" style={{ color: '#0f172a' }}>{pet.name}</p>
-                          {petAge(pet.birth_date) && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0"
-                              style={{ background: '#F3EEFF', color: '#601EF9' }}
-                            >
-                              {petAge(pet.birth_date)}
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-xs mt-0.5" style={{ color: '#64748b' }}>
-                          {PET_LABEL[pet.type] ?? pet.type}
-                          {pet.breed ? ` · ${pet.breed}` : ''}
+                        <p className="text-xs font-semibold truncate" style={{ color: '#0f172a' }}>{pet.name}</p>
+                        <p className="text-[10px]" style={{ color: '#64748b' }}>
+                          {PET_LABEL[pet.type] ?? pet.type}{pet.breed ? ` · ${pet.breed}` : ''}
                         </p>
                         {pet.grooming_frequency_days && (
-                          <p className="text-[10px] mt-1" style={{ color: '#94a3b8' }}>
-                            ✂️ Baño cada {pet.grooming_frequency_days} días
+                          <p className="text-[10px]" style={{ color: '#94a3b8' }}>
+                            ✂️ Baño cada {pet.grooming_frequency_days}d
                           </p>
                         )}
                       </div>
-                      <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="#94a3b8" strokeWidth={2}>
+                      <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="#c4b5fd" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                       </svg>
                     </Link>
@@ -682,7 +677,6 @@ export default function ClientsPage() {
                 </div>
               )}
             </div>
-
           </div>
         )}
       </div>
@@ -691,11 +685,7 @@ export default function ClientsPage() {
       {showNewClient && (
         <NewClientModal
           onClose={() => setSNC(false)}
-          onCreated={(c) => {
-            setSNC(false)
-            pickClient(c)
-            setRecentClients(prev => [{ ...c, pets: [] }, ...prev].slice(0, 10))
-          }}
+          onCreated={c => { setSNC(false); pickClient(c); setClients(prev => [c, ...prev]) }}
         />
       )}
       {showAddPet && selected && (
@@ -703,10 +693,18 @@ export default function ClientsPage() {
           clientId={selected.id}
           clientName={selected.name ?? selected.phone}
           onClose={() => setSAP(false)}
-          onCreated={(p) => { setPets(prev => [...prev, p]); setSAP(false) }}
+          onCreated={p => { setPets(prev => [...prev, p]); setSAP(false) }}
         />
       )}
-    </div>
+
+      {showDrawer && selected && (
+        <BookingDrawer
+          client={selected}
+          initialPets={pets}
+          onClose={() => setDrawer(false)}
+          onCreated={() => setDrawer(false)}
+        />
+      )}
     </div>
   )
 }
