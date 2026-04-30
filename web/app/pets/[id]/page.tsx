@@ -104,6 +104,7 @@ interface Pet {
   id: string
   name: string
   type: string
+  breed?: string
   birth_date?: string
   grooming_frequency_days?: number
   last_grooming_date?: string
@@ -166,6 +167,108 @@ function calcAge(birthDate: string): string {
   return `${years} año${years !== 1 ? 's' : ''}`
 }
 
+// ─── Modal editar mascota ─────────────────────────────────────────────────────
+function EditPetModal({ pet, onClose, onUpdated }: {
+  pet: Pet
+  onClose: () => void
+  onUpdated: (p: Pet) => void
+}) {
+  const toast = useToast()
+  const [name,      setName]      = useState(pet.name)
+  const [type,      setType]      = useState(pet.type)
+  const [breed,     setBreed]     = useState(pet.breed ?? '')
+  const [birthDate, setBirthDate] = useState(pet.birth_date ?? '')
+  const [groomFreq, setGroomFreq] = useState(pet.grooming_frequency_days?.toString() ?? '')
+  const [saving,    setSaving]    = useState(false)
+  const [err,       setErr]       = useState('')
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!name.trim()) { toast.warning('El nombre es obligatorio'); return }
+    setSaving(true); setErr('')
+    try {
+      const data = await api.updatePet(pet.id, {
+        name:                    name.trim(),
+        type,
+        breed:                   breed.trim() || undefined,
+        birth_date:              birthDate    || undefined,
+        grooming_frequency_days: groomFreq ? Number(groomFreq) : null,
+      }) as Pet
+      onUpdated(data)
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Error al actualizar'
+      setErr(msg); toast.error(msg)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 p-6">
+        <div className="flex items-center justify-between mb-5">
+          <h3 className="text-lg font-bold" style={{ color: '#0f172a' }}>Editar mascota</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
+        </div>
+        <form onSubmit={submit} className="space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Nombre *</label>
+            <input
+              value={name} onChange={e => setName(e.target.value)} required autoFocus
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Especie</label>
+            <select value={type} onChange={e => setType(e.target.value)}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            >
+              <option value="dog">🐶 Perro</option>
+              <option value="cat">🐱 Gato</option>
+              <option value="bird">🐦 Ave</option>
+              <option value="rabbit">🐰 Conejo</option>
+              <option value="other">🐾 Otro</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Raza</label>
+            <input value={breed} onChange={e => setBreed(e.target.value)} placeholder="Labrador, Siamés…"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Fecha de nacimiento</label>
+            <input type="date" value={birthDate} onChange={e => setBirthDate(e.target.value)}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Frecuencia de baño (días)</label>
+            <input type="number" value={groomFreq} onChange={e => setGroomFreq(e.target.value)} placeholder="Ej: 30"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            />
+          </div>
+          {err && <p className="text-red-500 text-xs">{err}</p>}
+          <div className="flex gap-3 mt-2">
+            <button type="submit" disabled={saving}
+              className="flex-1 py-2 text-white text-sm font-medium rounded-lg disabled:opacity-50"
+              style={{ background: '#601EF9' }}
+            >
+              {saving ? 'Guardando…' : 'Guardar cambios'}
+            </button>
+            <button type="button" onClick={onClose}
+              className="px-4 py-2 border border-gray-200 text-gray-600 text-sm rounded-lg hover:bg-gray-50"
+            >
+              Cancelar
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 export default function PetDetailPage() {
   const params   = useParams()
   const router   = useRouter()
@@ -178,7 +281,8 @@ export default function PetDetailPage() {
   const [bookings, setBookings] = useState<Booking[]>([])
   const [loading, setLoading]   = useState(true)
   const [error, setError]       = useState('')
-  const [showNewEvent, setShowNewEvent] = useState(false)
+  const [showNewEvent, setShowNewEvent]   = useState(false)
+  const [showEditPet, setShowEditPet]     = useState(false)
   const [markingGrooming, setMarkingGrooming] = useState(false)
 
   const load = useCallback(async () => {
@@ -302,6 +406,17 @@ export default function PetDetailPage() {
           onCreated={() => { setShowNewEvent(false); load() }}
         />
       )}
+      {showEditPet && pet && (
+        <EditPetModal
+          pet={pet}
+          onClose={() => setShowEditPet(false)}
+          onUpdated={(updated) => {
+            setPet(prev => prev ? { ...prev, ...updated } : prev)
+            setShowEditPet(false)
+            toast.success('Mascota actualizada')
+          }}
+        />
+      )}
 
       {/* Breadcrumb */}
       <nav className="text-xs mb-5 flex items-center gap-2" style={{ color: '#94a3b8' }}>
@@ -341,6 +456,40 @@ export default function PetDetailPage() {
                 </button>
               </div>
             )}
+
+            {/* Editar / Eliminar */}
+            <div className="flex gap-2 mt-4 pt-4" style={{ borderTop: '1px solid #f0f4ff' }}>
+              <button
+                onClick={() => setShowEditPet(true)}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-xl"
+                style={{ background: '#f0f4ff', color: '#601EF9' }}
+              >
+                ✏️ Editar
+              </button>
+              <button
+                onClick={async () => {
+                  const ok = await confirm({
+                    title: 'Eliminar mascota',
+                    message: `¿Eliminar a ${pet.name}? Se eliminarán también todos sus eventos y citas. Esta acción no se puede deshacer.`,
+                    confirmLabel: 'Sí, eliminar',
+                    cancelLabel: 'Cancelar',
+                    variant: 'danger',
+                  })
+                  if (!ok) return
+                  try {
+                    await api.deletePet(pet.id)
+                    toast.success(`${pet.name} eliminada`)
+                    router.push('/clients')
+                  } catch (e: unknown) {
+                    toast.error(e instanceof Error ? e.message : 'Error al eliminar')
+                  }
+                }}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-xl"
+                style={{ background: '#fef2f2', color: '#dc2626' }}
+              >
+                🗑️ Eliminar
+              </button>
+            </div>
           </div>
         </div>
       </div>

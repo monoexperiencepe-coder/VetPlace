@@ -80,6 +80,12 @@ export const api = {
   createClient: (body: { phone: string; name?: string; email?: string; address?: string; distrito?: string; notes?: string }) =>
     request('/api/users', { method: 'POST', body: JSON.stringify(body) }),
 
+  updateClient: (id: string, body: { name?: string; email?: string; address?: string; distrito?: string; notes?: string; phone?: string }) =>
+    request(`/api/users/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+
+  deleteClient: (id: string) =>
+    request(`/api/users/${id}`, { method: 'DELETE' }),
+
   getClient: (id: string) =>
     request(`/api/users/${id}`),
 
@@ -92,6 +98,12 @@ export const api = {
   // Pets
   createPet: (body: Record<string, unknown>) =>
     request('/api/pets', { method: 'POST', body: JSON.stringify(body) }),
+
+  updatePet: (id: string, body: { name?: string; type?: string; breed?: string; birth_date?: string; grooming_frequency_days?: number | null }) =>
+    request(`/api/pets/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+
+  deletePet: (id: string) =>
+    request(`/api/pets/${id}`, { method: 'DELETE' }),
 
   getPet: (id: string) =>
     request(`/api/pets/${id}`),

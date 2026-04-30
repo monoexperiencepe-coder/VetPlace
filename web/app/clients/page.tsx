@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { api } from '@/lib/api'
 import { useToast } from '@/context/ToastContext'
+import { useConfirm } from '@/context/ConfirmContext'
 import { BookingDrawer } from '@/components/BookingDrawer'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -313,23 +314,118 @@ function AddPetModal({ clientId, clientName, onClose, onCreated }: {
   )
 }
 
+// ─── Modal: Editar cliente ────────────────────────────────────────────────────
+function EditClientModal({ client, onClose, onUpdated }: {
+  client: Client
+  onClose: () => void
+  onUpdated: (c: Client) => void
+}) {
+  const toast = useToast()
+  const [form, setForm] = useState({
+    phone:    client.phone    ?? '',
+    name:     client.name     ?? '',
+    email:    client.email    ?? '',
+    address:  client.address  ?? '',
+    distrito: client.distrito ?? '',
+    notes:    client.notes    ?? '',
+  })
+  const [saving, setSaving] = useState(false)
+  const [err, setErr]       = useState('')
+  const set = (k: keyof typeof form) => (v: string) => setForm(f => ({ ...f, [k]: v }))
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!form.phone.trim()) { toast.warning('El teléfono es obligatorio'); return }
+    setSaving(true); setErr('')
+    try {
+      const data = await api.updateClient(client.id, {
+        phone:    form.phone.trim()    || undefined,
+        name:     form.name.trim()     || undefined,
+        email:    form.email.trim()    || undefined,
+        address:  form.address.trim()  || undefined,
+        distrito: form.distrito        || undefined,
+        notes:    form.notes.trim()    || undefined,
+      }) as Client
+      toast.success('Cliente actualizado')
+      onUpdated(data)
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Error al actualizar'
+      setErr(msg); toast.error(msg)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Modal title="Editar cliente" onClose={onClose}>
+      <form onSubmit={submit} className="space-y-3">
+        <MField label="Teléfono *" value={form.phone}    onChange={set('phone')}    placeholder="+51 9XX XXX XXX" type="tel" required />
+        <MField label="Nombre"     value={form.name}     onChange={set('name')}     placeholder="Juan García" />
+        <MField label="Email"      value={form.email}    onChange={set('email')}    placeholder="juan@email.com" type="email" />
+        <MField label="Dirección"  value={form.address}  onChange={set('address')}  placeholder="Av. Arequipa 1234" />
+        <div>
+          <label className="text-xs font-semibold mb-1 block" style={{ color: '#334155' }}>Distrito</label>
+          <select
+            value={form.distrito}
+            onChange={e => set('distrito')(e.target.value)}
+            className="w-full px-3 py-2.5 rounded-xl text-sm outline-none"
+            style={{ background: '#F9F9FB', border: '1.5px solid #E5E7EB', color: form.distrito ? '#0f172a' : '#94a3b8' }}
+            onFocus={e => e.currentTarget.style.border = '1.5px solid #601EF9'}
+            onBlur={e  => e.currentTarget.style.border = '1.5px solid #E5E7EB'}
+          >
+            <option value="">Seleccionar distrito…</option>
+            {DISTRITOS_LIMA.map(d => <option key={d} value={d}>{d}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="text-xs font-semibold mb-1 block" style={{ color: '#334155' }}>Notas</label>
+          <textarea rows={2} value={form.notes} onChange={e => set('notes')(e.target.value)}
+            placeholder="Observaciones generales..."
+            className="w-full px-3 py-2 rounded-xl text-sm outline-none resize-none"
+            style={{ background: '#F9F9FB', border: '1.5px solid #E5E7EB', color: '#0f172a' }}
+            onFocus={e => e.currentTarget.style.border = '1.5px solid #601EF9'}
+            onBlur={e  => e.currentTarget.style.border = '1.5px solid #E5E7EB'}
+          />
+        </div>
+        {err && <p className="text-xs" style={{ color: '#dc2626' }}>{err}</p>}
+        <div className="flex gap-3 pt-1">
+          <button type="submit" disabled={saving}
+            className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white"
+            style={{ background: 'linear-gradient(135deg,#3b10b5,#601EF9)', opacity: saving ? 0.7 : 1 }}
+          >
+            {saving ? 'Guardando…' : 'Guardar cambios'}
+          </button>
+          <button type="button" onClick={onClose}
+            className="px-4 py-2.5 rounded-xl text-sm font-semibold"
+            style={{ background: '#F1F5F9', color: '#334155' }}
+          >
+            Cancelar
+          </button>
+        </div>
+      </form>
+    </Modal>
+  )
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 type ClientFilter = 'all' | 'active' | 'inactive'
 
 export default function ClientsPage() {
-  const toast = useToast()
+  const toast    = useToast()
+  const confirm  = useConfirm()
 
-  const [query, setQuery]         = useState('')
-  const [filter, setFilter]       = useState<ClientFilter>('all')
-  const [clients, setClients]     = useState<Client[]>([])
-  const [loading, setLoading]     = useState(true)
-  const [searching, setSearching] = useState(false)
-  const [selected, setSelected]   = useState<Client | null>(null)
-  const [pets, setPets]           = useState<Pet[]>([])
-  const [loadingPets, setLP]      = useState(false)
-  const [showNewClient, setSNC]   = useState(false)
-  const [showAddPet, setSAP]      = useState(false)
-  const [showDrawer, setDrawer]   = useState(false)
+  const [query, setQuery]             = useState('')
+  const [filter, setFilter]           = useState<ClientFilter>('all')
+  const [clients, setClients]         = useState<Client[]>([])
+  const [loading, setLoading]         = useState(true)
+  const [searching, setSearching]     = useState(false)
+  const [selected, setSelected]       = useState<Client | null>(null)
+  const [pets, setPets]               = useState<Pet[]>([])
+  const [loadingPets, setLP]          = useState(false)
+  const [showNewClient, setSNC]       = useState(false)
+  const [showAddPet, setSAP]          = useState(false)
+  const [showEditClient, setShowEdit] = useState(false)
+  const [showDrawer, setDrawer]       = useState(false)
 
   const [stats, setStats]           = useState<ClientStats | null>(null)
   const [loadingStats, setLStats]   = useState(true)
@@ -608,6 +704,40 @@ export default function ClientsPage() {
                 style={{ background: '#601EF9' }}>
                 📅 Agendar
               </button>
+              <button
+                onClick={() => setShowEdit(true)}
+                className="flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold transition-colors"
+                style={{ background: '#f0f4ff', color: '#601EF9' }}
+                onMouseEnter={e => e.currentTarget.style.background = '#ede9fe'}
+                onMouseLeave={e => e.currentTarget.style.background = '#f0f4ff'}>
+                ✏️ Editar
+              </button>
+              <button
+                onClick={async () => {
+                  const ok = await confirm({
+                    title: 'Eliminar cliente',
+                    message: `¿Eliminar a ${selected.name ?? selected.phone} y todas sus mascotas? Esta acción no se puede deshacer.`,
+                    confirmLabel: 'Sí, eliminar',
+                    cancelLabel: 'Cancelar',
+                    variant: 'danger',
+                  })
+                  if (!ok) return
+                  try {
+                    await api.deleteClient(selected.id)
+                    toast.success('Cliente eliminado')
+                    setSelected(null)
+                    setPets([])
+                    setClients(prev => prev.filter(c => c.id !== selected.id))
+                  } catch (e: unknown) {
+                    toast.error(e instanceof Error ? e.message : 'Error al eliminar')
+                  }
+                }}
+                className="flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold transition-colors"
+                style={{ background: '#fef2f2', color: '#dc2626' }}
+                onMouseEnter={e => e.currentTarget.style.background = '#fee2e2'}
+                onMouseLeave={e => e.currentTarget.style.background = '#fef2f2'}>
+                🗑️ Eliminar
+              </button>
             </div>
 
             {/* Pets */}
@@ -694,6 +824,17 @@ export default function ClientsPage() {
           clientName={selected.name ?? selected.phone}
           onClose={() => setSAP(false)}
           onCreated={p => { setPets(prev => [...prev, p]); setSAP(false) }}
+        />
+      )}
+      {showEditClient && selected && (
+        <EditClientModal
+          client={selected}
+          onClose={() => setShowEdit(false)}
+          onUpdated={(updated) => {
+            setSelected(updated)
+            setShowEdit(false)
+            setClients(prev => prev.map(c => c.id === updated.id ? { ...c, ...updated } : c))
+          }}
         />
       )}
 
