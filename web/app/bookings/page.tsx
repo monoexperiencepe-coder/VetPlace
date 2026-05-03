@@ -87,6 +87,10 @@ function NewBookingModal({ defaultDate, onClose, onCreated }: NewBookingModalPro
   const [phone, setPhone]         = useState('')
   const [searching, setSearching] = useState(false)
   const [searchErr, setSearchErr] = useState('')
+  const [clientQuery, setClientQuery]       = useState('')
+  const [clientResults, setClientResults]   = useState<Client[]>([])
+  const [loadingClients, setLoadingClients] = useState(false)
+  const [showDropdown, setShowDropdown]     = useState(false)
 
   // found
   const [client, setClient]           = useState<Client | null>(null)
@@ -116,6 +120,44 @@ function NewBookingModal({ defaultDate, onClose, onCreated }: NewBookingModalPro
 
   const phoneRef = useRef<HTMLInputElement>(null)
   useEffect(() => { phoneRef.current?.focus() }, [])
+
+  // Load initial client list + search on query
+  useEffect(() => {
+    if (step !== 'search') return
+    const q = clientQuery.trim()
+    if (q.length === 0) {
+      setLoadingClients(true)
+      api.getRecentClients()
+        .then(d => setClientResults((d as Client[]).slice(0, 8)))
+        .catch(() => {})
+        .finally(() => setLoadingClients(false))
+      return
+    }
+    if (q.length < 2) return
+    let cancelled = false
+    const t = setTimeout(async () => {
+      setLoadingClients(true)
+      try {
+        const res = await api.searchClients(q) as Client[]
+        if (!cancelled) setClientResults(res.slice(0, 8))
+      } catch { /* silent */ }
+      finally { if (!cancelled) setLoadingClients(false) }
+    }, 250)
+    return () => { cancelled = true; clearTimeout(t) }
+  }, [clientQuery, step])
+
+  const selectClient = async (c: Client) => {
+    setClient(c)
+    setShowDropdown(false)
+    try {
+      const petsRes = await authFetch(`/api/pets/user/${c.id}`)
+      const petsJson = await petsRes.json() as { data: Pet[] }
+      const clientPets = petsJson.data ?? []
+      setPets(clientPets)
+      if (clientPets.length === 1) setPetId(clientPets[0].id)
+    } catch { setPets([]) }
+    setStep('found')
+  }
 
   const timeNorm = normalizeTime(time)
 
@@ -247,6 +289,60 @@ function NewBookingModal({ defaultDate, onClose, onCreated }: NewBookingModalPro
         {/* ── STEP 1: Buscar ── */}
         {step === 'search' && (
           <div className="space-y-4">
+            {/* Client dropdown search */}
+            <div>
+              <Label>Buscar cliente</Label>
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Nombre o telefono..."
+                  value={clientQuery}
+                  onChange={e => { setClientQuery(e.target.value); setShowDropdown(true) }}
+                  onFocus={() => setShowDropdown(true)}
+                  className={INPUT}
+                  style={{ ...INPUT_STYLE, paddingRight: 36 }}
+                  autoFocus
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-base">🔍</span>
+
+                {/* Dropdown list */}
+                {showDropdown && (
+                  <div className="absolute top-full left-0 right-0 z-50 mt-1 rounded-xl overflow-hidden"
+                    style={{ background: '#fff', border: '1.5px solid #e4ebff', boxShadow: '0 8px 24px rgba(96,30,249,0.12)' }}>
+                    {loadingClients ? (
+                      <div className="px-4 py-3 text-xs" style={{ color: '#94a3b8' }}>Cargando...</div>
+                    ) : clientResults.length === 0 ? (
+                      <div className="px-4 py-3 text-xs" style={{ color: '#94a3b8' }}>Sin resultados</div>
+                    ) : (
+                      clientResults.map(c => (
+                        <button key={c.id} onMouseDown={() => selectClient(c)}
+                          className="w-full text-left flex items-center gap-3 px-4 py-2.5 hover:bg-violet-50 transition-colors">
+                          <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0"
+                            style={{ background: 'linear-gradient(135deg,#601EF9,#3b10b5)' }}>
+                            {(c.name ?? c.phone).charAt(0).toUpperCase()}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold truncate" style={{ color: '#0f172a' }}>
+                              {c.name ?? c.phone}
+                            </p>
+                            <p className="text-xs truncate" style={{ color: '#94a3b8' }}>{c.phone}</p>
+                          </div>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Divider */}
+            <div className="flex items-center gap-3">
+              <div className="flex-1 h-px" style={{ background: '#e4ebff' }} />
+              <span className="text-xs font-medium" style={{ color: '#94a3b8' }}>o por teléfono</span>
+              <div className="flex-1 h-px" style={{ background: '#e4ebff' }} />
+            </div>
+
+            {/* Phone fallback */}
             <div>
               <Label>Teléfono del dueño</Label>
               <div className="flex gap-2">
@@ -260,25 +356,20 @@ function NewBookingModal({ defaultDate, onClose, onCreated }: NewBookingModalPro
                   className={INPUT}
                   style={INPUT_STYLE}
                 />
-                <button
-                  onClick={doSearch}
-                  disabled={searching}
+                <button onClick={doSearch} disabled={searching}
                   className="px-4 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-50"
-                  style={{ background: '#601EF9' }}
-                >
+                  style={{ background: '#601EF9' }}>
                   {searching ? '…' : 'Buscar'}
                 </button>
               </div>
               {searchErr && <p className="text-xs mt-1.5 text-red-500">{searchErr}</p>}
             </div>
+
             <div className="flex items-center gap-3">
               <button onClick={onClose} className="text-xs text-gray-400 hover:underline">Cancelar</button>
               <span className="text-gray-200 text-xs">|</span>
-              <button
-                onClick={() => { setPhone(''); setStep('notfound') }}
-                className="text-xs font-semibold hover:underline"
-                style={{ color: '#601EF9' }}
-              >
+              <button onClick={() => { setPhone(''); setStep('notfound') }}
+                className="text-xs font-semibold hover:underline" style={{ color: '#601EF9' }}>
                 + Nuevo cliente
               </button>
             </div>
