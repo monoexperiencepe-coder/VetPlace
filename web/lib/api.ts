@@ -137,6 +137,29 @@ export const api = {
   getInactiveClients: (days = 30) =>
     request(`/api/users/inactive?days=${days}`),
 
+  // Payments / Finanzas
+  getPayments: (params?: { date?: string; from?: string; to?: string }) => {
+    const qs = params ? '?' + new URLSearchParams(params as Record<string, string>).toString() : ''
+    return request(`/api/payments${qs}`)
+  },
+
+  createPayment: (body: {
+    amount: number
+    method: 'cash' | 'transfer' | 'card' | 'yape' | 'other'
+    description?: string
+    date?: string
+    booking_id?: string
+    client_id?: string
+    pet_id?: string
+  }) =>
+    request('/api/payments', { method: 'POST', body: JSON.stringify(body) }),
+
+  deletePayment: (id: string) =>
+    request(`/api/payments/${id}`, { method: 'DELETE' }),
+
+  getPaymentStats: () =>
+    request('/api/payments/stats'),
+
   // Historia clinica
   getMedicalRecords: (petId: string) =>
     request(`/api/medical-records/pet/${petId}`),
