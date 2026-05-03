@@ -131,6 +131,12 @@ export const api = {
       `/api/bookings/slot-available?date=${encodeURIComponent(date)}&time=${encodeURIComponent(time)}`
     ),
 
+  getUpcomingEvents: (from: string, to: string) =>
+    request(`/api/events?status=PENDING&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
+
+  getInactiveClients: (days = 30) =>
+    request(`/api/users/inactive?days=${days}`),
+
   // Historia clinica
   getMedicalRecords: (petId: string) =>
     request(`/api/medical-records/pet/${petId}`),
@@ -213,6 +219,12 @@ export const api = {
 
   // Messages
   getMessages: (conversationId: string) =>
+    request<Message[]>(`/api/messages/${conversationId}`),
+
+  sendMessage: (conversationId: string, body: string) =>
+    request<Message>(`/api/messages/${conversationId}`, { method: 'POST', body: JSON.stringify({ body }) }),
+}
+nId: string) =>
     request<Message[]>(`/api/messages/${conversationId}`),
 
   sendMessage: (conversationId: string, body: string) =>

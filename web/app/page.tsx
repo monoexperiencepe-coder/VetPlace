@@ -6,7 +6,7 @@ import { useToast } from '@/context/ToastContext'
 import { createClient } from '@/lib/supabase'
 import { api } from '@/lib/api'
 
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:3000'
+const BASE = ''
 
 async function authFetch(path: string, options?: RequestInit) {
   const supabase = createClient()
@@ -38,6 +38,14 @@ interface Conversation {
   id: string; client_name?: string; phone: string
   bot_active: boolean; unread_count: number; last_message?: string; last_message_at?: string
 }
+interface UpcomingEvent {
+  id: string; type: string; scheduled_date: string
+  pet: { id: string; name: string; type: string; user: { id: string; name?: string; phone: string } | null } | null
+}
+interface InactiveClient {
+  id: string; name?: string; phone: string; created_at: string
+  pets: { id: string; name: string; type: string }[]
+}
 
 const PET_EMOJI: Record<string, string> = { dog: '🐕', cat: '🐱', bird: '🐦', rabbit: '🐇', other: '🐾' }
 const EVENT_LABEL: Record<string, string> = { GROOMING: 'Baño', VACCINE: 'Vacuna', CHECKUP: 'Consulta', FOLLOWUP: 'Seguimiento', OTHER: 'Otro' }
@@ -56,6 +64,8 @@ export default function DashboardPage() {
   const [clinicAddress, setClinicAddress]     = useState('')
   const [clinicName, setClinicName]           = useState('Mi Clínica')
   const [completingId, setCompletingId]       = useState<string | null>(null)
+  const [upcomingEvents, setUpcomingEvents]   = useState<UpcomingEvent[]>([])
+  const [inactiveClients, setInactiveClients] = useState<InactiveClient[]>([])
 
   const today = new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })
   const todayStr = new Date().toISOString().slice(0, 10)
@@ -95,6 +105,20 @@ export default function DashboardPage() {
   useEffect(() => {
     authFetch('/api/events/overdue')
       .then(r => r.json()).then(d => setOverdueEvents(d.data ?? []))
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    const from = todayStr
+    const to   = new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10)
+    authFetch(`/api/events?status=PENDING&from=${from}&to=${to}`)
+      .then(r => r.json()).then(d => setUpcomingEvents(d.data ?? []))
+      .catch(() => {})
+  }, [todayStr])
+
+  useEffect(() => {
+    authFetch('/api/users/inactive?days=30')
+      .then(r => r.json()).then(d => setInactiveClients(d.data ?? []))
       .catch(() => {})
   }, [])
 
@@ -361,6 +385,54 @@ export default function DashboardPage() {
               </div>
             )}
           </Section>
+          {/* PRÓXIMOS SEGUIMIENTOS */}
+          {upcomingEvents.length > 0 && (
+            <Section>
+              <SectionHeader
+                icon="📅"
+                title="Próximos 3 días"
+                badge={`${upcomingEvents.length} eventos`}
+                action={<Link href="/events" className="text-xs font-semibold" style={{ color: '#601EF9' }}>Ver todos →</Link>}
+              />
+              <div className="space-y-2">
+                {upcomingEvents.slice(0, 6).map(e => {
+                  const d    = new Date(e.scheduled_date + 'T00:00:00')
+                  const diff = Math.round((d.getTime() - Date.now()) / 86400000)
+                  const label = diff === 0 ? 'Hoy' : diff === 1 ? 'Mañana' : `En ${diff}d`
+                  const isToday = diff === 0
+                  const isTomorrow = diff === 1
+                  return (
+                    <Link key={e.id} href={e.pet ? `/pets/${e.pet.id}` : '/events'}
+                      className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl transition-colors"
+                      style={{ background: isToday ? '#f0fdf4' : isTomorrow ? '#fffbeb' : '#F9F9FB',
+                               border: `1px solid ${isToday ? '#bbf7d0' : isTomorrow ? '#fde68a' : '#ede9fe'}` }}
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-base">{PET_EMOJI[e.pet?.type ?? 'other']}</span>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold truncate" style={{ color: '#0f172a' }}>
+                            {e.pet?.name ?? '?'}
+                            <span className="font-normal text-xs ml-1" style={{ color: '#64748b' }}>
+                              · {e.pet?.user?.name ?? e.pet?.user?.phone ?? '?'}
+                            </span>
+                          </p>
+                          <p className="text-xs" style={{ color: '#64748b' }}>
+                            {EVENT_LABEL[e.type.toUpperCase()] ?? e.type} · {e.scheduled_date}
+                          </p>
+                        </div>
+                      </div>
+                      <span className="text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0"
+                        style={{ background: isToday ? '#dcfce7' : isTomorrow ? '#fef3c7' : '#F3EEFF',
+                                 color: isToday ? '#16a34a' : isTomorrow ? '#d97706' : '#601EF9' }}>
+                        {label}
+                      </span>
+                    </Link>
+                  )
+                })}
+              </div>
+            </Section>
+          )}
+
         </div>
 
         {/* ── Columna derecha (1/3) ── */}
@@ -413,6 +485,46 @@ export default function DashboardPage() {
               </div>
             )}
           </Section>
+
+          {/* CLIENTES INACTIVOS */}
+          {inactiveClients.length > 0 && (
+            <Section>
+              <SectionHeader
+                icon="💤"
+                title="Sin actividad 30d+"
+                badge={`${inactiveClients.length}`}
+                badgeColor="#f59e0b"
+              />
+              <div className="space-y-1">
+                {inactiveClients.slice(0, 5).map(c => (
+                  <Link key={c.id} href={`/clients`}
+                    className="flex items-center gap-2.5 px-2 py-2 rounded-xl transition-colors"
+                    onMouseEnter={e => e.currentTarget.style.background = '#fffbeb'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0"
+                      style={{ background: 'linear-gradient(135deg,#f59e0b,#d97706)' }}>
+                      {(c.name ?? c.phone).charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold truncate" style={{ color: '#0f172a' }}>
+                        {c.name ?? c.phone}
+                      </p>
+                      <p className="text-[11px] truncate" style={{ color: '#94a3b8' }}>
+                        {c.pets.map(p => p.name).join(', ')}
+                      </p>
+                    </div>
+                    <span className="text-[10px] shrink-0" style={{ color: '#d97706' }}>Contactar</span>
+                  </Link>
+                ))}
+              </div>
+              {inactiveClients.length > 5 && (
+                <p className="text-[11px] mt-2" style={{ color: '#94a3b8' }}>
+                  +{inactiveClients.length - 5} clientes más sin actividad
+                </p>
+              )}
+            </Section>
+          )}
 
           {/* ACCIONES RÁPIDAS */}
           <Section>
