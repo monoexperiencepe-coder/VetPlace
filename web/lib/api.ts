@@ -137,6 +137,23 @@ export const api = {
   getInactiveClients: (days = 30) =>
     request(`/api/users/inactive?days=${days}`),
 
+
+  // Service types / Catálogo de servicios
+  getServiceTypes: () =>
+    request('/api/service-types'),
+
+  createServiceType: (body: { name: string; price?: number | null; active?: boolean }) =>
+    request('/api/service-types', { method: 'POST', body: JSON.stringify(body) }),
+
+  updateServiceType: (id: string, body: { name?: string; price?: number | null; active?: boolean }) =>
+    request(`/api/service-types/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+
+  deleteServiceType: (id: string) =>
+    request(`/api/service-types/${id}`, { method: 'DELETE' }),
+
+  getPendingPayments: () =>
+    request('/api/payments/pending'),
+
   // Payments / Finanzas
   getPayments: (params?: { date?: string; from?: string; to?: string }) => {
     const qs = params ? '?' + new URLSearchParams(params as Record<string, string>).toString() : ''

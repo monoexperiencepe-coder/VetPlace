@@ -6,10 +6,11 @@ import { useRouter } from 'next/navigation'
 import { CLINIC_NAME_STORAGE_KEY } from '@/hooks/useClinicName'
 import { useAuth } from '@/context/AuthContext'
 import { createClient } from '@/lib/supabase'
+import { api } from '@/lib/api'
 
 // ─── Nav sections ─────────────────────────────────────────────────────────────
 type Section =
-  | 'clinica' | 'horarios' | 'logistica' | 'zonas'
+  | 'clinica' | 'horarios' | 'logistica' | 'zonas' | 'servicios'
   | 'whatsapp' | 'qr'
   | 'bot' | 'notificaciones'
   | 'cuenta'
@@ -24,6 +25,7 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
       { id: 'horarios',   label: 'Horarios',   icon: '⏰' },
       { id: 'logistica',  label: 'Logística',  icon: '🛵' },
       { id: 'zonas',      label: 'Zonas',      icon: '🗺️' },
+      { id: 'servicios',  label: 'Servicios',  icon: '💲' },
     ],
   },
   {
@@ -117,6 +119,7 @@ export default function SettingsPage() {
           {section === 'bot'            && <TabBot />}
           {section === 'notificaciones' && <TabNotificaciones />}
           {section === 'cuenta'         && <TabCuenta router={router} />}
+          {section === 'servicios'      && <TabServicios />}
         </div>
       </main>
     </div>
@@ -1059,6 +1062,171 @@ function SaveBtn({ onSave, saved, loading = false, label = 'Guardar cambios' }: 
       {saved && (
         <span className="text-xs font-medium" style={{ color: '#10b981' }}>✓ Guardado</span>
       )}
+    </div>
+  )
+}
+
+// ─── Tab: Servicios y Precios ─────────────────────────────────────────────────
+interface ServiceType {
+  id: string; name: string; price: number | null; active: boolean; sort_order: number
+}
+function TabServicios() {
+  const [services, setServices] = useState<ServiceType[]>([])
+  const [loading, setLoading]   = useState(true)
+  const [adding, setAdding]     = useState(false)
+  const [newName, setNewName]   = useState('')
+  const [newPrice, setNewPrice] = useState('')
+  const [saving, setSaving]     = useState(false)
+
+  const load = async () => {
+    try {
+      const data = await api.getServiceTypes() as ServiceType[]
+      setServices(data)
+    } catch { /* silent */ }
+    finally { setLoading(false) }
+  }
+
+  useState(() => { load() })
+
+  const handleAdd = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newName.trim()) return
+    setSaving(true)
+    try {
+      const svc = await api.createServiceType({
+        name:  newName.trim(),
+        price: newPrice ? parseFloat(newPrice) : null,
+      }) as ServiceType
+      setServices(prev => [...prev, svc])
+      setNewName(''); setNewPrice(''); setAdding(false)
+    } catch { /* silent */ }
+    finally { setSaving(false) }
+  }
+
+  const toggleActive = async (svc: ServiceType) => {
+    try {
+      await api.updateServiceType(svc.id, { active: !svc.active })
+      setServices(prev => prev.map(s => s.id === svc.id ? { ...s, active: !s.active } : s))
+    } catch { /* silent */ }
+  }
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Eliminar este servicio?')) return
+    try {
+      await api.deleteServiceType(id)
+      setServices(prev => prev.filter(s => s.id !== id))
+    } catch { /* silent */ }
+  }
+
+  const updatePrice = async (svc: ServiceType, val: string) => {
+    const price = val === '' ? null : parseFloat(val)
+    if (val !== '' && isNaN(price!)) return
+    try {
+      await api.updateServiceType(svc.id, { price })
+      setServices(prev => prev.map(s => s.id === svc.id ? { ...s, price } : s))
+    } catch { /* silent */ }
+  }
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm" style={{ color: '#64748b' }}>
+        Configurá los servicios que ofrecés con sus precios. Al completar un servicio en la agenda,
+        el precio se pre-cargará automáticamente según la mascota o el tipo de servicio.
+      </p>
+
+      <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid #ede9fe' }}>
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3"
+          style={{ background: '#F9F7FF', borderBottom: '1px solid #ede9fe' }}>
+          <p className="text-xs font-bold uppercase tracking-widest" style={{ color: '#601EF9' }}>
+            Catálogo de servicios
+          </p>
+          <button onClick={() => setAdding(true)}
+            className="text-xs font-bold px-3 py-1.5 rounded-lg text-white"
+            style={{ background: '#601EF9' }}>
+            + Agregar
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="p-6 space-y-2">
+            {[1,2,3].map(i => <div key={i} className="h-10 rounded-xl animate-pulse" style={{ background: '#F3EEFF' }} />)}
+          </div>
+        ) : (
+          <div className="divide-y" style={{ '--tw-divide-opacity': 1 } as React.CSSProperties}>
+            {services.length === 0 && !adding && (
+              <div className="flex flex-col items-center py-8 gap-2">
+                <span className="text-3xl">💲</span>
+                <p className="text-sm font-semibold" style={{ color: '#0f172a' }}>Sin servicios configurados</p>
+                <p className="text-xs" style={{ color: '#94a3b8' }}>Agregá tus servicios para pre-cargar precios al cobrar</p>
+              </div>
+            )}
+            {services.map(svc => (
+              <div key={svc.id} className="flex items-center gap-3 px-4 py-3">
+                <div className="w-2 h-2 rounded-full shrink-0"
+                  style={{ background: svc.active ? '#22c55e' : '#cbd5e1' }} />
+                <p className="flex-1 text-sm font-semibold" style={{ color: svc.active ? '#0f172a' : '#94a3b8' }}>
+                  {svc.name}
+                </p>
+                <div className="flex items-center gap-1">
+                  <span className="text-xs" style={{ color: '#64748b' }}>S/</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    defaultValue={svc.price ?? ''}
+                    placeholder="—"
+                    onBlur={e => updatePrice(svc, e.target.value)}
+                    className="w-20 px-2 py-1 text-sm font-bold rounded-lg text-right outline-none"
+                    style={{ border: '1px solid #e2e8f0', color: '#0f172a' }}
+                  />
+                </div>
+                <button onClick={() => toggleActive(svc)}
+                  className="text-[11px] font-semibold px-2 py-1 rounded-lg"
+                  style={{ background: svc.active ? '#f0fdf4' : '#f8fafc', color: svc.active ? '#16a34a' : '#94a3b8' }}>
+                  {svc.active ? 'Activo' : 'Inactivo'}
+                </button>
+                <button onClick={() => handleDelete(svc.id)}
+                  className="w-6 h-6 rounded-lg flex items-center justify-center hover:bg-red-50">
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="#ef4444" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            ))}
+
+            {adding && (
+              <form onSubmit={handleAdd} className="flex items-center gap-2 px-4 py-3">
+                <input autoFocus type="text" placeholder="Nombre del servicio"
+                  value={newName} onChange={e => setNewName(e.target.value)}
+                  className="flex-1 px-3 py-2 text-sm rounded-xl outline-none"
+                  style={{ border: '1.5px solid #601EF9', color: '#0f172a' }} />
+                <span className="text-xs" style={{ color: '#64748b' }}>S/</span>
+                <input type="number" step="0.01" placeholder="Precio"
+                  value={newPrice} onChange={e => setNewPrice(e.target.value)}
+                  className="w-24 px-2 py-2 text-sm rounded-xl outline-none text-right"
+                  style={{ border: '1px solid #e2e8f0' }} />
+                <button type="submit" disabled={saving}
+                  className="text-xs font-bold px-3 py-2 rounded-xl text-white disabled:opacity-50"
+                  style={{ background: '#601EF9' }}>
+                  {saving ? '...' : 'Guardar'}
+                </button>
+                <button type="button" onClick={() => { setAdding(false); setNewName(''); setNewPrice('') }}
+                  className="text-xs px-3 py-2 rounded-xl"
+                  style={{ background: '#F1F5F9', color: '#64748b' }}>
+                  Cancelar
+                </button>
+              </form>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-2xl p-4" style={{ background: '#fffbeb', border: '1px solid #fde68a' }}>
+        <p className="text-xs font-semibold" style={{ color: '#92400e' }}>
+          Tip: Para precios por mascota (ej. baño de Golden vs Chihuahua), podés editar el precio
+          default directamente en el perfil de cada mascota.
+        </p>
+      </div>
     </div>
   )
 }
