@@ -224,9 +224,3 @@ export const api = {
   sendMessage: (conversationId: string, body: string) =>
     request<Message>(`/api/messages/${conversationId}`, { method: 'POST', body: JSON.stringify({ body }) }),
 }
-nId: string) =>
-    request<Message[]>(`/api/messages/${conversationId}`),
-
-  sendMessage: (conversationId: string, body: string) =>
-    request<Message>(`/api/messages/${conversationId}`, { method: 'POST', body: JSON.stringify({ body }) }),
-}
