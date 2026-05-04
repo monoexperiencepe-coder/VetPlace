@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { CLINIC_NAME_STORAGE_KEY } from '@/hooks/useClinicName'
@@ -1086,7 +1086,7 @@ function TabServicios() {
     finally { setLoading(false) }
   }
 
-  useState(() => { load() })
+  useEffect(() => { load() }, [])
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault()

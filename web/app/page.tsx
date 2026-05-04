@@ -6,17 +6,6 @@ import { useToast } from '@/context/ToastContext'
 import { createClient } from '@/lib/supabase'
 import { api } from '@/lib/api'
 
-const BASE = ''
-
-async function authFetch(path: string, options?: RequestInit) {
-  const supabase = createClient()
-  const { data } = await supabase.auth.getSession()
-  const token = data.session?.access_token
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-  if (token) headers['Authorization'] = `Bearer ${token}`
-  return fetch(`${BASE}${path}`, { ...options, headers: { ...headers, ...(options?.headers ?? {}) } })
-}
-
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface OverdueEvent {
   id: string; type: string; scheduled_date: string
@@ -91,34 +80,34 @@ export default function DashboardPage() {
   }, [])
 
   useEffect(() => {
-    authFetch('/api/stats')
-      .then(r => r.json()).then(d => { setStats(d.data ?? d); setLoadingStats(false) })
+    api.getStats()
+      .then(d => { setStats(d as StatsData); setLoadingStats(false) })
       .catch(() => setLoadingStats(false))
   }, [])
 
   useEffect(() => {
-    authFetch('/api/bookings/today')
-      .then(r => r.json()).then(d => { setTodayBookings(d.data ?? []); setLoadingBookings(false) })
+    api.getTodayBookings()
+      .then(d => { setTodayBookings(d as TodayBooking[]); setLoadingBookings(false) })
       .catch(() => setLoadingBookings(false))
   }, [])
 
   useEffect(() => {
-    authFetch('/api/events/overdue')
-      .then(r => r.json()).then(d => setOverdueEvents(d.data ?? []))
+    api.getOverdueEvents()
+      .then(d => setOverdueEvents(d as OverdueEvent[]))
       .catch(() => {})
   }, [])
 
   useEffect(() => {
     const from = todayStr
     const to   = new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10)
-    authFetch(`/api/events?status=PENDING&from=${from}&to=${to}`)
-      .then(r => r.json()).then(d => setUpcomingEvents(d.data ?? []))
+    api.getUpcomingEvents(from, to)
+      .then(d => setUpcomingEvents(d as UpcomingEvent[]))
       .catch(() => {})
   }, [todayStr])
 
   useEffect(() => {
-    authFetch('/api/users/inactive?days=30')
-      .then(r => r.json()).then(d => setInactiveClients(d.data ?? []))
+    api.getInactiveClients(30)
+      .then(d => setInactiveClients(d as InactiveClient[]))
       .catch(() => {})
   }, [])
 
@@ -134,7 +123,7 @@ export default function DashboardPage() {
   const notifyAll = async () => {
     setNotifying(true)
     try {
-      await Promise.all(overdueEvents.map(e => authFetch(`/api/events/${e.id}/notify`, { method: 'POST' })))
+      await Promise.all(overdueEvents.map(e => api.notifyEvent(e.id)))
       setOverdueEvents([])
       toast.success('✓ Recordatorios enviados')
     } catch { toast.error('Error al notificar') }
@@ -144,7 +133,7 @@ export default function DashboardPage() {
   const completeBooking = async (id: string) => {
     setCompletingId(id)
     try {
-      await authFetch(`/api/bookings/${id}/complete`, { method: 'PATCH' })
+      await api.completeBooking(id)
       setTodayBookings(prev => prev.filter(b => b.id !== id))
       toast.success('✓ Servicio completado')
     } catch { toast.error('Error al completar') }
@@ -351,7 +340,7 @@ export default function DashboardPage() {
                       </div>
                       <button
                         onClick={async () => {
-                          await authFetch(`/api/events/${e.id}/notify`, { method: 'POST' })
+                          await api.notifyEvent(e.id)
                           setOverdueEvents(prev => prev.filter(x => x.id !== e.id))
                           toast.success('Recordatorio enviado')
                         }}

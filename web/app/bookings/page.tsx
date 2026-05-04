@@ -4,18 +4,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { api } from '@/lib/api'
 import { useConfirm } from '@/context/ConfirmContext'
 import { useToast } from '@/context/ToastContext'
-import { createClient as supabaseClient } from '@/lib/supabase'
 
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:3000'
-
-async function authFetch(path: string, options?: RequestInit) {
-  const sb = supabaseClient()
-  const { data } = await sb.auth.getSession()
-  const token = data.session?.access_token
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-  if (token) headers['Authorization'] = `Bearer ${token}`
-  return fetch(`${BASE}${path}`, { ...options, headers: { ...headers, ...(options?.headers ?? {}) } })
-}
 
 function normalizeTime(t: string): string {
   if (!t) return ''
@@ -113,6 +102,8 @@ function NewBookingModal({ defaultDate, onClose, onCreated }: NewBookingModalPro
   const [date, setDate]             = useState(defaultDate)
   const [time, setTime]             = useState('')
   const [notes, setNotes]           = useState('')
+  const [serviceTypeId, setServiceTypeId] = useState('')
+  const [serviceTypes, setServiceTypes]   = useState<{ id: string; name: string; price: number | null; active: boolean }[]>([])
   const [submitting, setSubmitting] = useState(false)
   const [submitErr, setSubmitErr]   = useState('')
   const [slotOk, setSlotOk]         = useState<boolean | null>(null)
@@ -120,6 +111,13 @@ function NewBookingModal({ defaultDate, onClose, onCreated }: NewBookingModalPro
 
   const phoneRef = useRef<HTMLInputElement>(null)
   useEffect(() => { phoneRef.current?.focus() }, [])
+
+  // Load service catalog
+  useEffect(() => {
+    api.getServiceTypes()
+      .then(d => setServiceTypes((d as typeof serviceTypes).filter(s => s.active)))
+      .catch(() => {})
+  }, [])
 
   // Load initial client list + search on query
   useEffect(() => {
@@ -150,9 +148,7 @@ function NewBookingModal({ defaultDate, onClose, onCreated }: NewBookingModalPro
     setClient(c)
     setShowDropdown(false)
     try {
-      const petsRes = await authFetch(`/api/pets/user/${c.id}`)
-      const petsJson = await petsRes.json() as { data: Pet[] }
-      const clientPets = petsJson.data ?? []
+      const clientPets = await api.getPetsByUser(c.id) as Pet[]
       setPets(clientPets)
       if (clientPets.length === 1) setPetId(clientPets[0].id)
     } catch { setPets([]) }
@@ -185,10 +181,8 @@ function NewBookingModal({ defaultDate, onClose, onCreated }: NewBookingModalPro
     }
     setSearching(true); setSearchErr('')
     try {
-      const res  = await authFetch(`/api/users/phone/${encodeURIComponent(raw)}`)
-      const json = await res.json() as { ok: boolean; data: (Client & { pets?: Pet[] }) | null }
-      if (json.data) {
-        const c = json.data
+      const c = await api.getClientByPhone(raw) as (Client & { pets?: Pet[] }) | null
+      if (c) {
         setClient(c)
         const clientPets: Pet[] = (c.pets ?? []) as Pet[]
         setPets(clientPets)
@@ -198,7 +192,7 @@ function NewBookingModal({ defaultDate, onClose, onCreated }: NewBookingModalPro
         setStep('notfound')
       }
     } catch {
-      setSearchErr('Error al buscar. Intentá de nuevo.')
+      setStep('notfound')
     } finally { setSearching(false) }
   }
 
@@ -212,13 +206,8 @@ function NewBookingModal({ defaultDate, onClose, onCreated }: NewBookingModalPro
     try {
       const normalized = raw.startsWith('+') ? raw : `+51${raw}`
 
-      const cRes  = await authFetch('/api/users', { method: 'POST', body: JSON.stringify({ phone: normalized, name: newOwnerName.trim() }) })
-      const cJson = await cRes.json() as { data: Client }
-      const newClient = cJson.data
-
-      const pRes  = await authFetch('/api/pets', { method: 'POST', body: JSON.stringify({ user_id: newClient.id, name: inlinePetName.trim(), type: inlinePetType, breed: inlinePetBreed.trim() || undefined, birth_date: inlineBirthDate || undefined }) })
-      const pJson = await pRes.json() as { data: Pet }
-      const newPet = pJson.data
+      const newClient = await api.createClient({ phone: normalized, name: newOwnerName.trim() }) as Client
+      const newPet    = await api.createPet({ user_id: newClient.id, name: inlinePetName.trim(), type: inlinePetType, breed: inlinePetBreed.trim() || undefined, birth_date: inlineBirthDate || undefined }) as Pet
 
       setClient(newClient)
       setPets([newPet])
@@ -234,9 +223,7 @@ function NewBookingModal({ defaultDate, onClose, onCreated }: NewBookingModalPro
     if (!client) return
     if (!newPetName.trim()) return
     try {
-      const pRes  = await authFetch('/api/pets', { method: 'POST', body: JSON.stringify({ user_id: client.id, name: newPetName.trim(), type: newPetType }) })
-      const pJson = await pRes.json() as { data: Pet }
-      const p     = pJson.data
+      const p = await api.createPet({ user_id: client.id, name: newPetName.trim(), type: newPetType }) as Pet
       setPets((prev) => [...prev, p])
       setPetId(p.id)
       setAddNewPet(false)
@@ -253,7 +240,7 @@ function NewBookingModal({ defaultDate, onClose, onCreated }: NewBookingModalPro
     if (slotOk === false) return setSubmitErr('Ese horario ya está ocupado')
     setSubmitting(true); setSubmitErr('')
     try {
-      await api.createBooking({ pet_id: petId, date, time: timeNorm, notes: notes || undefined })
+      await api.createBooking({ pet_id: petId, date, time: timeNorm, notes: notes || undefined, service_type_id: serviceTypeId || undefined })
       const petName  = pets.find((p) => p.id === petId)?.name ?? ''
       const dateLabel = new Date(date + 'T00:00:00').toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })
       toast.success(`✓ Turno agendado para ${petName} el ${dateLabel} a las ${timeNorm}`)
@@ -567,6 +554,29 @@ function NewBookingModal({ defaultDate, onClose, onCreated }: NewBookingModalPro
               </p>
             )}
 
+            {serviceTypes.length > 0 && (
+              <div>
+                <Label>Servicio</Label>
+                <div className="flex flex-wrap gap-2">
+                  {serviceTypes.map(s => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => {
+                        setServiceTypeId(prev => prev === s.id ? '' : s.id)
+                        if (!notes) setNotes(serviceTypeId === s.id ? '' : s.name)
+                      }}
+                      className="text-xs font-semibold px-3 py-1.5 rounded-xl transition-all"
+                      style={serviceTypeId === s.id
+                        ? { background: '#601EF9', color: '#fff', border: '1.5px solid #601EF9' }
+                        : { background: '#f8faff', color: '#475569', border: '1.5px solid #e4ebff' }}>
+                      {s.name}{s.price ? ` · S/${s.price}` : ''}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div>
               <Label>Notas (opcional)</Label>
               <input type="text" placeholder="Ej: traer carnet de vacunas" value={notes} onChange={(e) => setNotes(e.target.value)} className={INPUT} style={INPUT_STYLE} />
@@ -596,6 +606,131 @@ function NewBookingModal({ defaultDate, onClose, onCreated }: NewBookingModalPro
   )
 }
 
+// ─── Modal: completar + cobrar ────────────────────────────────────────────────
+type PaymentMethod = 'cash' | 'transfer' | 'card' | 'yape' | 'other'
+const METHOD_LABEL: Record<PaymentMethod, string> = {
+  cash: 'Efectivo', transfer: 'Transferencia', card: 'Tarjeta', yape: 'Yape/Plin', other: 'Otro',
+}
+const METHODS: PaymentMethod[] = ['cash', 'transfer', 'card', 'yape', 'other']
+
+function CompleteWithPaymentModal({ booking, onClose, onDone }: {
+  booking: Booking
+  onClose: () => void
+  onDone:  () => void
+}) {
+  const toast = useToast()
+  const [amount, setAmount]   = useState('')
+  const [method, setMethod]   = useState<PaymentMethod>('cash')
+  const [saving, setSaving]   = useState(false)
+
+  useEffect(() => {
+    api.getPet(booking.pet.id).then((pet: unknown) => {
+      const p = pet as { default_price?: number | null }
+      if (p?.default_price) setAmount(p.default_price.toFixed(2))
+    }).catch(() => {})
+  }, [booking.pet.id])
+
+  const submit = async (withPayment: boolean) => {
+    setSaving(true)
+    try {
+      await api.completeBooking(booking.id)
+      if (withPayment) {
+        const amt = parseFloat(amount)
+        if (!isNaN(amt) && amt > 0) {
+          await api.createPayment({
+            amount: amt,
+            method,
+            booking_id: booking.id,
+            pet_id: booking.pet.id,
+            description: `Servicio: ${booking.pet.name}${booking.notes ? ' - ' + booking.notes : ''}`,
+            date: booking.date,
+          })
+        }
+      }
+      toast.success(`Servicio completado${withPayment ? ' y cobro registrado' : ''} ✓`)
+      onDone()
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Error al completar')
+    } finally { setSaving(false) }
+  }
+
+  const hasAmount = !isNaN(parseFloat(amount)) && parseFloat(amount) > 0
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 backdrop-blur-sm" style={{ background: 'rgba(17,28,68,0.4)' }} onClick={onClose} />
+      <div className="relative rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6" style={{ background: '#fff', border: '1px solid #e4ebff' }}>
+
+        <div className="flex items-center justify-between mb-5">
+          <h3 className="text-lg font-bold" style={{ color: '#0f172a' }}>Completar servicio</h3>
+          <button onClick={onClose} className="text-2xl leading-none" style={{ color: '#94a3b8' }}>×</button>
+        </div>
+
+        {/* Resumen del servicio */}
+        <div className="flex items-center gap-3 p-3 rounded-xl mb-5" style={{ background: '#F3EEFF' }}>
+          <span className="text-2xl">{PET_EMOJI[booking.pet.type] ?? '🐾'}</span>
+          <div>
+            <p className="text-sm font-bold" style={{ color: '#0f172a' }}>{booking.pet.name}</p>
+            {booking.notes && <p className="text-xs" style={{ color: '#7c3aed' }}>{booking.notes}</p>}
+            <p className="text-xs" style={{ color: '#94a3b8' }}>
+              {booking.time} · {new Date(booking.date + 'T00:00:00').toLocaleDateString('es-PE', { day: 'numeric', month: 'short' })}
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wide mb-1.5" style={{ color: '#94a3b8' }}>
+              Monto cobrado (S/)
+            </label>
+            <input
+              type="number" step="0.01" min="0"
+              value={amount} onChange={e => setAmount(e.target.value)}
+              placeholder="0.00" autoFocus
+              className="w-full rounded-xl px-3 py-2.5 text-sm focus:outline-none"
+              style={{ border: '1.5px solid #e4ebff', background: '#f8faff', color: '#0f172a' }}
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: '#94a3b8' }}>
+              Método de pago
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              {METHODS.map(m => (
+                <button key={m} onClick={() => setMethod(m)}
+                  className="py-2 px-1 rounded-xl text-xs font-semibold transition-all"
+                  style={method === m
+                    ? { background: '#601EF9', color: '#fff', border: '1.5px solid #601EF9' }
+                    : { background: '#f8faff', color: '#475569', border: '1.5px solid #e4ebff' }}>
+                  {METHOD_LABEL[m]}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex gap-3 mt-6">
+          <button
+            onClick={() => submit(false)}
+            disabled={saving}
+            className="flex-1 py-2.5 text-sm font-semibold rounded-xl disabled:opacity-40"
+            style={{ background: '#f1f5f9', color: '#475569' }}>
+            Solo completar
+          </button>
+          <button
+            onClick={() => submit(true)}
+            disabled={saving || !hasAmount}
+            className="flex-1 py-2.5 text-white text-sm font-semibold rounded-xl disabled:opacity-40"
+            style={{ background: 'linear-gradient(135deg,#3b10b5,#601EF9)' }}>
+            {saving ? 'Guardando…' : 'Completar y cobrar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Página principal ─────────────────────────────────────────────────────────
 type QuickFilter = 'today' | 'tomorrow' | 'pending' | 'all'
 
@@ -615,8 +750,9 @@ export default function BookingsPage() {
   const [bookings, setBookings]   = useState<Booking[]>([])
   const [loading, setLoading]     = useState(true)
   const [error, setError]         = useState('')
-  const [showModal, setShowModal] = useState(false)
-  const [actionId, setActionId]   = useState<string | null>(null)
+  const [showModal, setShowModal]           = useState(false)
+  const [actionId, setActionId]             = useState<string | null>(null)
+  const [completingBooking, setCompletingBooking] = useState<Booking | null>(null)
 
   useEffect(() => {
     if (typeof window !== 'undefined' && window.location.search.includes('new=1')) {
@@ -647,6 +783,12 @@ export default function BookingsPage() {
   useEffect(() => { load() }, [load])
 
   const handleAction = async (id: string, action: 'confirm' | 'complete' | 'cancel') => {
+    // Complete: open payment modal instead of directly completing
+    if (action === 'complete') {
+      const b = bookings.find(bb => bb.id === id) ?? null
+      setCompletingBooking(b)
+      return
+    }
     if (action === 'cancel') {
       const ok = await confirm({
         title: 'Cancelar servicio',
@@ -657,9 +799,8 @@ export default function BookingsPage() {
     }
     setActionId(id)
     try {
-      if (action === 'confirm')  { await api.confirmBooking(id);  toast.success('Servicio confirmado') }
-      if (action === 'complete') { await api.completeBooking(id); toast.success('Servicio completado ✓') }
-      if (action === 'cancel')   { await api.cancelBooking(id);   toast.info('Servicio cancelado') }
+      if (action === 'confirm') { await api.confirmBooking(id); toast.success('Servicio confirmado') }
+      if (action === 'cancel')  { await api.cancelBooking(id);  toast.info('Servicio cancelado') }
       load()
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Error al actualizar')
@@ -688,6 +829,13 @@ export default function BookingsPage() {
           defaultDate={date}
           onClose={() => setShowModal(false)}
           onCreated={() => { setShowModal(false); load() }}
+        />
+      )}
+      {completingBooking && (
+        <CompleteWithPaymentModal
+          booking={completingBooking}
+          onClose={() => setCompletingBooking(null)}
+          onDone={() => { setCompletingBooking(null); load() }}
         />
       )}
 
@@ -880,14 +1028,13 @@ function ServiceRow({ booking: b, isActioning, onConfirm, onComplete, onCancel, 
             <span className="text-xs" style={{ color: '#94a3b8' }}>Procesando…</span>
           ) : (
             <>
-              {/* Asignar a ruta — siempre visible si activo */}
               {isActive && (
                 <button onClick={onAssignRoute}
                   className="text-[11px] font-semibold px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition-colors"
                   style={{ background: '#F3EEFF', color: '#601EF9' }}
                   onMouseEnter={e => e.currentTarget.style.background = '#ede9fe'}
                   onMouseLeave={e => e.currentTarget.style.background = '#F3EEFF'}>
-                  🛵 Ruta
+                  Ruta
                 </button>
               )}
               {isPending && (
@@ -905,7 +1052,7 @@ function ServiceRow({ booking: b, isActioning, onConfirm, onComplete, onCancel, 
                   style={{ background: '#dcfce7', color: '#166534' }}
                   onMouseEnter={e => e.currentTarget.style.background = '#bbf7d0'}
                   onMouseLeave={e => e.currentTarget.style.background = '#dcfce7'}>
-                  ✓ Listo
+                  Listo
                 </button>
               )}
               {isActive && (
@@ -915,13 +1062,13 @@ function ServiceRow({ booking: b, isActioning, onConfirm, onComplete, onCancel, 
                     style={{ background: '#f1f5f9', color: '#64748b' }}
                     onMouseEnter={e => e.currentTarget.style.background = '#e2e8f0'}
                     onMouseLeave={e => e.currentTarget.style.background = '#f1f5f9'}>
-                    ⋯
+                    ...
                   </button>
                   {open && (
                     <div className="absolute right-0 top-8 z-20 rounded-xl shadow-lg py-1 min-w-[140px]"
                       style={{ background: '#fff', border: '1px solid #ede9fe' }}>
-                      <DropItem label="📅 Reprogramar" onClick={() => { setOpen(false); }} />
-                      <DropItem label="🗑️ Cancelar" onClick={() => { setOpen(false); onCancel() }} danger />
+                      <DropItem label="Reprogramar" onClick={() => { setOpen(false) }} />
+                      <DropItem label="Cancelar" onClick={() => { setOpen(false); onCancel() }} danger />
                     </div>
                   )}
                 </div>
@@ -947,17 +1094,16 @@ function DropItem({ label, onClick, danger }: { label: string; onClick: () => vo
 }
 
 function EmptyState({ onNew, filter }: { onNew: () => void; filter: QuickFilter }) {
-  const messages: Record<QuickFilter, { icon: string; title: string; sub: string }> = {
-    today:    { icon: '📅', title: 'Sin servicios para hoy',      sub: 'Agendá el primer servicio del día.' },
-    tomorrow: { icon: '📅', title: 'Sin servicios para mañana',   sub: 'Planificá la jornada de mañana.' },
-    pending:  { icon: '✅', title: 'Todo confirmado',             sub: 'No hay servicios pendientes de confirmar.' },
-    all:      { icon: '📋', title: 'Sin servicios en esta fecha', sub: 'Creá un nuevo servicio para este día.' },
+  const messages: Record<QuickFilter, { title: string; sub: string }> = {
+    today:    { title: 'Sin servicios para hoy',      sub: 'Agenda el primer servicio del dia.' },
+    tomorrow: { title: 'Sin servicios para manana',   sub: 'Planifica la jornada de manana.' },
+    pending:  { title: 'Todo al dia',                 sub: 'No hay servicios pendientes de confirmar.' },
+    all:      { title: 'Sin servicios en esta fecha', sub: 'Crea un nuevo servicio para este dia.' },
   }
   const m = messages[filter]
   return (
     <div className="flex flex-col items-center py-16 gap-4 rounded-2xl"
       style={{ background: '#fff', border: '1.5px dashed #ddd6fe' }}>
-      <span className="text-5xl">{m.icon}</span>
       <div className="text-center">
         <p className="text-sm font-semibold" style={{ color: '#0f172a' }}>{m.title}</p>
         <p className="text-xs mt-1" style={{ color: '#94a3b8' }}>{m.sub}</p>
@@ -971,4 +1117,4 @@ function EmptyState({ onNew, filter }: { onNew: () => void; filter: QuickFilter 
   )
 }
 
-const PET_EMOJI: Record<string, string> = { dog: '🐕', cat: '🐱', bird: '🐦', rabbit: '🐇', other: '🐾' }
+const PET_EMOJI: Record<string, string> = { dog: 'D', cat: 'C', bird: 'B', rabbit: 'R', other: 'P' }

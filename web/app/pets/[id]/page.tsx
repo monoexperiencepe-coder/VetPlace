@@ -57,7 +57,7 @@ function NewEventModal({ petId, onClose, onCreated }: { petId: string; onClose: 
 }
 
 interface User { id: string; phone: string; name?: string }
-interface Pet { id: string; name: string; type: string; breed?: string; birth_date?: string; grooming_frequency_days?: number; last_grooming_date?: string; user: User }
+interface Pet { id: string; name: string; type: string; breed?: string; birth_date?: string; grooming_frequency_days?: number; last_grooming_date?: string; default_price?: number | null; user: User }
 type MedicalRecordType = 'consultation' | 'vaccine' | 'deworming' | 'surgery' | 'grooming' | 'other'
 interface MedicalRecord { id: string; pet_id: string; date: string; type: MedicalRecordType; diagnosis?: string; treatment?: string; notes?: string; vet?: string; weight?: number; created_at: string }
 type EventStatus = 'PENDING' | 'NOTIFIED' | 'COMPLETED' | 'CANCELLED'
@@ -76,7 +76,7 @@ const RECORD_TYPE_COLOR: Record<MedicalRecordType, { bg: string; text: string; d
   grooming:     { bg: '#fff7ed', text: '#9a3412', dot: '#f97316' },
   other:        { bg: '#f8fafc', text: '#475569', dot: '#94a3b8' },
 }
-const PET_EMOJI: Record<string, string> = { dog: 'D', cat: 'C', bird: 'B', rabbit: 'R', other: 'O' }
+const PET_EMOJI: Record<string, string> = { dog: '🐕', cat: '🐱', bird: '🦜', rabbit: '🐇', other: '🐾' }
 const PET_TYPE_LABEL: Record<string, string> = { dog: 'Perro', cat: 'Gato', bird: 'Ave', rabbit: 'Conejo', other: 'Otro' }
 const EVENT_TYPE_LABEL: Record<EventType, string> = { grooming: 'Bano', vaccine: 'Vacuna', checkup: 'Control', deworming: 'Desparasitacion' }
 const EVENT_STATUS_LABEL: Record<EventStatus, string> = { PENDING: 'Pendiente', NOTIFIED: 'Notificado', COMPLETED: 'Completado', CANCELLED: 'Cancelado' }
@@ -102,6 +102,7 @@ function EditPetModal({ pet, onClose, onUpdated }: { pet: Pet; onClose: () => vo
   const [breed, setBreed] = useState(pet.breed ?? '')
   const [birthDate, setBirthDate] = useState(pet.birth_date ?? '')
   const [groomFreq, setGroomFreq] = useState(pet.grooming_frequency_days?.toString() ?? '')
+  const [defaultPrice, setDefaultPrice] = useState(pet.default_price?.toString() ?? '')
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
   const submit = async (e: React.FormEvent) => {
@@ -109,7 +110,7 @@ function EditPetModal({ pet, onClose, onUpdated }: { pet: Pet; onClose: () => vo
     if (!name.trim()) { toast.warning('El nombre es obligatorio'); return }
     setSaving(true); setErr('')
     try {
-      const data = await api.updatePet(pet.id, { name: name.trim(), type, breed: breed.trim() || undefined, birth_date: birthDate || undefined, grooming_frequency_days: groomFreq ? Number(groomFreq) : null }) as Pet
+      const data = await api.updatePet(pet.id, { name: name.trim(), type, breed: breed.trim() || undefined, birth_date: birthDate || undefined, grooming_frequency_days: groomFreq ? Number(groomFreq) : null, default_price: defaultPrice ? Number(defaultPrice) : null }) as Pet
       onUpdated(data)
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Error al actualizar'
@@ -135,6 +136,7 @@ function EditPetModal({ pet, onClose, onUpdated }: { pet: Pet; onClose: () => vo
           <div><label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Raza</label><input value={breed} onChange={e => setBreed(e.target.value)} placeholder="Labrador, Siames..." className={cls} /></div>
           <div><label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Fecha de nacimiento</label><input type="date" value={birthDate} onChange={e => setBirthDate(e.target.value)} className={cls} /></div>
           <div><label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Frecuencia de bano (dias)</label><input type="number" value={groomFreq} onChange={e => setGroomFreq(e.target.value)} placeholder="30" className={cls} /></div>
+          <div><label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Precio por defecto (S/)</label><input type="number" step="0.01" min="0" value={defaultPrice} onChange={e => setDefaultPrice(e.target.value)} placeholder="0.00" className={cls} /></div>
           {err && <p className="text-red-500 text-xs">{err}</p>}
           <div className="flex gap-3 mt-2">
             <button type="submit" disabled={saving} className="flex-1 py-2 text-white text-sm font-medium rounded-lg disabled:opacity-50" style={{ background: '#601EF9' }}>{saving ? 'Guardando...' : 'Guardar cambios'}</button>

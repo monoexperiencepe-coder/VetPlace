@@ -97,7 +97,7 @@ export const api = {
   createPet: (body: Record<string, unknown>) =>
     request('/api/pets', { method: 'POST', body: JSON.stringify(body) }),
 
-  updatePet: (id: string, body: { name?: string; type?: string; breed?: string; birth_date?: string; grooming_frequency_days?: number | null }) =>
+  updatePet: (id: string, body: { name?: string; type?: string; breed?: string; birth_date?: string; grooming_frequency_days?: number | null; default_price?: number | null }) =>
     request(`/api/pets/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
 
   deletePet: (id: string) =>
@@ -133,6 +133,15 @@ export const api = {
 
   getUpcomingEvents: (from: string, to: string) =>
     request(`/api/events?status=PENDING&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
+
+  getOverdueEvents: () =>
+    request('/api/events/overdue'),
+
+  getTodayBookings: () =>
+    request('/api/bookings/today'),
+
+  notifyEvent: (id: string) =>
+    request(`/api/events/${id}/notify`, { method: 'POST' }),
 
   getInactiveClients: (days = 30) =>
     request(`/api/users/inactive?days=${days}`),

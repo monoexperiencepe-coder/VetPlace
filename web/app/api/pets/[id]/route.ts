@@ -29,7 +29,7 @@ export async function PATCH(
     const { clinicId } = await getAuthContext(request)
     const body = await request.json() as Record<string, unknown>
 
-    const allowed = ['name', 'type', 'breed', 'birth_date', 'grooming_frequency_days']
+    const allowed = ['name', 'type', 'breed', 'birth_date', 'grooming_frequency_days', 'default_price']
     const updates: Record<string, unknown> = {}
     for (const key of allowed) {
       if (key in body) updates[key] = body[key] ?? null
