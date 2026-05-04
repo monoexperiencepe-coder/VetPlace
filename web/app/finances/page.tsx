@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import Link from 'next/link'
 import { useToast } from '@/context/ToastContext'
 import { api } from '@/lib/api'
 
@@ -432,7 +433,9 @@ function PaymentRow({ payment: p, onDelete, deleting }: {
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold truncate" style={{ color: '#0f172a' }}>
-          {who}{p.pet && p.client && <span className="font-normal text-xs" style={{ color: '#64748b' }}> · {p.pet.name}</span>}
+          {who}{p.pet && p.client && (
+            <span className="font-normal text-xs" style={{ color: '#64748b' }}> · <Link href={`/pets/${p.pet.id}`} className="hover:underline" style={{ color: '#601EF9' }}>{p.pet.name}</Link></span>
+          )}
         </p>
         <p className="text-xs truncate" style={{ color: '#94a3b8' }}>{time} · {desc}</p>
       </div>
@@ -555,12 +558,32 @@ function PaymentModal({ onClose, onSaved, bookingDefault }: {
               style={{ background: '#F1F5F9', color: '#475569' }}>Cancelar</button>
             <button type="submit" disabled={saving}
               className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white disabled:opacity-60"
-              style={{ background: 'linear-gradient(135deg,#3b10b5,#601EF9)' }}>
-              {saving ? 'Guardando...' : 'Registrar pago'}
+                            style={{ background: 'linear-gradient(135deg,#3b10b5,#601EF9)' }}>
+              {saving ? 'Guardando…' : 'Registrar cobro'}
             </button>
           </div>
         </form>
       </div>
+    </div>
+  )
+}
+
+// ─── Shared UI ────────────────────────────────────────────────────────────────
+function MField({ label, value, onChange, placeholder, type = 'text', required }: {
+  label: string; value: string; onChange: (v: string) => void
+  placeholder?: string; type?: string; required?: boolean
+}) {
+  return (
+    <div>
+      <label className="text-xs font-semibold mb-1 block" style={{ color: '#334155' }}>{label}</label>
+      <input
+        type={type} value={value} onChange={e => onChange(e.target.value)}
+        placeholder={placeholder} required={required}
+        className="w-full px-3 py-2.5 rounded-xl text-sm outline-none"
+        style={{ background: '#F9F9FB', border: '1.5px solid #E5E7EB', color: '#0f172a' }}
+        onFocus={e => e.currentTarget.style.border = '1.5px solid #601EF9'}
+        onBlur={e  => e.currentTarget.style.border = '1.5px solid #E5E7EB'}
+      />
     </div>
   )
 }

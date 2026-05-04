@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, useRef } from 'react'
+import Link from 'next/link'
 import { api } from '@/lib/api'
 import { useConfirm } from '@/context/ConfirmContext'
 import { useToast } from '@/context/ToastContext'
@@ -51,6 +52,10 @@ const STATUS_COLOR: Record<BookingStatus, { bg: string; text: string }> = {
 
 const PET_TYPE_LABEL: Record<string, string> = {
   dog: 'Perro', cat: 'Gato', bird: 'Ave', rabbit: 'Conejo', other: 'Otro',
+}
+
+const PET_EMOJI: Record<string, string> = {
+  dog: '🐕', cat: '🐱', bird: '🦜', rabbit: '🐇', other: '🐾',
 }
 
 function todayStr() {
@@ -996,10 +1001,11 @@ function ServiceRow({ booking: b, isActioning, onConfirm, onComplete, onCancel, 
           <div className="flex items-center gap-2">
             <span className="text-base">{PET_EMOJI[b.pet.type] ?? '🐾'}</span>
             <div className="min-w-0">
-              <p className="text-sm font-semibold truncate"
-                style={{ color: isCompleted ? '#94a3b8' : '#0f172a', textDecoration: isCompleted ? 'line-through' : 'none' }}>
+              <Link href={`/pets/${b.pet.id}`}
+                className="text-sm font-semibold truncate hover:underline"
+                style={{ color: isCompleted ? '#94a3b8' : '#601EF9', textDecoration: isCompleted ? 'line-through' : 'none' }}>
                 {b.pet.name}
-              </p>
+              </Link>
               {b.notes && (
                 <p className="text-[11px] truncate" style={{ color: '#94a3b8' }}>{b.notes}</p>
               )}
@@ -1116,5 +1122,3 @@ function EmptyState({ onNew, filter }: { onNew: () => void; filter: QuickFilter 
     </div>
   )
 }
-
-const PET_EMOJI: Record<string, string> = { dog: 'D', cat: 'C', bird: 'B', rabbit: 'R', other: 'P' }

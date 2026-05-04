@@ -5,11 +5,12 @@ import { api } from '@/lib/api'
 import { useToast } from '@/context/ToastContext'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-export const SERVICE_TYPES = [
-  { value: 'Baño',     emoji: '🛁' },
-  { value: 'Vacuna',   emoji: '💉' },
-  { value: 'Consulta', emoji: '🩺' },
-  { value: 'Otro',     emoji: '📋' },
+// Fallback used only while service types load from the API catalog
+export const FALLBACK_SERVICE_TYPES = [
+  { id: '', name: 'Baño',     price: null, active: true },
+  { id: '', name: 'Vacuna',   price: null, active: true },
+  { id: '', name: 'Consulta', price: null, active: true },
+  { id: '', name: 'Otro',     price: null, active: true },
 ]
 
 export const TIME_SLOTS = [
@@ -56,15 +57,24 @@ export function BookingDrawer({
 }: BookingDrawerProps) {
   const toast = useToast()
 
-  const [pets, setPets]             = useState<PetOption[]>(initialPets)
-  const [loadingPets, setLPets]     = useState(initialPets.length === 0)
-  const [petId, setPetId]           = useState(
+  type ServiceType = { id: string; name: string; price: number | null; active: boolean }
+
+  const [pets, setPets]               = useState<PetOption[]>(initialPets)
+  const [loadingPets, setLPets]       = useState(initialPets.length === 0)
+  const [petId, setPetId]             = useState(
     defaultPetId ?? (initialPets.length === 1 ? initialPets[0].id : '')
   )
-  const [service, setService]       = useState('')
-  const [date, setDate]             = useState(todayISO())
-  const [timeSlot, setTimeSlot]     = useState('')
-  const [submitting, setSubmitting] = useState(false)
+  const [serviceTypes, setServiceTypes] = useState<ServiceType[]>([])
+  const [serviceTypeId, setServiceTypeId] = useState('')
+  const [date, setDate]               = useState(todayISO())
+  const [timeSlot, setTimeSlot]       = useState('')
+  const [submitting, setSubmitting]   = useState(false)
+
+  useEffect(() => {
+    api.getServiceTypes()
+      .then(d => setServiceTypes((d as ServiceType[]).filter(s => s.active)))
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     if (initialPets.length > 0) return
@@ -82,13 +92,20 @@ export function BookingDrawer({
       .finally(() => setLPets(false))
   }, [client.id, initialPets.length, defaultPetId])
 
-  const canSubmit = !!(petId && service && date && timeSlot && !submitting)
+  const canSubmit = !!(petId && date && timeSlot && !submitting)
 
   const submit = async () => {
     if (!canSubmit) return
     setSubmitting(true)
     try {
-      await api.createBooking({ pet_id: petId, date, time: timeSlot, notes: service })
+      const selectedType = serviceTypes.find(s => s.id === serviceTypeId)
+      await api.createBooking({
+        pet_id: petId,
+        date,
+        time: timeSlot,
+        service_type_id: serviceTypeId || undefined,
+        notes: selectedType?.name || undefined,
+      })
       const petName = pets.find(p => p.id === petId)?.name ?? ''
       toast.success(`✓ Servicio creado para ${petName}`)
       onCreated()
@@ -176,20 +193,30 @@ export function BookingDrawer({
           {/* Tipo de servicio */}
           <div>
             <label className="block text-xs font-bold mb-2" style={{ color: '#334155' }}>
-              Tipo de servicio <span style={{ color: '#601EF9' }}>*</span>
+              Tipo de servicio
             </label>
-            <div className="grid grid-cols-2 gap-2">
-              {SERVICE_TYPES.map(s => (
-                <button key={s.value} onClick={() => setService(s.value)}
-                  className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all text-left"
-                  style={service === s.value
-                    ? { background: '#F3EEFF', color: '#601EF9', border: '1.5px solid #a78bfa' }
-                    : { background: '#F9F9FB', color: '#475569', border: '1.5px solid #E5E7EB' }}>
-                  <span className="text-base">{s.emoji}</span>
-                  {s.value}
-                </button>
-              ))}
-            </div>
+            {serviceTypes.length === 0 ? (
+              <p className="text-xs py-1" style={{ color: '#94a3b8' }}>
+                Sin servicios configurados · podés agendar igual sin especificar tipo.
+              </p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {serviceTypes.map(s => (
+                  <button key={s.id} onClick={() => setServiceTypeId(prev => prev === s.id ? '' : s.id)}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold transition-all"
+                    style={serviceTypeId === s.id
+                      ? { background: '#F3EEFF', color: '#601EF9', border: '1.5px solid #a78bfa' }
+                      : { background: '#F9F9FB', color: '#475569', border: '1.5px solid #E5E7EB' }}>
+                    {s.name}
+                    {s.price != null && (
+                      <span className="text-[10px] ml-1" style={{ color: serviceTypeId === s.id ? '#a78bfa' : '#94a3b8' }}>
+                        S/{s.price}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Fecha */}
@@ -227,9 +254,9 @@ export function BookingDrawer({
             </div>
           </div>
 
-          {!canSubmit && !!(petId || service || timeSlot) && (
+          {!canSubmit && !!(petId || serviceTypeId || timeSlot) && (
             <p className="text-xs" style={{ color: '#94a3b8' }}>
-              Completá todos los campos para crear el servicio.
+              Seleccioná mascota, fecha y rango horario para continuar.
             </p>
           )}
         </div>

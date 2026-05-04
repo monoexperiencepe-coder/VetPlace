@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import Link from 'next/link'
 import { api } from '@/lib/api'
 import { useConfirm } from '@/context/ConfirmContext'
 import { useToast } from '@/context/ToastContext'
@@ -145,7 +146,13 @@ export default function EventsPage() {
                     onMouseEnter={(e) => (e.currentTarget.style.background = '#f8faff')}
                     onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
                   >
-                    <td className="px-5 py-3.5 font-semibold" style={{ color: '#0f172a' }}>{ev.pet.name}</td>
+                    <td className="px-5 py-3.5">
+                      <Link href={`/pets/${ev.pet.id}`}
+                        className="font-semibold hover:underline"
+                        style={{ color: '#601EF9' }}>
+                        {ev.pet.name}
+                      </Link>
+                    </td>
                     <td className="px-5 py-3.5" style={{ color: '#475569' }}>{ev.pet.user.name ?? ev.pet.user.phone}</td>
                     <td className="px-5 py-3.5">
                       <span style={{ color: '#334155' }}>
@@ -207,7 +214,7 @@ function ActionBtn({ onClick, variant, children }: {
   const styles = {
     green: { background: '#dcfce7', color: '#166534' },
     blue:  { background: '#dbeafe', color: '#1e40af' },
-    ghost: { background: '#f1f5f9', color: '#475569' },
+      ghost: { background: '#f1f5f9', color: '#475569' },
   }
   return (
     <button
