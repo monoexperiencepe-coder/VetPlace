@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 import { getAuthContext } from '@/lib/api-auth'
 import { ok, handleRouteError } from '@/lib/api-response'
 import { ValidationError, handleSupabaseError } from '@/lib/errors'
+import { emitPaymentReceived } from '@/lib/domain-events'
 
 export const dynamic = 'force-dynamic'
 
@@ -86,6 +87,23 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (error) handleSupabaseError(error)
+
+    // Fire-and-forget: emit domain event para automation engine
+    const payment = data as {
+      id: string
+      booking_id?: string | null
+      client?: { id: string; name?: string | null } | null
+      pet?:    { name?: string | null } | null
+    }
+    await emitPaymentReceived(clinicId, {
+      id:          payment.id,
+      amount,
+      method,
+      booking_id:  payment.booking_id  ?? undefined,
+      client_id:   payment.client?.id,
+      client_name: payment.client?.name ?? undefined,
+      pet_name:    payment.pet?.name    ?? undefined,
+    })
 
     return ok(data, 201)
   } catch (e) {

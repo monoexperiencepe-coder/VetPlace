@@ -1,7 +1,5 @@
 import { createClient } from '@/lib/supabase'
-
 const BASE = ''
-
 async function getToken(): Promise<string | null> {
   try {
     const supabase = createClient()
@@ -11,7 +9,6 @@ async function getToken(): Promise<string | null> {
     return null
   }
 }
-
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const token = await getToken()
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
@@ -24,12 +21,26 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   if (!json.ok) throw new Error(json.message ?? json.error ?? 'API error')
   return json.data as T
 }
-
+export interface AutomationRecord {
+  id:               string
+  clinic_id:        string
+  name:             string
+  description:      string | null
+  icon:             string | null
+  category:         string | null
+  trigger_event:    string
+  condition_json:   Record<string, unknown>
+  action_type:      string
+  message_template: string | null
+  delay_minutes:    number
+  active:           boolean
+  created_at:       string
+  updated_at:       string
+}
 export interface GroomingCompletedMeta {
   grooming_events_completed: number
   next_grooming_event_created: boolean
 }
-
 export interface Conversation {
   id:              string
   clinic_id:       string
@@ -42,7 +53,6 @@ export interface Conversation {
   last_message_at: string | null
   created_at:      string
 }
-
 export interface Message {
   id:              string
   conversation_id: string
@@ -50,65 +60,47 @@ export interface Message {
   body:            string
   created_at:      string
 }
-
 export const api = {
   // Stats
   getStats: () =>
     request('/api/stats'),
-
   // Recent clients
   getRecentClients: () =>
     request('/api/users/recent'),
-
   // Search pets by name
   searchPets: (q: string) =>
     request(`/api/pets/search?q=${encodeURIComponent(q)}`),
-
   // Clinics
   setupClinic: (body: { name: string; phone?: string; email?: string }) =>
     request('/api/clinics/setup', { method: 'POST', body: JSON.stringify(body) }),
-
   getMyClinic: () =>
     request('/api/clinics/me'),
-
   updateMyClinic: (body: Record<string, string>) =>
     request('/api/clinics/me', { method: 'PATCH', body: JSON.stringify(body) }),
-
   // Clients
   createClient: (body: { phone: string; name?: string; email?: string; address?: string; distrito?: string; notes?: string }) =>
     request('/api/users', { method: 'POST', body: JSON.stringify(body) }),
-
   updateClient: (id: string, body: { name?: string; email?: string; address?: string; distrito?: string; notes?: string; phone?: string }) =>
     request(`/api/users/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
-
   deleteClient: (id: string) =>
     request(`/api/users/${id}`, { method: 'DELETE' }),
-
   getClient: (id: string) =>
     request(`/api/users/${id}`),
-
   getClientByPhone: (phone: string) =>
     request(`/api/users/phone/${encodeURIComponent(phone)}`),
-
   searchClients: (q: string) =>
     request(`/api/users/search?q=${encodeURIComponent(q)}`),
-
   // Pets
   createPet: (body: Record<string, unknown>) =>
     request('/api/pets', { method: 'POST', body: JSON.stringify(body) }),
-
   updatePet: (id: string, body: { name?: string; type?: string; breed?: string; birth_date?: string; grooming_frequency_days?: number | null; default_price?: number | null }) =>
     request(`/api/pets/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
-
   deletePet: (id: string) =>
     request(`/api/pets/${id}`, { method: 'DELETE' }),
-
   getPet: (id: string) =>
     request(`/api/pets/${id}`),
-
   getPetsByUser: (userId: string) =>
     request(`/api/pets/user/${userId}`),
-
   groomingCompleted: async (
     petId: string,
     completed_date?: string
@@ -125,50 +117,36 @@ export const api = {
     if (!json.ok) throw new Error(json.message ?? 'API error')
     return { pet: json.data, meta: json.meta as GroomingCompletedMeta | undefined }
   },
-
   isSlotAvailable: (date: string, time: string) =>
     request<{ available: boolean }>(
       `/api/bookings/slot-available?date=${encodeURIComponent(date)}&time=${encodeURIComponent(time)}`
     ),
-
   getUpcomingEvents: (from: string, to: string) =>
     request(`/api/events?status=PENDING&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
-
   getOverdueEvents: () =>
     request('/api/events/overdue'),
-
   getTodayBookings: () =>
     request('/api/bookings/today'),
-
   notifyEvent: (id: string) =>
     request(`/api/events/${id}/notify`, { method: 'POST' }),
-
   getInactiveClients: (days = 30) =>
     request(`/api/users/inactive?days=${days}`),
-
-
   // Service types / Catálogo de servicios
   getServiceTypes: () =>
     request('/api/service-types'),
-
   createServiceType: (body: { name: string; price?: number | null; active?: boolean }) =>
     request('/api/service-types', { method: 'POST', body: JSON.stringify(body) }),
-
   updateServiceType: (id: string, body: { name?: string; price?: number | null; active?: boolean }) =>
     request(`/api/service-types/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
-
   deleteServiceType: (id: string) =>
     request(`/api/service-types/${id}`, { method: 'DELETE' }),
-
   getPendingPayments: () =>
     request('/api/payments/pending'),
-
   // Payments / Finanzas
   getPayments: (params?: { date?: string; from?: string; to?: string }) => {
     const qs = params ? '?' + new URLSearchParams(params as Record<string, string>).toString() : ''
     return request(`/api/payments${qs}`)
   },
-
   createPayment: (body: {
     amount: number
     method: 'cash' | 'transfer' | 'card' | 'yape' | 'other'
@@ -179,17 +157,13 @@ export const api = {
     pet_id?: string
   }) =>
     request('/api/payments', { method: 'POST', body: JSON.stringify(body) }),
-
   deletePayment: (id: string) =>
     request(`/api/payments/${id}`, { method: 'DELETE' }),
-
   getPaymentStats: () =>
     request('/api/payments/stats'),
-
   // Historia clinica
   getMedicalRecords: (petId: string) =>
     request(`/api/medical-records/pet/${petId}`),
-
   createMedicalRecord: (body: {
     pet_id: string
     date: string
@@ -201,7 +175,6 @@ export const api = {
     weight?: number | null
   }) =>
     request('/api/medical-records', { method: 'POST', body: JSON.stringify(body) }),
-
   updateMedicalRecord: (id: string, body: {
     date?: string
     type?: string
@@ -212,64 +185,68 @@ export const api = {
     weight?: number | null
   }) =>
     request(`/api/medical-records/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
-
   deleteMedicalRecord: (id: string) =>
     request(`/api/medical-records/${id}`, { method: 'DELETE' }),
-
   // Events
   getEventsByPet: (petId: string) =>
     request(`/api/events/pet/${petId}`),
-
   getEvents: (params?: Record<string, string>) => {
     const qs = params ? '?' + new URLSearchParams(params).toString() : ''
     return request(`/api/events${qs}`)
   },
-
   createEvent: (body: Record<string, unknown>) =>
     request('/api/events', { method: 'POST', body: JSON.stringify(body) }),
-
   cancelEvent: (id: string) =>
     request(`/api/events/${id}/cancel`, { method: 'PATCH' }),
-
   completeEvent: (id: string) =>
     request(`/api/events/${id}/complete`, { method: 'PATCH' }),
-
   // Bookings
   getBookingsByPet: (petId: string) =>
     request(`/api/bookings/pet/${petId}`),
-
   getBookings: (date: string) =>
     request(`/api/bookings?date=${date}`),
-
   createBooking: (body: Record<string, unknown>) =>
     request('/api/bookings', { method: 'POST', body: JSON.stringify(body) }),
-
   confirmBooking: (id: string) =>
     request(`/api/bookings/${id}/confirm`, { method: 'PATCH' }),
-
   cancelBooking: (id: string) =>
     request(`/api/bookings/${id}/cancel`, { method: 'PATCH' }),
-
   completeBooking: (id: string) =>
     request(`/api/bookings/${id}/complete`, { method: 'PATCH' }),
-
   // Conversations (chats)
   getConversations: () =>
     request<Conversation[]>('/api/conversations'),
-
   createConversation: (body: { phone: string; client_name?: string; client_id?: string }) =>
     request<Conversation>('/api/conversations', { method: 'POST', body: JSON.stringify(body) }),
-
   toggleBot: (id: string, bot_active: boolean) =>
     request(`/api/conversations/${id}/bot`, { method: 'PATCH', body: JSON.stringify({ bot_active }) }),
-
   markRead: (id: string) =>
     request(`/api/conversations/${id}/read`, { method: 'PATCH' }),
-
   // Messages
   getMessages: (conversationId: string) =>
     request<Message[]>(`/api/messages/${conversationId}`),
-
   sendMessage: (conversationId: string, body: string) =>
     request<Message>(`/api/messages/${conversationId}`, { method: 'POST', body: JSON.stringify({ body }) }),
+  // Automations
+  getAutomations: () =>
+    request<AutomationRecord[]>('/api/automations'),
+  updateAutomation: (id: string, patch: { active?: boolean; message_template?: string; delay_minutes?: number }) =>
+    request<AutomationRecord>(`/api/automations/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+  // Routes / Logística
+  getRoutes: (date: string) =>
+    request(`/api/routes?date=${date}`),
+  createRoute: (body: {
+    name: string
+    date: string
+    driver_name?: string
+    notes?: string
+    stops?: Array<{ booking_id?: string; stop_order: number; address?: string; distrito?: string; client_name?: string; pet_name?: string; notes?: string }>
+  }) =>
+    request('/api/routes', { method: 'POST', body: JSON.stringify(body) }),
+  updateRoute: (id: string, patch: { status?: string; driver_name?: string; notes?: string }) =>
+    request(`/api/routes/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+  deleteRoute: (id: string) =>
+    request(`/api/routes/${id}`, { method: 'DELETE' }),
+  updateRouteStop: (routeId: string, stopId: string, patch: { status?: string; arrived_at?: string; notes?: string }) =>
+    request(`/api/routes/${routeId}/stops/${stopId}`, { method: 'PATCH', body: JSON.stringify(patch) }),
 }

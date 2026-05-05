@@ -1,6 +1,11 @@
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { handleSupabaseError, NotFoundError, AppError } from '@/lib/errors'
 import { markEventAsCompleted } from '@/lib/services/eventService'
+import {
+  emitBookingCreated,
+  emitBookingCompleted,
+  emitBookingCancelled,
+} from '@/lib/domain-events'
 import type { Booking, BookingStatus, CreateBookingDTO } from '@/lib/types'
 
 export async function getBookingById(bookingId: string, clinicId: string): Promise<Booking> {
@@ -31,7 +36,7 @@ export async function getBookingsByPet(petId: string, clinicId: string): Promise
 export async function getBookingsByDate(date: string, clinicId: string): Promise<Booking[]> {
   const { data, error } = await supabaseAdmin
     .from('bookings')
-    .select(`*, pet:pets (id, name, type)`)
+    .select(`*, pet:pets (id, name, type, user:clients (id, name, phone))`)
     .eq('date', date)
     .eq('clinic_id', clinicId)
     .in('status', ['PENDING', 'CONFIRMED'])
@@ -67,11 +72,30 @@ export async function createBooking(dto: CreateBookingDTO): Promise<Booking> {
   const { data, error } = await supabaseAdmin
     .from('bookings')
     .insert({ ...dto, status: 'PENDING', created_at: new Date().toISOString() })
-    .select()
+    .select(`*, pet:pets (id, name, type, user:clients (id, name, phone))`)
     .single()
 
   if (error) handleSupabaseError(error)
-  return data as Booking
+  const booking = data as Booking & {
+    pet?: { id: string; name: string; type: string; user?: { id: string; name?: string; phone: string } }
+  }
+
+  // Emitir evento de dominio → dispara automation "recordatorio de turno"
+  await emitBookingCreated(dto.clinic_id, {
+    id:    booking.id,
+    pet_id: booking.pet_id,
+    date:  booking.date,
+    time:  booking.time,
+    notes: booking.notes,
+  }, {
+    client_id:    booking.pet?.user?.id,
+    client_name:  booking.pet?.user?.name,
+    client_phone: booking.pet?.user?.phone,
+    pet_name:     booking.pet?.name,
+    pet_type:     booking.pet?.type,
+  })
+
+  return booking as Booking
 }
 
 export async function confirmBooking(bookingId: string, clinicId: string): Promise<Booking> {
@@ -79,12 +103,39 @@ export async function confirmBooking(bookingId: string, clinicId: string): Promi
 }
 
 export async function cancelBooking(bookingId: string, clinicId: string): Promise<Booking> {
-  return updateBookingStatus(bookingId, clinicId, 'CANCELLED')
+  const booking = await updateBookingStatus(bookingId, clinicId, 'CANCELLED')
+  await emitBookingCancelled(clinicId, booking.id, {})
+  return booking
 }
 
 export async function completeBooking(bookingId: string, clinicId: string): Promise<Booking> {
   const booking = await updateBookingStatus(bookingId, clinicId, 'COMPLETED')
   if (booking.event_id) await markEventAsCompleted(booking.event_id)
+
+  // Cargar contexto completo para tener client_name y pet_name en el template
+  const { data: full } = await supabaseAdmin
+    .from('bookings')
+    .select(`pet:pets (id, name, type, user:clients (id, name, phone))`)
+    .eq('id', bookingId)
+    .single()
+
+  const ctx = full as unknown as {
+    pet?: { id: string; name: string; type: string; user?: { id: string; name?: string; phone: string } }
+  }
+
+  await emitBookingCompleted(clinicId, {
+    id:     booking.id,
+    pet_id: booking.pet_id,
+    date:   booking.date,
+    time:   booking.time,
+  }, {
+    client_id:        ctx?.pet?.user?.id,
+    client_name:      ctx?.pet?.user?.name,
+    client_phone:     ctx?.pet?.user?.phone,
+    pet_name:         ctx?.pet?.name,
+    last_activity_at: booking.date,
+  })
+
   return booking
 }
 

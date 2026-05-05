@@ -47,6 +47,9 @@ export interface Event {
   updated_at?: string
 }
 
+export type PaymentStatus  = 'pending' | 'paid'
+export type LogisticStatus = 'none' | 'pickup_pending' | 'in_route' | 'delivered'
+
 export interface Booking {
   id: string
   clinic_id: string
@@ -56,6 +59,12 @@ export interface Booking {
   time: string
   status: BookingStatus
   notes?: string
+  // Columns added in routes.sql refactor
+  payment_status:   PaymentStatus
+  logistic_status:  LogisticStatus
+  requires_pickup:  boolean
+  pickup_address?:  string | null
+  service_type_id?: string | null
   created_at: string
   updated_at?: string
 }
@@ -83,6 +92,7 @@ export interface CreateBookingDTO {
   date: string
   time: string
   notes?: string
+  service_type_id?: string
 }
 
 export interface PetWithUser extends Pet {
@@ -90,9 +100,5 @@ export interface PetWithUser extends Pet {
 }
 
 export interface EventWithPetAndUser extends Event {
-  pet: PetWithUser
+  pet: Pet & { user: User }
 }
-
-export type ServiceResult<T> =
-  | { ok: true; data: T }
-  | { ok: false; error: string; code?: string }

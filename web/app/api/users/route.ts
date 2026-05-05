@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 import { getAuthContext } from '@/lib/api-auth'
 import { ok, handleRouteError } from '@/lib/api-response'
 import { ValidationError, handleSupabaseError } from '@/lib/errors'
+import { emitClientCreated } from '@/lib/domain-events'
 
 export async function POST(request: NextRequest) {
   try {
@@ -30,6 +31,13 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (error) handleSupabaseError(error)
+
+    // Emitir evento -> dispara automation "bienvenida a nuevo cliente"
+    await emitClientCreated(clinicId, {
+      id:    data!.id,
+      name:  data!.name ?? undefined,
+      phone: data!.phone,
+    })
 
     return ok(data, 201)
   } catch (e) {
