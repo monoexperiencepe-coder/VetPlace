@@ -140,24 +140,50 @@ const DISTRITOS_LIMA = [
 ]
 
 function TabHorarios() {
-  const SK = 'vetplace_horarios'
-  const load = () => {
-    try { return JSON.parse(localStorage.getItem(SK) ?? 'null') } catch { return null }
-  }
   const [saved, setSaved] = useState(false)
-  const [morning,   setMorning]   = useState(() => load()?.morning   ?? true)
-  const [afternoon, setAfternoon] = useState(() => load()?.afternoon ?? true)
-  const [days, setDays] = useState<string[]>(() => load()?.days ?? ['lun','mar','mié','jue','vie'])
+  const [morning,        setMorning]        = useState(true)
+  const [afternoon,      setAfternoon]      = useState(true)
+  const [morningStart,   setMorningStart]   = useState('09:00')
+  const [morningEnd,     setMorningEnd]     = useState('13:00')
+  const [afternoonStart, setAfternoonStart] = useState('14:00')
+  const [afternoonEnd,   setAfternoonEnd]   = useState('18:00')
+  const [days, setDays] = useState<string[]>(['lun','mar','mié','jue','vie'])
+
+  useEffect(() => {
+    api.getMyClinic().then((clinic: unknown) => {
+      const c = clinic as { settings?: { horarios?: { morning?: boolean; afternoon?: boolean; days?: string[]; morningStart?: string; morningEnd?: string; afternoonStart?: string; afternoonEnd?: string } } }
+      const h = c?.settings?.horarios
+      if (h) {
+        if (h.morning        !== undefined) setMorning(h.morning)
+        if (h.afternoon      !== undefined) setAfternoon(h.afternoon)
+        if (h.days)                         setDays(h.days)
+        if (h.morningStart)                 setMorningStart(h.morningStart)
+        if (h.morningEnd)                   setMorningEnd(h.morningEnd)
+        if (h.afternoonStart)               setAfternoonStart(h.afternoonStart)
+        if (h.afternoonEnd)                 setAfternoonEnd(h.afternoonEnd)
+      }
+    }).catch(() => {})
+  }, [])
 
   const DAYS = ['lun','mar','mié','jue','vie','sáb','dom']
 
   const toggleDay = (d: string) =>
     setDays(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d])
 
-  const save = () => {
-    localStorage.setItem(SK, JSON.stringify({ morning, afternoon, days }))
+  const save = async () => {
+    await api.updateMyClinic({ settings: { horarios: { morning, afternoon, days, morningStart, morningEnd, afternoonStart, afternoonEnd } } }).catch(() => {})
     setSaved(true); setTimeout(() => setSaved(false), 2500)
   }
+
+  const TimeInput = ({ value, onChange }: { value: string; onChange: (v: string) => void }) => (
+    <input
+      type="time" value={value}
+      onChange={e => onChange(e.target.value)}
+      onClick={e => e.stopPropagation()}
+      className="text-xs px-2 py-1 rounded-lg outline-none"
+      style={{ border: '1.5px solid #ddd6fe', background: '#fff', color: '#334155', width: 80 }}
+    />
+  )
 
   return (
     <Card title="Horarios operativos" subtitle="Definí en qué franjas y días opera tu clínica.">
@@ -173,11 +199,15 @@ function TabHorarios() {
               style={{ background: morning ? '#F3EEFF' : '#F9F9FB', border: `1.5px solid ${morning ? '#a78bfa' : '#E5E7EB'}` }}
               onClick={() => setMorning((v: boolean) => !v)}
             >
-              <div>
-                <p className="text-sm font-semibold" style={{ color: morning ? '#601EF9' : '#334155' }}>
-                  Mañana — 9:00 a 13:00
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold mb-1" style={{ color: morning ? '#601EF9' : '#334155' }}>
+                  Mañana
                 </p>
-                <p className="text-xs mt-0.5" style={{ color: '#94a3b8' }}>Franja de la mañana</p>
+                <div className="flex items-center gap-1.5">
+                  <TimeInput value={morningStart} onChange={setMorningStart} />
+                  <span className="text-xs" style={{ color: '#94a3b8' }}>–</span>
+                  <TimeInput value={morningEnd} onChange={setMorningEnd} />
+                </div>
               </div>
               <ToggleSwitch value={morning} onChange={setMorning} />
             </div>
@@ -186,11 +216,15 @@ function TabHorarios() {
               style={{ background: afternoon ? '#F3EEFF' : '#F9F9FB', border: `1.5px solid ${afternoon ? '#a78bfa' : '#E5E7EB'}` }}
               onClick={() => setAfternoon((v: boolean) => !v)}
             >
-              <div>
-                <p className="text-sm font-semibold" style={{ color: afternoon ? '#601EF9' : '#334155' }}>
-                  Tarde — 14:00 a 18:00
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold mb-1" style={{ color: afternoon ? '#601EF9' : '#334155' }}>
+                  Tarde
                 </p>
-                <p className="text-xs mt-0.5" style={{ color: '#94a3b8' }}>Franja de la tarde</p>
+                <div className="flex items-center gap-1.5">
+                  <TimeInput value={afternoonStart} onChange={setAfternoonStart} />
+                  <span className="text-xs" style={{ color: '#94a3b8' }}>–</span>
+                  <TimeInput value={afternoonEnd} onChange={setAfternoonEnd} />
+                </div>
               </div>
               <ToggleSwitch value={afternoon} onChange={setAfternoon} />
             </div>
@@ -223,86 +257,204 @@ function TabHorarios() {
   )
 }
 
-function TabLogistica() {
-  const SK = 'vetplace_logistica'
-  const load = () => { try { return JSON.parse(localStorage.getItem(SK) ?? 'null') } catch { return null } }
-  const [saved, setSaved]         = useState(false)
-  const [pickup, setPickup]       = useState(() => load()?.pickup   ?? false)
-  const [maxKm, setMaxKm]         = useState(() => load()?.maxKm    ?? '10')
-  const [costPerKm, setCost]      = useState(() => load()?.costPerKm ?? '5')
-  const [minOrder, setMinOrder]   = useState(() => load()?.minOrder  ?? '0')
+function TimeSlotBlock({
+  label, enabled, onEnabled,
+  morningOn, onMorningOn, morningStart, onMorningStart, morningEnd, onMorningEnd,
+  afternoonOn, onAfternoonOn, afternoonStart, onAfternoonStart, afternoonEnd, onAfternoonEnd,
+}: {
+  label: string; enabled: boolean; onEnabled: (v: boolean) => void
+  morningOn: boolean;   onMorningOn:   (v: boolean) => void
+  morningStart: string; onMorningStart:(v: string)  => void
+  morningEnd:   string; onMorningEnd:  (v: string)  => void
+  afternoonOn: boolean;   onAfternoonOn:   (v: boolean) => void
+  afternoonStart: string; onAfternoonStart:(v: string)  => void
+  afternoonEnd:   string; onAfternoonEnd:  (v: string)  => void
+}) {
+  const TI = ({ value, onChange }: { value: string; onChange: (v: string) => void }) => (
+    <input type="time" value={value} onChange={e => onChange(e.target.value)}
+      className="rounded-xl px-3 py-2 text-sm focus:outline-none"
+      style={{ border: '1.5px solid #e4ebff', background: '#f8faff', color: '#0f172a', width: 120 }} />
+  )
+  return (
+    <div className="rounded-xl overflow-hidden" style={{ border: '1px solid #ede9fe' }}>
+      <div className="flex items-center justify-between px-4 py-3" style={{ background: enabled ? '#F3EEFF' : '#F9F9FB' }}>
+        <div>
+          <p className="text-sm font-bold" style={{ color: enabled ? '#601EF9' : '#64748b' }}>{label}</p>
+          <p className="text-xs" style={{ color: '#94a3b8' }}>
+            {enabled ? 'Franjas horarias disponibles para los clientes' : 'Desactivado — los clientes no verán esta opción'}
+          </p>
+        </div>
+        <button type="button" onClick={() => onEnabled(!enabled)}
+          className="relative w-11 h-6 rounded-full transition-colors flex-shrink-0"
+          style={{ background: enabled ? '#601EF9' : '#e2e8f0' }}>
+          <span className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all"
+            style={{ left: enabled ? '22px' : '2px' }} />
+        </button>
+      </div>
+      {enabled && (
+        <div className="p-4 space-y-2" style={{ background: '#fff' }}>
+          {/* Mañana */}
+          <div className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg" style={{ background: '#F9F9FB', border: '1px solid #e4ebff' }}>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={morningOn} onChange={e => onMorningOn(e.target.checked)}
+                className="w-4 h-4 accent-violet-600" />
+              <span className="text-sm font-semibold" style={{ color: morningOn ? '#601EF9' : '#94a3b8' }}>Mañana</span>
+            </label>
+            {morningOn && (
+              <div className="flex items-center gap-2">
+                <TI value={morningStart} onChange={onMorningStart} />
+                <span className="text-xs" style={{ color: '#94a3b8' }}>–</span>
+                <TI value={morningEnd} onChange={onMorningEnd} />
+              </div>
+            )}
+          </div>
+          {/* Tarde */}
+          <div className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg" style={{ background: '#F9F9FB', border: '1px solid #e4ebff' }}>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={afternoonOn} onChange={e => onAfternoonOn(e.target.checked)}
+                className="w-4 h-4 accent-violet-600" />
+              <span className="text-sm font-semibold" style={{ color: afternoonOn ? '#601EF9' : '#94a3b8' }}>Tarde</span>
+            </label>
+            {afternoonOn && (
+              <div className="flex items-center gap-2">
+                <TI value={afternoonStart} onChange={onAfternoonStart} />
+                <span className="text-xs" style={{ color: '#94a3b8' }}>–</span>
+                <TI value={afternoonEnd} onChange={onAfternoonEnd} />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
-  const save = () => {
-    localStorage.setItem(SK, JSON.stringify({ pickup, maxKm, costPerKm, minOrder }))
-    setSaved(true); setTimeout(() => setSaved(false), 2500)
+function TabLogistica() {
+  const [saved, setSaved] = useState(false)
+  const [maxKm, setMaxKm]       = useState('10')
+  const [costPerKm, setCost]    = useState('5')
+  const [minOrder, setMinOrder] = useState('0')
+  // Recojo (pickup: clinic → client home)
+  const [pickupEnabled,        setPickupEnabled]        = useState(false)
+  const [pickupMorning,        setPickupMorning]        = useState(true)
+  const [pickupAfternoon,      setPickupAfternoon]      = useState(false)
+  const [pickupMorningStart,   setPickupMorningStart]   = useState('09:00')
+  const [pickupMorningEnd,     setPickupMorningEnd]     = useState('12:00')
+  const [pickupAfternoonStart, setPickupAfternoonStart] = useState('14:00')
+  const [pickupAfternoonEnd,   setPickupAfternoonEnd]   = useState('18:00')
+  // Entrega / regreso (delivery: clinic → client home)
+  const [deliveryEnabled,        setDeliveryEnabled]        = useState(false)
+  const [deliveryMorning,        setDeliveryMorning]        = useState(false)
+  const [deliveryAfternoon,      setDeliveryAfternoon]      = useState(true)
+  const [deliveryMorningStart,   setDeliveryMorningStart]   = useState('11:00')
+  const [deliveryMorningEnd,     setDeliveryMorningEnd]     = useState('13:00')
+  const [deliveryAfternoonStart, setDeliveryAfternoonStart] = useState('15:00')
+  const [deliveryAfternoonEnd,   setDeliveryAfternoonEnd]   = useState('19:00')
+
+  useEffect(() => {
+    api.getMyClinic().then((clinic: unknown) => {
+      const c = clinic as { settings?: { logistica?: Record<string, unknown> } }
+      const l = c?.settings?.logistica as Record<string, unknown> | undefined
+      if (!l) return
+      const s = (k: string, set: (v: string) => void) => { if (typeof l[k] === 'string') set(l[k] as string) }
+      const b = (k: string, set: (v: boolean) => void, fallback?: string) => {
+        // support old key names (data migration)
+        const val = typeof l[k] === 'boolean' ? l[k] : (fallback && typeof l[fallback] === 'boolean' ? l[fallback] : undefined)
+        if (val !== undefined) set(val as boolean)
+      }
+      b('pickupEnabled', setPickupEnabled, 'pickup');  b('pickupMorning', setPickupMorning);   b('pickupAfternoon', setPickupAfternoon)
+      s('pickupMorningStart', setPickupMorningStart); s('pickupMorningEnd', setPickupMorningEnd)
+      s('pickupAfternoonStart', setPickupAfternoonStart); s('pickupAfternoonEnd', setPickupAfternoonEnd)
+      b('deliveryEnabled', setDeliveryEnabled); b('deliveryMorning', setDeliveryMorning); b('deliveryAfternoon', setDeliveryAfternoon)
+      s('deliveryMorningStart', setDeliveryMorningStart); s('deliveryMorningEnd', setDeliveryMorningEnd)
+      s('deliveryAfternoonStart', setDeliveryAfternoonStart); s('deliveryAfternoonEnd', setDeliveryAfternoonEnd)
+      s('maxKm', setMaxKm); s('costPerKm', setCost); s('minOrder', setMinOrder)
+    }).catch(() => {})
+  }, [])
+
+  const [saveErr, setSaveErr] = useState('')
+  const save = async () => {
+    setSaveErr('')
+    try {
+      await api.updateMyClinic({ settings: { logistica: {
+        pickupEnabled, pickupMorning, pickupAfternoon,
+        pickupMorningStart, pickupMorningEnd, pickupAfternoonStart, pickupAfternoonEnd,
+        deliveryEnabled, deliveryMorning, deliveryAfternoon,
+        deliveryMorningStart, deliveryMorningEnd, deliveryAfternoonStart, deliveryAfternoonEnd,
+        maxKm, costPerKm, minOrder,
+      } } })
+      setSaved(true); setTimeout(() => setSaved(false), 2500)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message
+        : typeof e === 'object' && e !== null && 'message' in e ? String((e as Record<string,unknown>).message)
+        : String(e)
+      setSaveErr(msg || 'Error al guardar. Revisa la consola.')
+    }
   }
 
   return (
-    <Card title="Logística de recojo" subtitle="Configurá si tu clínica realiza recojo a domicilio.">
-      <div className="space-y-5">
-        <Toggle
-          label="Activar recojo a domicilio"
-          desc="El sistema mostrará la opción de recojo al agendar servicios"
-          value={pickup}
-          onChange={setPickup}
+    <Card title="Logística a domicilio" subtitle="Configura si tu clínica ofrece recojo y/o entrega de mascotas.">
+      <div className="space-y-4">
+        <p className="text-xs px-3 py-2 rounded-xl" style={{ background: '#F3EEFF', color: '#601EF9', border: '1px solid #ddd6fe' }}>
+          💡 El bot de WhatsApp usará estos horarios para ofrecer turnos de recojo y entrega a los clientes automáticamente.
+        </p>
+
+        <TimeSlotBlock
+          label="🛵 Recojo a domicilio"
+          enabled={pickupEnabled} onEnabled={setPickupEnabled}
+          morningOn={pickupMorning} onMorningOn={setPickupMorning}
+          morningStart={pickupMorningStart} onMorningStart={setPickupMorningStart}
+          morningEnd={pickupMorningEnd} onMorningEnd={setPickupMorningEnd}
+          afternoonOn={pickupAfternoon} onAfternoonOn={setPickupAfternoon}
+          afternoonStart={pickupAfternoonStart} onAfternoonStart={setPickupAfternoonStart}
+          afternoonEnd={pickupAfternoonEnd} onAfternoonEnd={setPickupAfternoonEnd}
         />
 
-        {pickup && (
+        <TimeSlotBlock
+          label="📦 Entrega / regreso a domicilio"
+          enabled={deliveryEnabled} onEnabled={setDeliveryEnabled}
+          morningOn={deliveryMorning} onMorningOn={setDeliveryMorning}
+          morningStart={deliveryMorningStart} onMorningStart={setDeliveryMorningStart}
+          morningEnd={deliveryMorningEnd} onMorningEnd={setDeliveryMorningEnd}
+          afternoonOn={deliveryAfternoon} onAfternoonOn={setDeliveryAfternoon}
+          afternoonStart={deliveryAfternoonStart} onAfternoonStart={setDeliveryAfternoonStart}
+          afternoonEnd={deliveryAfternoonEnd} onAfternoonEnd={setDeliveryAfternoonEnd}
+        />
+
+        {(pickupEnabled || deliveryEnabled) && (
           <div className="grid grid-cols-2 gap-4 pt-2">
-            <Field
-              label="Distancia máxima (km)"
-              value={maxKm}
-              onChange={setMaxKm}
-              placeholder="Ej: 10"
-              type="number"
-            />
-            <Field
-              label="Costo por km (S/)"
-              value={costPerKm}
-              onChange={setCost}
-              placeholder="Ej: 5"
-              type="number"
-            />
-            <Field
-              label="Pedido mínimo para recojo (S/)"
-              value={minOrder}
-              onChange={setMinOrder}
-              placeholder="0 = sin mínimo"
-              type="number"
-            />
+            <Field label="Distancia máxima (km)" value={maxKm} onChange={setMaxKm} placeholder="Ej: 10" type="number" />
+            <Field label="Costo por km (S/)" value={costPerKm} onChange={setCost} placeholder="Ej: 5" type="number" />
+            <Field label="Pedido mínimo (S/)" value={minOrder} onChange={setMinOrder} placeholder="0 = sin mínimo" type="number" />
             <div className="flex items-end pb-1">
-              <p className="text-xs" style={{ color: '#94a3b8' }}>
-                El costo se suma automáticamente al total del servicio.
-              </p>
+              <p className="text-xs" style={{ color: '#94a3b8' }}>El costo se suma al total del servicio.</p>
             </div>
           </div>
         )}
-
-        {!pickup && (
-          <div className="px-4 py-3 rounded-xl" style={{ background: '#F9F9FB', border: '1px solid #ede9fe' }}>
-            <p className="text-xs" style={{ color: '#94a3b8' }}>
-              🚶 Los clientes llevan a sus mascotas a la clínica.
-            </p>
-          </div>
-        )}
       </div>
+      {saveErr && <p className="text-xs mt-2 px-3 py-2 rounded-xl" style={{ background: '#fee2e2', color: '#dc2626' }}>⚠️ {saveErr}</p>}
       <SaveBtn onSave={save} saved={saved} />
     </Card>
   )
 }
 
 function TabZonas() {
-  const SK = 'vetplace_zonas'
-  const load = () => { try { return JSON.parse(localStorage.getItem(SK) ?? 'null') } catch { return null } }
-  const [saved, setSaved]   = useState(false)
-  const [selected, setSelected] = useState<string[]>(() => load() ?? [])
-  const [q, setQ]           = useState('')
+  const [saved, setSaved]       = useState(false)
+  const [selected, setSelected] = useState<string[]>([])
+  const [q, setQ]               = useState('')
+
+  useEffect(() => {
+    api.getMyClinic().then((clinic: unknown) => {
+      const c = clinic as { settings?: { zonas?: string[] } }
+      if (Array.isArray(c?.settings?.zonas)) setSelected(c.settings!.zonas!)
+    }).catch(() => {})
+  }, [])
 
   const filtered = DISTRITOS_LIMA.filter(d => d.toLowerCase().includes(q.toLowerCase()))
   const toggle = (d: string) =>
     setSelected(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d])
-  const save = () => {
-    localStorage.setItem(SK, JSON.stringify(selected))
+  const save = async () => {
+    await api.updateMyClinic({ settings: { zonas: selected } }).catch(() => {})
     setSaved(true); setTimeout(() => setSaved(false), 2500)
   }
 
@@ -457,26 +609,54 @@ function ToggleSwitch({ value, onChange }: { value: boolean; onChange: (v: boole
 
 // ─── TAB: Datos del negocio ───────────────────────────────────────────────────
 function TabNegocio() {
-  const [saved, setSaved] = useState(false)
-  const [name, setName]   = useState(() => {
-    if (typeof window === 'undefined') return 'VetPlace'
-    return localStorage.getItem(CLINIC_NAME_STORAGE_KEY) ?? 'VetPlace'
-  })
-  const [form, setForm] = useState({
+  const [saved, setSaved]   = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [name, setName]     = useState('VetPlace')
+  const [form, setForm]     = useState({
     address:  '',
     phone:    '',
     email:    '',
     schedule: 'Lunes a Viernes 9:00–18:00',
-    tz:       'America/Argentina/Buenos_Aires',
+    tz:       'America/Lima',
   })
 
-  const handleSave = () => {
+  useEffect(() => {
+    api.getMyClinic().then((clinic: unknown) => {
+      const c = clinic as { name?: string; phone?: string; address?: string; email?: string; schedule?: string; timezone?: string }
+      if (c.name)     setName(c.name)
+      setForm({
+        address:  c.address  ?? '',
+        phone:    c.phone    ?? '',
+        email:    c.email    ?? '',
+        schedule: c.schedule ?? 'Lunes a Viernes 9:00–18:00',
+        tz:       c.timezone ?? 'America/Lima',
+      })
+    }).catch(() => {}).finally(() => setLoading(false))
+  }, [])
+
+  const handleSave = async () => {
+    await api.updateMyClinic({
+      name:     name.trim() || 'VetPlace',
+      phone:    form.phone,
+      address:  form.address,
+      email:    form.email,
+      schedule: form.schedule,
+      timezone: form.tz,
+    }).catch(() => {})
+    // Sync localStorage so the sidebar name updates immediately
     localStorage.setItem(CLINIC_NAME_STORAGE_KEY, name.trim() || 'VetPlace')
+    window.dispatchEvent(new Event('storage'))
     setSaved(true)
     setTimeout(() => setSaved(false), 2500)
-    // Fuerza re-render del sidebar en próxima navegación
-    window.dispatchEvent(new Event('storage'))
   }
+
+  if (loading) return (
+    <Card title="Datos de la clínica" subtitle="Esta información aparece en el sistema y en las comunicaciones con clientes.">
+      <div className="flex justify-center py-8">
+        <div className="w-6 h-6 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: '#601EF9', borderTopColor: 'transparent' }} />
+      </div>
+    </Card>
+  )
 
   return (
     <Card title="Datos de la clínica" subtitle="Esta información aparece en el sistema y en las comunicaciones con clientes.">
@@ -525,7 +705,7 @@ function TabNegocio() {
         </div>
       </div>
 
-      <SaveBtn onSave={handleSave} saved={saved} />
+      <SaveBtn onSave={() => { void handleSave() }} saved={saved} />
     </Card>
   )
 }
@@ -645,15 +825,7 @@ function TabBot() {
   const [saved, setSaved] = useState(false)
   const textRef = useRef<HTMLTextAreaElement>(null)
   const [instructions, setInstructions] = useState(
-    `Eres el asistente virtual de la clínica veterinaria. Tu función es:
-- Responder consultas sobre turnos, horarios y servicios.
-- Confirmar o cancelar turnos cuando el cliente lo pide.
-- Dar información básica sobre vacunas, baños y consultas.
-- No dar diagnósticos médicos ni indicaciones de medicamentos.
-- Siempre ser amable, claro y conciso.
-- Si no podés resolver algo, derivar al personal de la clínica.
-
-Idioma: español. Tono: profesional pero cercano.`
+    `Eres el asistente virtual de la clínica veterinaria. Tu función es:\n- Responder consultas sobre turnos, horarios y servicios.\n- Confirmar o cancelar turnos cuando el cliente lo pide.\n- Dar información básica sobre vacunas, baños y consultas.\n- No dar diagnósticos médicos ni indicaciones de medicamentos.\n- Siempre ser amable, claro y conciso.\n- Si no podés resolver algo, derivar al personal de la clínica.\n\nIdioma: español. Tono: profesional pero cercano.`
   )
   const [tone, setTone]             = useState('profesional')
   const [autoReply, setAutoReply]   = useState(true)
@@ -1193,7 +1365,6 @@ function TabServicios() {
                 </button>
               </div>
             ))}
-
             {adding && (
               <form onSubmit={handleAdd} className="flex items-center gap-2 px-4 py-3">
                 <input autoFocus type="text" placeholder="Nombre del servicio"
@@ -1223,7 +1394,7 @@ function TabServicios() {
 
       <div className="rounded-2xl p-4" style={{ background: '#fffbeb', border: '1px solid #fde68a' }}>
         <p className="text-xs font-semibold" style={{ color: '#92400e' }}>
-          Tip: Para precios por mascota (ej. baño de Golden vs Chihuahua), podés editar el precio
+          Tip: Para precios por mascota (ej. bano de Golden vs Chihuahua), podes editar el precio
           default directamente en el perfil de cada mascota.
         </p>
       </div>

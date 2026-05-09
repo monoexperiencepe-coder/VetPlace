@@ -64,6 +64,7 @@ export interface Booking {
   logistic_status:  LogisticStatus
   requires_pickup:  boolean
   pickup_address?:  string | null
+  delivery_time?:   string | null   // hora de entrega a domicilio (HH:MM)
   service_type_id?: string | null
   created_at: string
   updated_at?: string
@@ -93,6 +94,9 @@ export interface CreateBookingDTO {
   time: string
   notes?: string
   service_type_id?: string
+  requires_pickup?: boolean
+  pickup_address?:  string | null
+  delivery_time?:   string | null
 }
 
 export interface PetWithUser extends Pet {

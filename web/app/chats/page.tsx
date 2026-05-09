@@ -7,19 +7,8 @@ import type { Conversation, Message } from '@/lib/api'
 import { useToast } from '@/context/ToastContext'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-interface PetInfo {
-  id:   string
-  name: string
-  type: string
-}
-
-interface ClientContext {
-  id:      string
-  name?:   string
-  phone:   string
-  pets:    PetInfo[]
-}
-
+interface PetInfo { id: string; name: string; type: string }
+interface ClientContext { id: string; name?: string; phone: string; pets: PetInfo[] }
 type Filter = 'all' | 'unread' | 'pending'
 
 const PET_EMOJI: Record<string, string> = { dog: '🐕', cat: '🐱', bird: '🐦', rabbit: '🐇', other: '🐾' }
@@ -78,7 +67,6 @@ export default function ChatsPage() {
 
   useEffect(() => { loadConversations() }, [loadConversations])
 
-  // Load messages when selection changes
   useEffect(() => {
     if (!selectedId) return
     setLoadingMsgs(true)
@@ -245,6 +233,7 @@ export default function ChatsPage() {
           </div>
         ) : (
           <>
+            {/* Header del chat */}
             <div className="px-4 py-3 flex items-center justify-between gap-3 shrink-0" style={{ borderBottom: '1px solid #F1F5F9' }}>
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold text-white" style={{ background: 'linear-gradient(135deg,#601EF9,#3b10b5)' }}>
@@ -256,10 +245,12 @@ export default function ChatsPage() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <a href={`https://wa.me/${selected.phone.replace(/\D/g,'')}`} target="_blank" rel="noopener noreferrer"
-                  className="text-[11px] font-semibold px-2.5 py-1.5 rounded-xl" style={{ background: '#dcfce7', color: '#16a34a' }}>
-                  💬 WhatsApp
-                </a>
+                {/* Indicador de canal — no abre WhatsApp externo, esta bandeja ES el canal */}
+                <span className="flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1.5 rounded-xl"
+                  style={{ background: '#dcfce7', color: '#16a34a' }}>
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block" />
+                  WhatsApp
+                </span>
                 <div className="flex items-center gap-1.5">
                   <span className="text-[11px] font-medium" style={{ color: '#64748b' }}>Bot</span>
                   <button onClick={() => handleToggleBot(selected.id, selected.bot_active)}
@@ -271,6 +262,7 @@ export default function ChatsPage() {
               </div>
             </div>
 
+            {/* Mensajes */}
             <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3" style={{ background: '#FAFAFC' }}>
               {loadingMsgs && <div className="flex justify-center py-10"><span className="text-sm animate-pulse" style={{ color: '#94a3b8' }}>Cargando…</span></div>}
               {!loadingMsgs && messages.length === 0 && (
@@ -284,7 +276,7 @@ export default function ChatsPage() {
                   <span className="text-[10px] mb-0.5 px-1 font-medium" style={{ color: '#94a3b8' }}>
                     {msg.from_type === 'client' ? (selected.client_name ?? selected.phone) : msg.from_type === 'bot' ? '🤖 Bot' : '👤 Staff'}
                   </span>
-                  <div className="px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed"
+                  <div className="px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed whitespace-pre-line"
                     style={msg.from_type === 'client'
                       ? { background: '#fff', border: '1px solid #ede9fe', color: '#0f172a', borderBottomLeftRadius: 4 }
                       : msg.from_type === 'bot'
@@ -315,6 +307,7 @@ export default function ChatsPage() {
               </div>
             )}
 
+            {/* Input */}
             <div className="px-4 py-3 flex items-center gap-2 shrink-0" style={{ borderTop: '1px solid #F1F5F9', background: '#fff' }}>
               {!selected.bot_active && (
                 <span className="text-[10px] px-2 py-1 rounded-full font-medium shrink-0" style={{ background: '#fff3cd', color: '#92400e' }}>Manual</span>
@@ -342,10 +335,11 @@ export default function ChatsPage() {
         )}
       </div>
 
-      {/* ── COL 3: Contexto ── */}
+      {/* ── COL 3: Contexto del cliente ── */}
       {selected && (
         <div className="w-60 shrink-0 flex flex-col overflow-y-auto" style={{ borderLeft: '1px solid #F1F5F9' }}>
           <div className="p-4 space-y-4">
+            {/* Avatar + nombre */}
             <div className="flex flex-col items-center text-center">
               <div className="w-14 h-14 rounded-full flex items-center justify-center text-base font-bold text-white mb-2"
                 style={{ background: 'linear-gradient(135deg,#601EF9,#3b10b5)' }}>
@@ -363,6 +357,7 @@ export default function ChatsPage() {
 
             <div style={{ borderTop: '1px solid #F1F5F9' }} />
 
+            {/* Mascotas */}
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-widest mb-2" style={{ color: '#94a3b8' }}>Mascotas</p>
               {!clientCtx && selected.client_id && (
@@ -386,16 +381,27 @@ export default function ChatsPage() {
 
             <div style={{ borderTop: '1px solid #F1F5F9' }} />
 
+            {/* Acciones */}
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-widest mb-2" style={{ color: '#94a3b8' }}>Acciones</p>
               <div className="space-y-1.5">
                 <Link href="/bookings"><CtxBtn icon="📅" label="Agendar servicio" primary /></Link>
-                <CtxBtn icon="📨" label="Abrir en WhatsApp"
-                  onClick={() => {
-                    const text = encodeURIComponent(`Hola ${selected.client_name ?? ''}! Te contactamos desde la clínica 🐾`)
-                    window.open(`https://wa.me/${selected.phone.replace(/\D/g,'')}?text=${text}`, '_blank')
-                  }} />
+                {selected.client_id && (
+                  <Link href="/clients"><CtxBtn icon="👤" label="Ver ficha del cliente" /></Link>
+                )}
               </div>
+            </div>
+
+            {/* Indicador de canal */}
+            <div className="px-3 py-2.5 rounded-xl" style={{ background: '#f0fdf4', border: '1px solid #bbf7d0' }}>
+              <p className="text-[10px] font-semibold uppercase tracking-widest mb-1.5" style={{ color: '#94a3b8' }}>Canal</p>
+              <div className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: '#22c55e' }} />
+                <p className="text-[11px] font-semibold" style={{ color: '#16a34a' }}>WhatsApp Cloud API</p>
+              </div>
+              <p className="text-[10px] mt-1" style={{ color: '#94a3b8' }}>
+                Esta bandeja es tu inbox. Los mensajes se entregan y reciben aquí.
+              </p>
             </div>
           </div>
         </div>

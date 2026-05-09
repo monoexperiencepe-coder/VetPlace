@@ -46,6 +46,19 @@ export async function getBookingsByDate(date: string, clinicId: string): Promise
   return (data ?? []) as Booking[]
 }
 
+export async function getAllBookings(clinicId: string, limit = 200): Promise<Booking[]> {
+  const { data, error } = await supabaseAdmin
+    .from('bookings')
+    .select(`*, pet:pets (id, name, type, user:clients (id, name, phone))`)
+    .eq('clinic_id', clinicId)
+    .order('date', { ascending: false })
+    .order('time', { ascending: true })
+    .limit(limit)
+
+  if (error) handleSupabaseError(error)
+  return (data ?? []) as Booking[]
+}
+
 export async function hasConflict(date: string, time: string, clinicId: string): Promise<boolean> {
   const { count, error } = await supabaseAdmin
     .from('bookings')
@@ -80,7 +93,6 @@ export async function createBooking(dto: CreateBookingDTO): Promise<Booking> {
     pet?: { id: string; name: string; type: string; user?: { id: string; name?: string; phone: string } }
   }
 
-  // Emitir evento de dominio → dispara automation "recordatorio de turno"
   await emitBookingCreated(dto.clinic_id, {
     id:    booking.id,
     pet_id: booking.pet_id,
@@ -112,7 +124,6 @@ export async function completeBooking(bookingId: string, clinicId: string): Prom
   const booking = await updateBookingStatus(bookingId, clinicId, 'COMPLETED')
   if (booking.event_id) await markEventAsCompleted(booking.event_id)
 
-  // Cargar contexto completo para tener client_name y pet_name en el template
   const { data: full } = await supabaseAdmin
     .from('bookings')
     .select(`pet:pets (id, name, type, user:clients (id, name, phone))`)

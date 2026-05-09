@@ -75,7 +75,7 @@ export const api = {
     request('/api/clinics/setup', { method: 'POST', body: JSON.stringify(body) }),
   getMyClinic: () =>
     request('/api/clinics/me'),
-  updateMyClinic: (body: Record<string, string>) =>
+  updateMyClinic: (body: Record<string, unknown>) =>
     request('/api/clinics/me', { method: 'PATCH', body: JSON.stringify(body) }),
   // Clients
   createClient: (body: { phone: string; name?: string; email?: string; address?: string; distrito?: string; notes?: string }) =>
@@ -131,7 +131,7 @@ export const api = {
     request(`/api/events/${id}/notify`, { method: 'POST' }),
   getInactiveClients: (days = 30) =>
     request(`/api/users/inactive?days=${days}`),
-  // Service types / Catálogo de servicios
+  // Service types
   getServiceTypes: () =>
     request('/api/service-types'),
   createServiceType: (body: { name: string; price?: number | null; active?: boolean }) =>
@@ -142,7 +142,7 @@ export const api = {
     request(`/api/service-types/${id}`, { method: 'DELETE' }),
   getPendingPayments: () =>
     request('/api/payments/pending'),
-  // Payments / Finanzas
+  // Payments
   getPayments: (params?: { date?: string; from?: string; to?: string }) => {
     const qs = params ? '?' + new URLSearchParams(params as Record<string, string>).toString() : ''
     return request(`/api/payments${qs}`)
@@ -205,6 +205,8 @@ export const api = {
     request(`/api/bookings/pet/${petId}`),
   getBookings: (date: string) =>
     request(`/api/bookings?date=${date}`),
+  getAllBookings: () =>
+    request(`/api/bookings?all=true`),
   createBooking: (body: Record<string, unknown>) =>
     request('/api/bookings', { method: 'POST', body: JSON.stringify(body) }),
   confirmBooking: (id: string) =>
@@ -213,7 +215,7 @@ export const api = {
     request(`/api/bookings/${id}/cancel`, { method: 'PATCH' }),
   completeBooking: (id: string) =>
     request(`/api/bookings/${id}/complete`, { method: 'PATCH' }),
-  // Conversations (chats)
+  // Conversations
   getConversations: () =>
     request<Conversation[]>('/api/conversations'),
   createConversation: (body: { phone: string; client_name?: string; client_id?: string }) =>
@@ -232,7 +234,7 @@ export const api = {
     request<AutomationRecord[]>('/api/automations'),
   updateAutomation: (id: string, patch: { active?: boolean; message_template?: string; delay_minutes?: number }) =>
     request<AutomationRecord>(`/api/automations/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
-  // Routes / Logística
+  // Routes
   getRoutes: (date: string) =>
     request(`/api/routes?date=${date}`),
   createRoute: (body: {

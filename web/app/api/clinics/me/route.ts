@@ -7,15 +7,15 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
   try {
-    const { userId } = await getAuthContext(request)
+    const { clinicId } = await getAuthContext(request)
 
     const { data, error } = await supabaseAdmin
       .from('clinics')
       .select('*')
-      .eq('owner_id', userId)
+      .eq('id', clinicId)
       .single()
 
-    if (error) return err('Clínica no encontrada', 404)
+    if (error) return err('Clinica no encontrada', 404)
     return ok(data)
   } catch (e) {
     return handleRouteError(e)
@@ -24,14 +24,30 @@ export async function GET(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const { userId } = await getAuthContext(request)
-    const body = await request.json()
-    const { name, phone, address, email, schedule, timezone } = body as Record<string, string>
+    const { clinicId } = await getAuthContext(request)
+    const body = await request.json() as Record<string, unknown>
+
+    const allowed: Record<string, unknown> = {}
+    if (typeof body.name     === 'string') allowed.name     = body.name
+    if (typeof body.phone    === 'string') allowed.phone    = body.phone
+    if (typeof body.address  === 'string') allowed.address  = body.address
+    if (typeof body.email    === 'string') allowed.email    = body.email
+    if (typeof body.schedule === 'string') allowed.schedule = body.schedule
+    if (typeof body.timezone === 'string') allowed.timezone = body.timezone
+    // settings: deep-merge with existing so individual tab saves don't overwrite other tabs
+    if (body.settings && typeof body.settings === 'object') {
+      const { data: current } = await supabaseAdmin
+        .from('clinics')
+        .select('settings')
+        .eq('id', clinicId)
+        .single()
+      allowed.settings = { ...(current?.settings ?? {}), ...(body.settings as Record<string, unknown>) }
+    }
 
     const { data, error } = await supabaseAdmin
       .from('clinics')
-      .update({ name, phone, address, email, schedule, timezone })
-      .eq('owner_id', userId)
+      .update(allowed)
+      .eq('id', clinicId)
       .select()
       .single()
 

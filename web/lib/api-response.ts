@@ -9,7 +9,10 @@ export function err(message: string, status = 500) {
 }
 
 export function handleRouteError(e: unknown) {
-  const msg = e instanceof Error ? e.message : String(e)
+  const msg = e instanceof Error ? e.message
+    : (typeof e === 'object' && e !== null && 'message' in e)
+      ? String((e as Record<string, unknown>).message)
+      : String(e)
   if (msg.includes('Token inválido') || msg.includes('No token')) return err(msg, 401)
   if (msg.includes('not found') || msg.includes('no encontrad'))  return err(msg, 404)
   if (msg.includes('required') || msg.includes('must be'))        return err(msg, 400)

@@ -4,29 +4,53 @@ import { useState, useEffect } from 'react'
 import { api } from '@/lib/api'
 import { useToast } from '@/context/ToastContext'
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-// Fallback used only while service types load from the API catalog
 export const FALLBACK_SERVICE_TYPES = [
-  { id: '', name: 'Baño',     price: null, active: true },
+  { id: '', name: 'Bano',     price: null, active: true },
   { id: '', name: 'Vacuna',   price: null, active: true },
   { id: '', name: 'Consulta', price: null, active: true },
   { id: '', name: 'Otro',     price: null, active: true },
 ]
 
 export const TIME_SLOTS = [
-  { label: '9:00 – 13:00',  value: '09:00' },
-  { label: '14:00 – 18:00', value: '14:00' },
+  { label: '9:00 - 13:00',  value: '09:00' },
+  { label: '14:00 - 18:00', value: '14:00' },
 ]
+
+type ClinicSlot = { label: string; value: string }
+
+function fmt(t: string) {
+  const [h, m] = t.split(':')
+  const hh = parseInt(h ?? '0', 10)
+  return `${hh}:${m ?? '00'}`
+}
+
+export function buildSlotsFromSettings(settings?: {
+  horarios?: { morning?: boolean; afternoon?: boolean; morningStart?: string; morningEnd?: string; afternoonStart?: string; afternoonEnd?: string }
+}): ClinicSlot[] {
+  const h = settings?.horarios
+  if (!h) return TIME_SLOTS
+  const slots: ClinicSlot[] = []
+  if (h.morning !== false) {
+    const start = h.morningStart ?? '09:00'
+    const end   = h.morningEnd   ?? '13:00'
+    slots.push({ label: `${fmt(start)} - ${fmt(end)}`, value: start })
+  }
+  if (h.afternoon !== false) {
+    const start = h.afternoonStart ?? '14:00'
+    const end   = h.afternoonEnd   ?? '18:00'
+    slots.push({ label: `${fmt(start)} - ${fmt(end)}`, value: start })
+  }
+  return slots.length > 0 ? slots : TIME_SLOTS
+}
 
 export function todayISO() {
   return new Date().toISOString().slice(0, 10)
 }
 
 const PET_EMOJI: Record<string, string> = {
-  dog: '🐕', cat: '🐱', bird: '🐦', rabbit: '🐇', other: '🐾',
+  dog: 'dog', cat: 'cat', bird: 'bird', rabbit: 'rabbit', other: 'pet',
 }
 
-// ─── Types ────────────────────────────────────────────────────────────────────
 export interface PetOption {
   id:   string
   name: string
@@ -47,7 +71,6 @@ export interface BookingDrawerProps {
   onCreated:    () => void
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
 export function BookingDrawer({
   client,
   initialPets,
@@ -69,10 +92,17 @@ export function BookingDrawer({
   const [date, setDate]               = useState(todayISO())
   const [timeSlot, setTimeSlot]       = useState('')
   const [submitting, setSubmitting]   = useState(false)
+  const [clinicSlots, setClinicSlots] = useState<ClinicSlot[]>(TIME_SLOTS)
 
   useEffect(() => {
     api.getServiceTypes()
       .then(d => setServiceTypes((d as ServiceType[]).filter(s => s.active)))
+      .catch(() => {})
+    api.getMyClinic()
+      .then((c: unknown) => {
+        const clinic = c as { settings?: Parameters<typeof buildSlotsFromSettings>[0] }
+        setClinicSlots(buildSlotsFromSettings(clinic?.settings))
+      })
       .catch(() => {})
   }, [])
 
@@ -107,7 +137,7 @@ export function BookingDrawer({
         notes: selectedType?.name || undefined,
       })
       const petName = pets.find(p => p.id === petId)?.name ?? ''
-      toast.success(`✓ Servicio creado para ${petName}`)
+      toast.success(`Servicio creado para ${petName}`)
       onCreated()
       onClose()
     } catch (e: unknown) {
@@ -123,14 +153,11 @@ export function BookingDrawer({
 
   return (
     <>
-      {/* Backdrop */}
       <div
         className="fixed inset-0 z-40"
         style={{ background: 'rgba(15,23,42,0.35)', backdropFilter: 'blur(2px)' }}
         onClick={onClose}
       />
-
-      {/* Drawer panel */}
       <div
         className="fixed right-0 top-0 bottom-0 z-50 flex flex-col overflow-hidden"
         style={{
@@ -140,7 +167,6 @@ export function BookingDrawer({
           borderLeft: '1px solid #ede9fe',
         }}
       >
-        {/* Header */}
         <div className="px-5 pt-5 pb-4 shrink-0" style={{ borderBottom: '1px solid #f1f5f9' }}>
           <div className="flex items-start justify-between">
             <div>
@@ -156,14 +182,11 @@ export function BookingDrawer({
               onClick={onClose}
               className="w-8 h-8 rounded-xl flex items-center justify-center text-lg shrink-0 mt-0.5"
               style={{ background: '#F1F5F9', color: '#94a3b8' }}
-            >×</button>
+            >x</button>
           </div>
         </div>
 
-        {/* Scrollable body */}
         <div className="flex-1 overflow-y-auto px-5 py-5 space-y-5">
-
-          {/* Mascota */}
           <div>
             <label className="block text-xs font-bold mb-2" style={{ color: '#334155' }}>
               Mascota <span style={{ color: '#601EF9' }}>*</span>
@@ -182,7 +205,7 @@ export function BookingDrawer({
                     style={petId === p.id
                       ? { background: '#F3EEFF', color: '#601EF9', border: '1.5px solid #a78bfa' }
                       : { background: '#F9F9FB', color: '#475569', border: '1.5px solid #E5E7EB' }}>
-                    <span>{PET_EMOJI[p.type] ?? '🐾'}</span>
+                    <span>{PET_EMOJI[p.type] ?? 'pet'}</span>
                     {p.name}
                   </button>
                 ))}
@@ -190,14 +213,13 @@ export function BookingDrawer({
             )}
           </div>
 
-          {/* Tipo de servicio */}
           <div>
             <label className="block text-xs font-bold mb-2" style={{ color: '#334155' }}>
               Tipo de servicio
             </label>
             {serviceTypes.length === 0 ? (
               <p className="text-xs py-1" style={{ color: '#94a3b8' }}>
-                Sin servicios configurados · podés agendar igual sin especificar tipo.
+                Sin servicios configurados · podes agendar igual sin especificar tipo.
               </p>
             ) : (
               <div className="flex flex-wrap gap-2">
@@ -219,7 +241,6 @@ export function BookingDrawer({
             )}
           </div>
 
-          {/* Fecha */}
           <div>
             <label className="block text-xs font-bold mb-2" style={{ color: '#334155' }}>
               Fecha <span style={{ color: '#601EF9' }}>*</span>
@@ -236,13 +257,12 @@ export function BookingDrawer({
             />
           </div>
 
-          {/* Rango horario */}
           <div>
             <label className="block text-xs font-bold mb-2" style={{ color: '#334155' }}>
               Rango horario <span style={{ color: '#601EF9' }}>*</span>
             </label>
             <div className="grid grid-cols-2 gap-2">
-              {TIME_SLOTS.map(slot => (
+              {clinicSlots.map(slot => (
                 <button key={slot.value} onClick={() => setTimeSlot(slot.value)}
                   className="py-3 rounded-xl text-sm font-bold transition-all"
                   style={timeSlot === slot.value
@@ -256,12 +276,11 @@ export function BookingDrawer({
 
           {!canSubmit && !!(petId || serviceTypeId || timeSlot) && (
             <p className="text-xs" style={{ color: '#94a3b8' }}>
-              Seleccioná mascota, fecha y rango horario para continuar.
+              Selecciona mascota, fecha y rango horario para continuar.
             </p>
           )}
         </div>
 
-        {/* Footer */}
         <div className="px-5 py-4 shrink-0" style={{ borderTop: '1px solid #f1f5f9' }}>
           <button
             onClick={submit}
@@ -272,7 +291,7 @@ export function BookingDrawer({
               color:  canSubmit ? '#fff' : '#94a3b8',
               cursor: canSubmit ? 'pointer' : 'not-allowed',
             }}>
-            {submitting ? 'Creando servicio…' : 'Crear servicio'}
+            {submitting ? 'Creando servicio...' : 'Crear servicio'}
           </button>
           <button onClick={onClose}
             className="w-full mt-2 py-2 rounded-xl text-xs font-semibold"

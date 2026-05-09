@@ -1,9 +1,10 @@
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { resolveTemplate } from '@/lib/template-resolver'
 import { evaluateCondition, type AutomationCondition } from '@/lib/condition-evaluator'
+import { getMessageProvider } from '@/lib/messaging/provider-factory'
+import { getNextAvailableSlots } from '@/lib/services/availabilityService'
+import { detectIntent, formatSlotsMessage } from '@/lib/utils/message-intent'
 import type { DomainEventType, DomainEventPayload } from '@/lib/domain-events'
-
-// ─── Tipos ────────────────────────────────────────────────────────────────────
 
 interface DomainEvent {
   id:          string
@@ -28,14 +29,6 @@ interface Automation {
   active:           boolean
 }
 
-// ─── Procesador principal ─────────────────────────────────────────────────────
-
-/**
- * Procesa todos los domain_events no procesados para todas las clínicas.
- * Llamado desde el cron /api/cron/process-events.
- *
- * @returns Resumen { processed, triggered, errors }
- */
 export async function processUnhandledEvents(): Promise<{
   processed: number
   triggered: number
@@ -45,7 +38,6 @@ export async function processUnhandledEvents(): Promise<{
   let triggered = 0
   let errors    = 0
 
-  // 1. Cargar eventos pendientes (máx 100 por ciclo para no saturar el cron)
   const { data: events, error: eventsError } = await supabaseAdmin
     .from('domain_events')
     .select('*')
@@ -60,7 +52,6 @@ export async function processUnhandledEvents(): Promise<{
 
   if (!events || events.length === 0) return { processed, triggered, errors }
 
-  // 2. Cargar todas las automations activas de las clínicas involucradas
   const clinicIds = [...new Set((events as DomainEvent[]).map(e => e.clinic_id))]
 
   const { data: automations, error: autError } = await supabaseAdmin
@@ -76,7 +67,6 @@ export async function processUnhandledEvents(): Promise<{
 
   const activeAutomations = (automations ?? []) as Automation[]
 
-  // 3. Procesar cada evento
   for (const event of events as DomainEvent[]) {
     try {
       const matches = activeAutomations.filter(
@@ -91,7 +81,6 @@ export async function processUnhandledEvents(): Promise<{
         if (result) triggered++
       }
 
-      // Marcar evento como procesado
       await supabaseAdmin
         .from('domain_events')
         .update({ processed: true, processed_at: new Date().toISOString() })
@@ -101,7 +90,6 @@ export async function processUnhandledEvents(): Promise<{
     } catch (e) {
       console.error(`[AutomationEngine] Error processing event ${event.id}:`, e)
       errors++
-      // Marcar como procesado igual para evitar ciclos infinitos en eventos con error
       await supabaseAdmin
         .from('domain_events')
         .update({ processed: true, processed_at: new Date().toISOString() })
@@ -112,27 +100,25 @@ export async function processUnhandledEvents(): Promise<{
   return { processed, triggered, errors }
 }
 
-// ─── Ejecutor de acciones ─────────────────────────────────────────────────────
-
 async function executeAction(automation: Automation, event: DomainEvent): Promise<boolean> {
   switch (automation.action_type) {
     case 'send_message':
+      if (event.type === 'message_received') {
+        return sendMessageReceived(automation, event)
+      }
       return sendMessage(automation, event)
 
     case 'create_event':
       return scheduleVetEvent(automation, event)
 
     case 'create_booking':
-      // Pendiente: lógica para crear pre-booking automático
-      console.log(`[AutomationEngine] create_booking action not yet implemented for automation ${automation.id}`)
+      console.log(`[AutomationEngine] create_booking not yet implemented for automation ${automation.id}`)
       return false
 
     default:
       return false
   }
 }
-
-// ─── send_message ─────────────────────────────────────────────────────────────
 
 async function sendMessage(automation: Automation, event: DomainEvent): Promise<boolean> {
   if (!automation.message_template) return false
@@ -143,45 +129,78 @@ async function sendMessage(automation: Automation, event: DomainEvent): Promise<
     return false
   }
 
-  const message = resolveTemplate(automation.message_template, event.payload)
+  const body = resolveTemplate(automation.message_template, event.payload)
 
-  // Calcular scheduled_at respetando el delay_minutes
-  const scheduledAt = new Date(Date.now() + automation.delay_minutes * 60 * 1000).toISOString()
+  if (automation.delay_minutes > 0) {
+    const scheduledAt = new Date(Date.now() + automation.delay_minutes * 60 * 1000).toISOString()
+    const { error } = await supabaseAdmin.from('notifications').insert({
+      clinic_id:        event.clinic_id,
+      phone,
+      message:          body,
+      status:           'scheduled',
+      scheduled_at:     scheduledAt,
+      source:           'automation',
+      automation_id:    automation.id,
+      domain_event_id:  event.id,
+      created_at:       new Date().toISOString(),
+    })
+    if (error) {
+      console.error(`[AutomationEngine] Failed to schedule notification for automation ${automation.id}:`, error)
+      return false
+    }
+    return true
+  }
 
-  const { error } = await supabaseAdmin.from('notifications').insert({
-    clinic_id:    event.clinic_id,
-    phone,
-    message,
-    status:       automation.delay_minutes > 0 ? 'scheduled' : 'pending',
-    scheduled_at: scheduledAt,
-    source:       'automation',
-    automation_id: automation.id,
-    domain_event_id: event.id,
-    created_at:   new Date().toISOString(),
+  const provider = getMessageProvider('internal')
+  const result = await provider.sendMessage({
+    clinicId: event.clinic_id,
+    to:       phone,
+    body,
+    metadata: { automation_id: automation.id, domain_event_id: event.id },
   })
 
-  if (error) {
-    console.error(`[AutomationEngine] Failed to insert notification for automation ${automation.id}:`, error)
+  return result.status === 'sent'
+}
+
+async function sendMessageReceived(automation: Automation, event: DomainEvent): Promise<boolean> {
+  const phone = event.payload.client_phone
+  if (!phone) return false
+
+  const incomingText = (event.payload.message as string) ?? ''
+  const intent = detectIntent(incomingText)
+
+  let body: string
+
+  if (intent === 'confirm' || intent === 'request_slot') {
+    const slots = await getNextAvailableSlots(event.clinic_id)
+    body = formatSlotsMessage(slots)
+  } else if (automation.message_template) {
+    body = resolveTemplate(automation.message_template, event.payload)
+  } else {
     return false
   }
 
-  return true
-}
+  const provider = getMessageProvider('internal')
+  const result = await provider.sendMessage({
+    clinicId: event.clinic_id,
+    to:       phone,
+    body,
+    metadata: { automation_id: automation.id, domain_event_id: event.id },
+  })
 
-// ─── create_event (vet event) ─────────────────────────────────────────────────
+  return result.status === 'sent'
+}
 
 async function scheduleVetEvent(automation: Automation, event: DomainEvent): Promise<boolean> {
   const petId = event.payload.pet_id
   if (!petId) return false
 
-  // Calcular fecha del evento a partir de hoy + delay_minutes convertido a días
   const delayDays = Math.round(automation.delay_minutes / (60 * 24))
   const eventDate = new Date()
   eventDate.setDate(eventDate.getDate() + delayDays)
   const dateStr = eventDate.toISOString().split('T')[0]
 
-  // Determinar tipo de evento desde el template o el payload
-  const eventType = event.payload.event_type as string ?? 'control'
+  const eventType = (event.payload.event_type as string) ?? 'control'
 
   const { error } = await supabaseAdmin.from('events').insert({
     clinic_id:      event.clinic_id,
