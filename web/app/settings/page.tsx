@@ -12,7 +12,7 @@ import { api } from '@/lib/api'
 type Section =
   | 'clinica' | 'horarios' | 'logistica' | 'zonas' | 'servicios'
   | 'whatsapp' | 'qr'
-  | 'bot' | 'notificaciones'
+  | 'bot' | 'automatizaciones' | 'notificaciones'
   | 'cuenta'
 
 interface NavItem { id: Section; label: string; icon: string }
@@ -38,8 +38,9 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
   {
     label: 'Sistema',
     items: [
-      { id: 'bot',            label: 'Bot',            icon: '🤖' },
-      { id: 'notificaciones', label: 'Notificaciones', icon: '🔔' },
+      { id: 'bot',              label: 'Bot',               icon: '🤖' },
+      { id: 'automatizaciones', label: 'Automatizaciones',  icon: '⚡' },
+      { id: 'notificaciones',   label: 'Notificaciones',    icon: '🔔' },
     ],
   },
   {
@@ -116,8 +117,9 @@ export default function SettingsPage() {
           {section === 'zonas'          && <TabZonas />}
           {section === 'whatsapp'       && <TabWhatsApp />}
           {section === 'qr'             && <TabQR />}
-          {section === 'bot'            && <TabBot />}
-          {section === 'notificaciones' && <TabNotificaciones />}
+          {section === 'bot'              && <TabBot />}
+          {section === 'automatizaciones' && <TabAutomatizaciones />}
+          {section === 'notificaciones'   && <TabNotificaciones />}
           {section === 'cuenta'         && <TabCuenta router={router} />}
           {section === 'servicios'      && <TabServicios />}
         </div>
@@ -821,22 +823,39 @@ function Step({ n, text }: { n: string; text: string }) {
 }
 
 // ─── TAB: Instrucciones del bot ───────────────────────────────────────────────
-function TabBot() {
-  const [saved, setSaved] = useState(false)
-  const textRef = useRef<HTMLTextAreaElement>(null)
-  const [instructions, setInstructions] = useState(
-    `Eres el asistente virtual de la clínica veterinaria. Tu función es:\n- Responder consultas sobre turnos, horarios y servicios.\n- Confirmar o cancelar turnos cuando el cliente lo pide.\n- Dar información básica sobre vacunas, baños y consultas.\n- No dar diagnósticos médicos ni indicaciones de medicamentos.\n- Siempre ser amable, claro y conciso.\n- Si no podés resolver algo, derivar al personal de la clínica.\n\nIdioma: español. Tono: profesional pero cercano.`
-  )
-  const [tone, setTone]             = useState('profesional')
-  const [autoReply, setAutoReply]   = useState(true)
-  const [offHours, setOffHours]     = useState(true)
-  const [offMsg, setOffMsg]         = useState(
-    'Hola! Estamos fuera del horario de atención. Te respondemos a la brevedad. 🐾'
-  )
+const DEFAULT_BOT_INSTRUCTIONS = `Eres el asistente virtual de la clínica veterinaria. Tu función es:\n- Responder consultas sobre turnos, horarios y servicios.\n- Confirmar o cancelar turnos cuando el cliente lo pide.\n- Dar información básica sobre vacunas, baños y consultas.\n- No dar diagnósticos médicos ni indicaciones de medicamentos.\n- Siempre ser amable, claro y conciso.\n- Si no podés resolver algo, derivar al personal de la clínica.\n\nIdioma: español. Tono: profesional pero cercano.`
 
-  const handleSave = () => {
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2500)
+function TabBot() {
+  const [saved, setSaved]   = useState(false)
+  const [saveErr, setSaveErr] = useState('')
+  const textRef = useRef<HTMLTextAreaElement>(null)
+  const [instructions, setInstructions] = useState(DEFAULT_BOT_INSTRUCTIONS)
+  const [tone, setTone]           = useState('profesional')
+  const [autoReply, setAutoReply] = useState(true)
+  const [offHours, setOffHours]   = useState(true)
+  const [offMsg, setOffMsg]       = useState('Hola! Estamos fuera del horario de atención. Te respondemos a la brevedad. 🐾')
+
+  useEffect(() => {
+    api.getMyClinic().then((c: unknown) => {
+      const clinic = c as { settings?: { bot?: Record<string, unknown> } }
+      const b = clinic?.settings?.bot
+      if (!b) return
+      if (typeof b.instructions === 'string') setInstructions(b.instructions)
+      if (typeof b.tone         === 'string') setTone(b.tone)
+      if (typeof b.autoReply    === 'boolean') setAutoReply(b.autoReply)
+      if (typeof b.offHours     === 'boolean') setOffHours(b.offHours)
+      if (typeof b.offMsg       === 'string') setOffMsg(b.offMsg)
+    }).catch(() => {})
+  }, [])
+
+  const handleSave = async () => {
+    setSaveErr('')
+    try {
+      await api.updateMyClinic({ settings: { bot: { instructions, tone, autoReply, offHours, offMsg } } })
+      setSaved(true); setTimeout(() => setSaved(false), 2500)
+    } catch (e) {
+      setSaveErr(e instanceof Error ? e.message : 'Error al guardar')
+    }
   }
 
   return (
@@ -915,7 +934,26 @@ function TabBot() {
         )}
       </div>
 
+      {saveErr && <p className="text-xs mt-2 px-3 py-2 rounded-xl" style={{ background: '#fee2e2', color: '#dc2626' }}>⚠️ {saveErr}</p>}
       <SaveBtn onSave={handleSave} saved={saved} />
+    </Card>
+  )
+}
+
+// ─── TAB: Automatizaciones ───────────────────────────────────────────────────
+function TabAutomatizaciones() {
+  return (
+    <Card title="Automatizaciones" subtitle="Mensajes automáticos que se envían a tus clientes por WhatsApp según eventos del sistema.">
+      <div className="space-y-4">
+        <p className="text-sm" style={{ color: '#475569' }}>
+          Configura qué mensajes se envían automáticamente al crear una cita, al completarla, antes de una vacuna, y más.
+        </p>
+        <a href="/automations"
+          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-all"
+          style={{ background: '#601EF9' }}>
+          ⚡ Administrar automatizaciones →
+        </a>
+      </div>
     </Card>
   )
 }
@@ -1401,3 +1439,4 @@ function TabServicios() {
     </div>
   )
 }
+

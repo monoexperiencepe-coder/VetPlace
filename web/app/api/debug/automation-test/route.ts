@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
       // 4. Emit domain event with the REAL conversation id
       await emitMessageReceived(clinicId, conversationId, from, message)
 
-    } else if (event_type && event_type !== 'skip') {
+    } else if (event_type && (event_type as string) !== 'skip') {
       await emitDomainEvent(clinicId, event_type, 'debug', crypto.randomUUID(), { ...payload, _debug: true })
     }
 
@@ -127,5 +127,8 @@ export async function GET(request: NextRequest) {
     })
   } catch (e) {
     return handleRouteError(e)
+  }
+}
+or(e)
   }
 }

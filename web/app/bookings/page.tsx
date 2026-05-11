@@ -62,6 +62,8 @@ interface Client {
   id: string
   phone: string
   name?: string
+  address?: string
+  distrito?: string
 }
 
 interface Pet {
@@ -137,9 +139,10 @@ function NewBookingModal({ defaultDate, onClose, onCreated }: NewBookingModalPro
   const [submitErr, setSubmitErr]   = useState('')
   const [slotOk, setSlotOk]         = useState<boolean | null>(null)
   const [slotChecking, setSlotChecking] = useState(false)
-  const [requiresPickup,  setRequiresPickup]  = useState(false)
-  const [requiresDelivery,setRequiresDelivery]= useState(false)
-  const [deliveryTime,    setDeliveryTime]    = useState('')
+  const [requiresPickup,   setRequiresPickup]   = useState(false)
+  const [requiresDelivery, setRequiresDelivery] = useState(false)
+  const [deliveryTime,     setDeliveryTime]     = useState('')
+  const [pickupAddress,    setPickupAddress]    = useState('')
   const [logistica, setLogistica] = useState<LogisticaSettings | null>(null)
   const [logisticaLoaded, setLogisticaLoaded] = useState(false)
 
@@ -301,7 +304,7 @@ function NewBookingModal({ defaultDate, onClose, onCreated }: NewBookingModalPro
     if (slotOk === false) return setSubmitErr('Ese horario ya esta ocupado')
     setSubmitting(true); setSubmitErr('')
     try {
-      await api.createBooking({ pet_id: petId, date, time: timeNorm, notes: notes || undefined, service_type_id: serviceTypeId || undefined, requires_pickup: requiresPickup, delivery_time: requiresDelivery ? deliveryTime || undefined : undefined })
+      await api.createBooking({ pet_id: petId, date, time: timeNorm, notes: notes || undefined, service_type_id: serviceTypeId || undefined, requires_pickup: requiresPickup, pickup_address: requiresPickup ? (pickupAddress || undefined) : undefined, delivery_time: requiresDelivery ? deliveryTime || undefined : undefined })
       const petName  = pets.find((p) => p.id === petId)?.name ?? ''
       const dateLabel = new Date(date + 'T00:00:00').toLocaleDateString('es-PE', { weekday: 'long', day: 'numeric', month: 'long' })
       toast.success(`Turno agendado para ${petName} el ${dateLabel} a las ${timeNorm}`)
@@ -509,7 +512,7 @@ function NewBookingModal({ defaultDate, onClose, onCreated }: NewBookingModalPro
                     : { background: '#f8faff', color: '#475569', border: '1.5px solid #e4ebff' }}>
                   🏠 Deja en local
                 </button>
-                <button type="button" onClick={() => { setRequiresPickup(true); setTime('') }}
+                <button type="button" onClick={() => { setRequiresPickup(true); setTime(''); setPickupAddress(client?.address ?? '') }}
                   className="flex-1 py-2 rounded-xl text-sm font-semibold transition-all"
                   style={requiresPickup
                     ? { background: '#601EF9', color: '#fff', border: '1.5px solid #601EF9' }
@@ -532,26 +535,39 @@ function NewBookingModal({ defaultDate, onClose, onCreated }: NewBookingModalPro
               )}
             </div>
             {requiresPickup && (
-              pickupWindows.length > 0 ? (
-                <div>
-                  <Label>Turno de recojo</Label>
-                  <div className="flex flex-wrap gap-2">
-                    {pickupWindows.map(w => (
-                      <button key={w.value} type="button" onClick={() => setTime(w.value)}
-                        className="px-3 py-2 rounded-xl text-sm font-semibold transition-all"
-                        style={time === w.value
-                          ? { background: '#601EF9', color: '#fff', border: '1.5px solid #601EF9' }
-                          : { background: '#f8faff', color: '#475569', border: '1.5px solid #e4ebff' }}>
-                        {w.label}
-                      </button>
-                    ))}
+              <>
+                {pickupWindows.length > 0 ? (
+                  <div>
+                    <Label>Turno de recojo</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {pickupWindows.map(w => (
+                        <button key={w.value} type="button" onClick={() => setTime(w.value)}
+                          className="px-3 py-2 rounded-xl text-sm font-semibold transition-all"
+                          style={time === w.value
+                            ? { background: '#601EF9', color: '#fff', border: '1.5px solid #601EF9' }
+                            : { background: '#f8faff', color: '#475569', border: '1.5px solid #e4ebff' }}>
+                          {w.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
+                ) : (
+                  <p className="text-xs px-3 py-2 rounded-xl" style={{ background: '#fef9c3', color: '#854d0e' }}>
+                    Sin turnos de recojo configurados. Actívalos en Configuración → Logística.
+                  </p>
+                )}
+                <div>
+                  <Label>Dirección de recojo</Label>
+                  <input type="text" value={pickupAddress} onChange={e => setPickupAddress(e.target.value)}
+                    placeholder="Ej: Av. La Marina 123, Miraflores"
+                    className={INPUT} style={INPUT_STYLE} />
+                  {!pickupAddress && (
+                    <p className="text-xs mt-1" style={{ color: '#f59e0b' }}>
+                      Este cliente no tiene dirección registrada. Ingresa una manualmente.
+                    </p>
+                  )}
                 </div>
-              ) : (
-                <p className="text-xs px-3 py-2 rounded-xl" style={{ background: '#fef9c3', color: '#854d0e' }}>
-                  Sin turnos de recojo configurados. Actívalos en Configuración → Logística.
-                </p>
-              )
+              </>
             )}
             {/* ─── Regreso / Entrega ───────────────────── */}
             <div>
@@ -564,7 +580,7 @@ function NewBookingModal({ defaultDate, onClose, onCreated }: NewBookingModalPro
                     : { background: '#f8faff', color: '#475569', border: '1.5px solid #e4ebff' }}>
                   👤 Cliente la recoge
                 </button>
-                <button type="button" onClick={() => { setRequiresDelivery(true); setDeliveryTime('') }}
+                <button type="button" onClick={() => { setRequiresDelivery(true); setDeliveryTime(''); if (!pickupAddress) setPickupAddress(client?.address ?? '') }}
                   className="flex-1 py-2 rounded-xl text-sm font-semibold transition-all"
                   style={requiresDelivery
                     ? { background: '#601EF9', color: '#fff', border: '1.5px solid #601EF9' }
@@ -574,26 +590,42 @@ function NewBookingModal({ defaultDate, onClose, onCreated }: NewBookingModalPro
               </div>
             </div>
             {requiresDelivery && (
-              deliveryWindows.length > 0 ? (
-                <div>
-                  <Label>Turno de entrega</Label>
-                  <div className="flex flex-wrap gap-2">
-                    {deliveryWindows.map(w => (
-                      <button key={w.value} type="button" onClick={() => setDeliveryTime(w.value)}
-                        className="px-3 py-2 rounded-xl text-sm font-semibold transition-all"
-                        style={deliveryTime === w.value
-                          ? { background: '#601EF9', color: '#fff', border: '1.5px solid #601EF9' }
-                          : { background: '#f8faff', color: '#475569', border: '1.5px solid #e4ebff' }}>
-                        {w.label}
-                      </button>
-                    ))}
+              <>
+                {deliveryWindows.length > 0 ? (
+                  <div>
+                    <Label>Turno de entrega</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {deliveryWindows.map(w => (
+                        <button key={w.value} type="button" onClick={() => setDeliveryTime(w.value)}
+                          className="px-3 py-2 rounded-xl text-sm font-semibold transition-all"
+                          style={deliveryTime === w.value
+                            ? { background: '#601EF9', color: '#fff', border: '1.5px solid #601EF9' }
+                            : { background: '#f8faff', color: '#475569', border: '1.5px solid #e4ebff' }}>
+                          {w.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ) : (
-                <p className="text-xs px-3 py-2 rounded-xl" style={{ background: '#fef9c3', color: '#854d0e' }}>
-                  Sin turnos de entrega configurados. Actívalos en Configuración → Logística.
-                </p>
-              )
+                ) : (
+                  <p className="text-xs px-3 py-2 rounded-xl" style={{ background: '#fef9c3', color: '#854d0e' }}>
+                    Sin turnos de entrega configurados. Actívalos en Configuración → Logística.
+                  </p>
+                )}
+                {/* Mostrar dirección solo si no se mostró ya en la sección de recojo */}
+                {!requiresPickup && (
+                  <div>
+                    <Label>Dirección de entrega</Label>
+                    <input type="text" value={pickupAddress} onChange={e => setPickupAddress(e.target.value)}
+                      placeholder="Ej: Av. La Marina 123, Miraflores"
+                      className={INPUT} style={INPUT_STYLE} />
+                    {!pickupAddress && (
+                      <p className="text-xs mt-1" style={{ color: '#f59e0b' }}>
+                        Este cliente no tiene dirección registrada. Ingresa una manualmente.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </>
             )}
             {petId && date && time && (
               <p className="text-xs min-h-[1rem]" style={{ color: slotOk === false ? '#dc2626' : '#94a3b8' }}>
@@ -1011,6 +1043,48 @@ function ServiceRow({ booking: b, isActioning, onConfirm, onComplete, onCancel, 
                       style={{ background: '#fff', border: '1px solid #ede9fe', boxShadow: '0 8px 24px rgba(96,30,249,0.15)' }}>
                       <DropItem label="Reprogramar" onClick={() => { setOpen(false) }} />
                       <DropItem label="Cancelar" onClick={() => { setOpen(false); onCancel() }} danger />
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function DropItem({ label, onClick, danger }: { label: string; onClick: () => void; danger?: boolean }) {
+  return (
+    <button onClick={onClick} className="w-full text-left px-3 py-2 text-xs font-medium transition-colors"
+      style={{ color: danger ? '#dc2626' : '#334155' }}
+      onMouseEnter={e => e.currentTarget.style.background = danger ? '#fef2f2' : '#F3EEFF'}
+      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>{label}</button>
+  )
+}
+
+function EmptyState({ onNew, filter }: { onNew: () => void; filter: QuickFilter }) {
+  const messages: Record<QuickFilter, { title: string; sub: string }> = {
+    today:    { title: 'Sin servicios para hoy',      sub: 'Agenda el primer servicio del dia.' },
+    tomorrow: { title: 'Sin servicios para manana',   sub: 'Planifica la jornada de manana.' },
+    pending:  { title: 'Todo al dia',                 sub: 'No hay servicios pendientes de confirmar.' },
+    all:      { title: 'Sin servicios en esta fecha', sub: 'Cambia la fecha o crea un nuevo servicio.' },
+  }
+  const m = messages[filter]
+  return (
+    <div className="flex flex-col items-center py-16 gap-4 rounded-2xl"
+      style={{ background: '#fff', border: '1.5px dashed #ddd6fe' }}>
+      <div className="text-center">
+        <p className="text-sm font-semibold" style={{ color: '#0f172a' }}>{m.title}</p>
+        <p className="text-xs mt-1" style={{ color: '#94a3b8' }}>{m.sub}</p>
+      </div>
+      <button onClick={onNew} className="px-5 py-2.5 rounded-xl text-sm font-bold text-white"
+        style={{ background: 'linear-gradient(135deg,#3b10b5,#601EF9)' }}>+ Nuevo servicio</button>
+    </div>
+  )
+}
+
                     </div>
                   )}
                 </div>

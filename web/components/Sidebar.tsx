@@ -8,33 +8,25 @@ import { useClinicName } from '@/hooks/useClinicName'
 // ─── Nav: Panel arriba, Chats bajo (acceso rápido) ───────────────────────────
 const navSections = [
   {
-    label: 'Panel',
+    label: 'Operaciones',
     items: [
-      { href: '/', label: 'Dashboard', icon: DashIcon },
-    ],
-  },
-  {
-    label: 'Acceso rápido',
-    items: [
-      { href: '/chats', label: 'Chats', icon: ChatIcon },
-    ],
-  },
-  {
-    label: 'Gestión',
-    items: [
-      { href: '/clients',  label: 'Clientes',  icon: ClientIcon },
-      { href: '/pets',     label: 'Mascotas',  icon: PawIcon },
+      { href: '/',         label: 'Dashboard', icon: DashIcon },
       { href: '/bookings', label: 'Agenda',    icon: CalIcon },
-      { href: '/routes',   label: 'Rutas',     icon: RouteIcon },
+      { href: '/clients',  label: 'Clientes',  icon: ClientIcon },
       { href: '/finances', label: 'Finanzas',  icon: MoneyIcon },
     ],
   },
   {
-    label: 'Seguimiento',
+    label: 'Comunicación',
     items: [
-      { href: '/events',       label: 'Eventos',          icon: EventIcon },
-      { href: '/automations',  label: 'Automatizaciones', icon: BoltIcon },
-      { href: '/reports',      label: 'Reportes',         icon: ChartIcon },
+      { href: '/chats',  label: 'Chats',          icon: ChatIcon },
+      { href: '/events', label: 'Recordatorios',  icon: EventIcon },
+    ],
+  },
+  {
+    label: 'Análisis',
+    items: [
+      { href: '/reports', label: 'Reportes', icon: ChartIcon },
     ],
   },
 ]
@@ -173,10 +165,10 @@ export default function Sidebar() {
             className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0"
             style={{ background: 'linear-gradient(135deg, #601EF9, #3b10b5)' }}
           >
-            VP
+            {clinicName ? clinicName.split(' ').slice(0,2).map((w: string) => w[0]).join('').toUpperCase() : 'VP'}
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-semibold leading-tight truncate" style={{ color: '#0f172a' }}>VetPlace</p>
+            <p className="text-sm font-semibold leading-tight truncate" style={{ color: '#0f172a' }}>{clinicName || 'Mi clínica'}</p>
             <p className="text-[11px] leading-tight truncate mt-0.5" style={{ color: '#94a3b8' }}>Admin</p>
           </div>
           <DotsIcon />

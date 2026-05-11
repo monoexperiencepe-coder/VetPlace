@@ -1,18 +1,20 @@
 'use client'
 
 import { usePathname } from 'next/navigation'
+import { useClinicName } from '@/hooks/useClinicName'
 
 const PAGE_TITLES: Record<string, string> = {
-  '/':          'Dashboard',
-  '/clients':   'Clientes',
-  '/pets':      'Mascotas',
-  '/events':        'Eventos',
-  '/automations':   'Automatizaciones',
-  '/reports':       'Reportes',
-  '/bookings':  'Agenda',
-  '/chats':     'Chats',
-  '/routes':    'Rutas del día',
-  '/settings':  'Configuración',
+  '/':           'Dashboard',
+  '/clients':    'Clientes',
+  '/pets':       'Mascotas',
+  '/events':     'Recordatorios',
+  '/automations':'Automatizaciones',
+  '/reports':    'Reportes',
+  '/bookings':   'Agenda',
+  '/chats':      'Chats',
+  '/routes':     'Rutas del día',
+  '/settings':   'Configuración',
+  '/finances':   'Finanzas',
 }
 
 function getTitle(pathname: string): string {
@@ -22,8 +24,13 @@ function getTitle(pathname: string): string {
 }
 
 export default function TopBar() {
-  const pathname = usePathname()
-  const title    = getTitle(pathname)
+  const pathname   = usePathname()
+  const title      = getTitle(pathname)
+  const clinicName = useClinicName()
+
+  const initials = clinicName
+    ? clinicName.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()
+    : 'VP'
 
   const now = new Date()
   const dateStr = now.toLocaleDateString('es-PE', {
@@ -53,16 +60,16 @@ export default function TopBar() {
           </svg>
         </button>
 
-        {/* Avatar */}
+        {/* Avatar con nombre real */}
         <div className="flex items-center gap-2.5">
           <div
             className="w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold text-white shrink-0"
-            style={{ background: 'linear-gradient(135deg, var(--blue) 0%, #1d4ed8 100%)' }}
+            style={{ background: 'linear-gradient(135deg, #601EF9 0%, #3b10b5 100%)' }}
           >
-            VP
+            {initials}
           </div>
           <div className="hidden md:block">
-            <p className="text-sm font-semibold leading-tight" style={{ color: '#0f172a' }}>VetPlace</p>
+            <p className="text-sm font-semibold leading-tight truncate max-w-[140px]" style={{ color: '#0f172a' }}>{clinicName || 'Mi clínica'}</p>
             <p className="text-xs leading-tight" style={{ color: '#94a3b8' }}>Admin</p>
           </div>
         </div>
