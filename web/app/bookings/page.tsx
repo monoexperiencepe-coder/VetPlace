@@ -817,10 +817,10 @@ export default function BookingsPage() {
     setLoading(true); setError('')
     try {
       let data: Booking[]
-      if (filter === 'all') {
+      if (filter === 'all' || filter === 'pending') {
         data = await api.getAllBookings() as Booking[]
       } else {
-        data = await api.getBookings(filter === 'pending' ? todayStr() : date) as Booking[]
+        data = await api.getBookings(date) as Booking[]
       }
       setBookings(data)
     } catch (e: unknown) {
@@ -895,12 +895,7 @@ export default function BookingsPage() {
               </button>
             ))}
           </div>
-          {filter === 'pending' && (
-            <span className="text-xs px-3 py-2 rounded-xl"
-              style={{ background: '#fff', border: '1px solid #ede9fe', color: '#94a3b8' }}>
-              Desde hoy en adelante
-            </span>
-          )}
+
         </div>
         <div className="flex items-center gap-3">
           <div className="hidden sm:flex items-center gap-3 px-3 py-2 rounded-xl text-xs"

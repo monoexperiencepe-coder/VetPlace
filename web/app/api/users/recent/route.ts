@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
 
     const { data, error } = await supabaseAdmin
       .from('clients')
-      .select('id, name, phone, email, created_at, pets (id, name, type)')
+      .select('id, name, phone, email, address, distrito, created_at, pets (id, name, type)')
       .eq('clinic_id', clinicId)
       .order('created_at', { ascending: false })
       .limit(10)
@@ -20,6 +20,4 @@ export async function GET(request: NextRequest) {
     if (error) handleSupabaseError(error)
     return ok(data ?? [])
   } catch (e) {
-    return handleRouteError(e)
-  }
-}
+    return handleR
