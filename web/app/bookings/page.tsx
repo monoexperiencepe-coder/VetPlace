@@ -342,8 +342,8 @@ function NewBookingModal({ defaultDate, onClose, onCreated }: NewBookingModalPro
                   style={{ ...INPUT_STYLE, paddingRight: 36 }} autoFocus />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-base">search</span>
                 {showDropdown && (
-                  <div className="absolute top-full left-0 right-0 z-50 mt-1 rounded-xl overflow-hidden"
-                    style={{ background: '#fff', border: '1.5px solid #e4ebff', boxShadow: '0 8px 24px rgba(96,30,249,0.12)' }}>
+                  <div className="absolute top-full left-0 right-0 z-50 mt-1 rounded-xl overflow-y-auto"
+                    style={{ background: '#fff', border: '1.5px solid #e4ebff', boxShadow: '0 8px 24px rgba(96,30,249,0.12)', maxHeight: '220px' }}>
                     {loadingClients ? (
                       <div className="px-4 py-3 text-xs" style={{ color: '#94a3b8' }}>Cargando...</div>
                     ) : clientResults.length === 0 ? (
@@ -797,6 +797,15 @@ export default function BookingsPage() {
   const [showModal, setShowModal]           = useState(false)
   const [actionId, setActionId]             = useState<string | null>(null)
   const [completingBooking, setCompletingBooking] = useState<Booking | null>(null)
+  const [totalPending, setTotalPending]     = useState(0)
+
+  // Siempre cargar el conteo global de pendientes (independiente del filtro activo)
+  useEffect(() => {
+    api.getAllBookings().then((all: unknown) => {
+      const arr = all as Booking[]
+      setTotalPending(arr.filter(b => b.status === 'PENDING').length)
+    }).catch(() => {})
+  }, [])
 
   useEffect(() => {
     if (typeof window !== 'undefined' && window.location.search.includes('new=1')) {
@@ -886,10 +895,10 @@ export default function BookingsPage() {
                 className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
                 style={filter === f ? { background: '#601EF9', color: '#fff' } : { color: '#601EF9' }}>
                 {filterLabels[f]}
-                {f === 'pending' && counts.pending > 0 && (
+                {f === 'pending' && totalPending > 0 && (
                   <span className="ml-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full"
                     style={{ background: filter === 'pending' ? 'rgba(255,255,255,0.25)' : '#601EF9', color: '#fff' }}>
-                    {counts.pending}
+                    {totalPending}
                   </span>
                 )}
               </button>
