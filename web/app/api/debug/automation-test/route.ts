@@ -129,6 +129,3 @@ export async function GET(request: NextRequest) {
     return handleRouteError(e)
   }
 }
-or(e)
-  }
-}
