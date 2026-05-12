@@ -38,7 +38,7 @@ function NewEventModal({ petId, onClose, onCreated }: { petId: string; onClose: 
               <option value="vaccine">Vacuna</option>
               <option value="checkup">Control</option>
               <option value="deworming">Desparasitacion</option>
-              <option value="grooming">Bano</option>
+              <option value="grooming">Baño / Estética</option>
             </select>
           </div>
           <div>
@@ -66,7 +66,7 @@ type BookingStatus = 'PENDING' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED'
 interface VetEvent { id: string; type: EventType; scheduled_date: string; status: EventStatus }
 interface Booking { id: string; date: string; time: string; status: BookingStatus; notes?: string }
 
-const RECORD_TYPE_LABEL: Record<MedicalRecordType, string> = { consultation: 'Consulta', vaccine: 'Vacuna', deworming: 'Desparasitacion', surgery: 'Cirugia', grooming: 'Bano / Estetica', other: 'Otro' }
+const RECORD_TYPE_LABEL: Record<MedicalRecordType, string> = { consultation: 'Consulta', vaccine: 'Vacuna', deworming: 'Desparasitación', surgery: 'Cirugía', grooming: 'Baño / Estética', other: 'Otro' }
 const RECORD_TYPE_ICON: Record<MedicalRecordType, string> = { consultation: 'C', vaccine: 'V', deworming: 'D', surgery: 'Q', grooming: 'B', other: 'O' }
 const RECORD_TYPE_COLOR: Record<MedicalRecordType, { bg: string; text: string; dot: string }> = {
   consultation: { bg: '#eff6ff', text: '#1d4ed8', dot: '#3b82f6' },
@@ -78,7 +78,7 @@ const RECORD_TYPE_COLOR: Record<MedicalRecordType, { bg: string; text: string; d
 }
 const PET_EMOJI: Record<string, string> = { dog: '🐕', cat: '🐱', bird: '🦜', rabbit: '🐇', other: '🐾' }
 const PET_TYPE_LABEL: Record<string, string> = { dog: 'Perro', cat: 'Gato', bird: 'Ave', rabbit: 'Conejo', other: 'Otro' }
-const EVENT_TYPE_LABEL: Record<EventType, string> = { grooming: 'Bano', vaccine: 'Vacuna', checkup: 'Control', deworming: 'Desparasitacion' }
+const EVENT_TYPE_LABEL: Record<EventType, string> = { grooming: 'Baño', vaccine: 'Vacuna', checkup: 'Control', deworming: 'Desparasitación' }
 const EVENT_STATUS_LABEL: Record<EventStatus, string> = { PENDING: 'Pendiente', NOTIFIED: 'Notificado', COMPLETED: 'Completado', CANCELLED: 'Cancelado' }
 const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   PENDING:   { bg: '#fef9c3', text: '#854d0e' },
@@ -187,7 +187,7 @@ function MedicalRecordModal({ petId, record, onClose, onSaved }: { petId: string
             <div className="grid grid-cols-2 gap-3">
               <div><label className="block text-xs font-semibold mb-1.5" style={{ color: '#334155' }}>Tipo</label>
                 <select value={type} onChange={e => setType(e.target.value as MedicalRecordType)} className={cls}>
-                  <option value="consultation">Consulta</option><option value="vaccine">Vacuna</option><option value="deworming">Desparasitacion</option><option value="surgery">Cirugia</option><option value="grooming">Bano / Estetica</option><option value="other">Otro</option>
+                  <option value="consultation">Consulta</option><option value="vaccine">Vacuna</option><option value="deworming">Desparasitación</option><option value="surgery">Cirugía</option><option value="grooming">Baño / Estética</option><option value="other">Otro</option>
                 </select>
               </div>
               <div><label className="block text-xs font-semibold mb-1.5" style={{ color: '#334155' }}>Fecha *</label><input type="date" value={date} onChange={e => setDate(e.target.value)} required className={cls} /></div>

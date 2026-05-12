@@ -118,7 +118,7 @@ export default function SettingsPage() {
           {section === 'whatsapp'       && <TabWhatsApp />}
           {section === 'qr'             && <TabQR />}
           {section === 'bot'              && <TabBot />}
-          {section === 'automatizaciones' && <TabAutomatizaciones />}
+          {section === 'automatizaciones' && <RedirectTo href="/automations" />}
           {section === 'notificaciones'   && <TabNotificaciones />}
           {section === 'cuenta'         && <TabCuenta router={router} />}
           {section === 'servicios'      && <TabServicios />}
@@ -609,32 +609,61 @@ function ToggleSwitch({ value, onChange }: { value: boolean; onChange: (v: boole
   )
 }
 
+// Redirect helper
+function RedirectTo({ href }: { href: string }) {
+  useEffect(() => { window.location.href = href }, [href])
+  return <div className="flex justify-center py-8"><div className="w-6 h-6 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: '#601EF9', borderTopColor: 'transparent' }} /></div>
+}
+
 // ─── TAB: Datos del negocio ───────────────────────────────────────────────────
 function TabNegocio() {
-  const [saved, setSaved]   = useState(false)
+  const [saved, setSaved]     = useState(false)
   const [loading, setLoading] = useState(true)
-  const [name, setName]     = useState('VetPlace')
+  const [name, setName]       = useState('VetPlace')
+  const [logoUrl, setLogoUrl] = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const logoInputRef = useRef<HTMLInputElement>(null)
   const [form, setForm]     = useState({
     address:  '',
     phone:    '',
     email:    '',
-    schedule: 'Lunes a Viernes 9:00–18:00',
     tz:       'America/Lima',
   })
 
   useEffect(() => {
     api.getMyClinic().then((clinic: unknown) => {
-      const c = clinic as { name?: string; phone?: string; address?: string; email?: string; schedule?: string; timezone?: string }
-      if (c.name)     setName(c.name)
+      const c = clinic as { name?: string; phone?: string; address?: string; email?: string; timezone?: string; logo_url?: string; settings?: { logo_url?: string } }
+      if (c.name) setName(c.name)
+      const logo = c.logo_url ?? c.settings?.logo_url ?? null
+      if (logo) setLogoUrl(logo)
       setForm({
-        address:  c.address  ?? '',
-        phone:    c.phone    ?? '',
-        email:    c.email    ?? '',
-        schedule: c.schedule ?? 'Lunes a Viernes 9:00–18:00',
-        tz:       c.timezone ?? 'America/Lima',
+        address: c.address  ?? '',
+        phone:   c.phone    ?? '',
+        email:   c.email    ?? '',
+        tz:      c.timezone ?? 'America/Lima',
       })
     }).catch(() => {}).finally(() => setLoading(false))
   }, [])
+
+  const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 2 * 1024 * 1024) { alert('El archivo no debe superar 2 MB'); return }
+    setUploading(true)
+    try {
+      // Preview local inmediato
+      const reader = new FileReader()
+      reader.onload = (ev) => { if (ev.target?.result) setLogoUrl(ev.target.result as string) }
+      reader.readAsDataURL(file)
+      // Guardar en settings como base64 (no requiere bucket de Storage)
+      const base64 = await new Promise<string>((resolve) => {
+        const r = new FileReader()
+        r.onload = (ev) => resolve(ev.target?.result as string)
+        r.readAsDataURL(file)
+      })
+      await api.updateMyClinic({ settings: { logo_url: base64 } }).catch(() => {})
+    } finally { setUploading(false) }
+  }
 
   const handleSave = async () => {
     await api.updateMyClinic({
@@ -642,7 +671,6 @@ function TabNegocio() {
       phone:    form.phone,
       address:  form.address,
       email:    form.email,
-      schedule: form.schedule,
       timezone: form.tz,
     }).catch(() => {})
     // Sync localStorage so the sidebar name updates immediately
@@ -662,24 +690,31 @@ function TabNegocio() {
 
   return (
     <Card title="Datos de la clínica" subtitle="Esta información aparece en el sistema y en las comunicaciones con clientes.">
-      {/* Logo upload placeholder */}
+      {/* Logo upload */}
       <div className="flex items-center gap-5 mb-6">
         <div
-          className="w-20 h-20 rounded-2xl flex items-center justify-center overflow-hidden shrink-0"
+          className="w-20 h-20 rounded-2xl flex items-center justify-center overflow-hidden shrink-0 cursor-pointer"
           style={{ background: '#F3EEFF', border: '2px dashed #c4b5fd' }}
+          onClick={() => logoInputRef.current?.click()}
         >
-          <Image src="/logo.png" alt="Logo" width={72} height={72} style={{ objectFit: 'contain' }} />
+          {logoUrl
+            ? <img src={logoUrl} alt="Logo" className="w-full h-full object-contain" />
+            : <Image src="/logo.png" alt="Logo" width={72} height={72} style={{ objectFit: 'contain' }} />
+          }
         </div>
         <div>
           <p className="text-sm font-semibold" style={{ color: '#0f172a' }}>Logo de la clínica</p>
-          <p className="text-xs mt-0.5 mb-2" style={{ color: '#94a3b8' }}>PNG o SVG, máx. 2 MB</p>
+          <p className="text-xs mt-0.5 mb-2" style={{ color: '#94a3b8' }}>PNG, JPG o SVG · máx. 2 MB</p>
+          <input ref={logoInputRef} type="file" accept="image/*" className="hidden" onChange={handleLogoChange} />
           <button
-            className="text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
+            onClick={() => logoInputRef.current?.click()}
+            disabled={uploading}
+            className="text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
             style={{ background: '#F3EEFF', color: '#601EF9' }}
             onMouseEnter={(e) => (e.currentTarget.style.background = '#ede9fe')}
             onMouseLeave={(e) => (e.currentTarget.style.background = '#F3EEFF')}
           >
-            Cambiar logo
+            {uploading ? 'Subiendo...' : 'Cambiar logo'}
           </button>
         </div>
       </div>
@@ -687,9 +722,8 @@ function TabNegocio() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Field label="Nombre de la clínica *" value={name} onChange={setName} placeholder="Ej: Veterinaria San Roque" />
         <Field label="Teléfono principal" value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} placeholder="+54 9 11 XXXX-XXXX" />
-        <Field label="Dirección" value={form.address} onChange={(v) => setForm({ ...form, address: v })} placeholder="Av. Corrientes 1234, CABA" />
+        <Field label="Dirección" value={form.address} onChange={(v) => setForm({ ...form, address: v })} placeholder="Av. Javier Prado 1245, San Isidro" />
         <Field label="Email de contacto" value={form.email} onChange={(v) => setForm({ ...form, email: v })} placeholder="contacto@mivetrinaria.com" type="email" />
-        <Field label="Horario de atención" value={form.schedule} onChange={(v) => setForm({ ...form, schedule: v })} placeholder="Lunes a Viernes 9:00–18:00" />
         <div>
           <label className="text-xs font-semibold mb-1.5 block" style={{ color: '#334155' }}>Zona horaria</label>
           <select
