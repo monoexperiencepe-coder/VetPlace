@@ -6,519 +6,376 @@ import { useToast } from '@/context/ToastContext'
 import { createClient } from '@/lib/supabase'
 import { api } from '@/lib/api'
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-interface OverdueEvent {
-  id: string; type: string; scheduled_date: string
-  pet: { id: string; name: string; user: { id: string; name?: string; phone: string } | null } | null
-}
 interface TodayBooking {
-  id: string; time: string; status: string; notes?: string
+  id: string; time: string; status: string; notes?: string; price?: number
   pet: { id: string; name: string; type: string; user: { id: string; name?: string; phone: string } | null } | null
 }
 interface StatsData {
   bookings_today: number; bookings_yesterday: number
   bookings_this_week: number; bookings_last_week: number
   bookings_this_month: number; bookings_last_month: number
-  clients_total: number; clients_this_month: number; clients_last_month: number
+  clients_total: number; clients_this_month: number
   pets_total: number; events_pending: number; events_next_7_days: number; events_overdue: number
-  next_booking: { date: string; time: string; pet_name: string } | null
 }
 interface Conversation {
   id: string; client_name?: string; phone: string
-  bot_active: boolean; unread_count: number; last_message?: string; last_message_at?: string
+  bot_active: boolean; unread_count: number; last_message?: string
 }
 interface UpcomingEvent {
   id: string; type: string; scheduled_date: string
   pet: { id: string; name: string; type: string; user: { id: string; name?: string; phone: string } | null } | null
 }
-interface InactiveClient {
-  id: string; name?: string; phone: string; created_at: string
-  pets: { id: string; name: string; type: string }[]
+interface OverdueEvent {
+  id: string; type: string; scheduled_date: string
+  pet: { id: string; name: string; user: { id: string; name?: string; phone: string } | null } | null
 }
 
 const PET_EMOJI: Record<string, string> = { dog: '🐕', cat: '🐱', bird: '🐦', rabbit: '🐇', other: '🐾' }
-const EVENT_LABEL: Record<string, string> = { GROOMING: 'Baño', VACCINE: 'Vacuna', CHECKUP: 'Consulta', FOLLOWUP: 'Seguimiento', OTHER: 'Otro' }
+const EVENT_LABEL: Record<string, string> = { vaccine: 'Vacuna', grooming: 'Baño', checkup: 'Consulta', deworming: 'Desparasitación' }
+const STATUS_STYLE: Record<string, { bg: string; color: string; label: string }> = {
+  CONFIRMED: { bg: '#f0fdf4', color: '#16a34a', label: 'Confirmada' },
+  PENDING:   { bg: '#fffbeb', color: '#d97706', label: 'Pendiente'  },
+  COMPLETED: { bg: '#f1f5f9', color: '#64748b', label: 'Completada' },
+  CANCELLED: { bg: '#fef2f2', color: '#dc2626', label: 'Cancelada'  },
+}
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
 export default function DashboardPage() {
   const toast = useToast()
+  const [stats, setStats]             = useState<StatsData | null>(null)
+  const [loadingStats, setLS]         = useState(true)
+  const [todayBookings, setTB]        = useState<TodayBooking[]>([])
+  const [loadingTB, setLoadingTB]     = useState(true)
+  const [conversations, setConvs]     = useState<Conversation[]>([])
+  const [upcomingEvents, setUpcoming] = useState<UpcomingEvent[]>([])
+  const [overdueEvents, setOverdue]   = useState<OverdueEvent[]>([])
+  const [clinicName, setClinicName]   = useState('Mi Clínica')
+  const [completingId, setCI]         = useState<string | null>(null)
+  const [notifying, setNotifying]     = useState(false)
 
-  const [stats, setStats]               = useState<StatsData | null>(null)
-  const [loadingStats, setLoadingStats] = useState(true)
-  const [todayBookings, setTodayBookings]     = useState<TodayBooking[]>([])
-  const [loadingBookings, setLoadingBookings] = useState(true)
-  const [overdueEvents, setOverdueEvents]     = useState<OverdueEvent[]>([])
-  const [conversations, setConversations]     = useState<Conversation[]>([])
-  const [notifying, setNotifying]             = useState(false)
-  const [clinicAddress, setClinicAddress]     = useState('')
-  const [clinicName, setClinicName]           = useState('Mi Clínica')
-  const [completingId, setCompletingId]       = useState<string | null>(null)
-  const [upcomingEvents, setUpcomingEvents]   = useState<UpcomingEvent[]>([])
-  const [inactiveClients, setInactiveClients] = useState<InactiveClient[]>([])
-
-  const today = new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })
   const todayStr = new Date().toISOString().slice(0, 10)
 
   useEffect(() => {
-    // Cargar metadata de la clínica
     const supabase = createClient()
     supabase.auth.getUser().then(({ data }) => {
       const meta = data.user?.user_metadata
       if (meta?.clinic_name) setClinicName(meta.clinic_name)
-      else {
-        const stored = localStorage.getItem('vetplace_clinic_name')
-        if (stored) setClinicName(stored)
-      }
     })
     api.getMyClinic()
       .then((d: unknown) => {
-        const clinic = (d as { ok?: boolean; data?: { address?: string; name?: string } })?.data
-        if (clinic?.address) setClinicAddress(clinic.address)
-        if (clinic?.name)    setClinicName(clinic.name)
-      })
-      .catch(() => {})
+        const c = (d as { data?: { name?: string } })?.data
+        if (c?.name) setClinicName(c.name)
+      }).catch(() => {})
   }, [])
 
   useEffect(() => {
-    api.getStats()
-      .then(d => { setStats(d as StatsData); setLoadingStats(false) })
-      .catch(() => setLoadingStats(false))
+    api.getStats().then(d => { setStats(d as StatsData); setLS(false) }).catch(() => setLS(false))
   }, [])
 
   useEffect(() => {
-    api.getTodayBookings()
-      .then(d => { setTodayBookings(d as TodayBooking[]); setLoadingBookings(false) })
-      .catch(() => setLoadingBookings(false))
+    api.getTodayBookings().then(d => { setTB(d as TodayBooking[]); setLoadingTB(false) }).catch(() => setLoadingTB(false))
   }, [])
 
   useEffect(() => {
-    api.getOverdueEvents()
-      .then(d => setOverdueEvents(d as OverdueEvent[]))
-      .catch(() => {})
+    api.getConversations().then((d: unknown) => {
+      const arr = (d as { data?: Conversation[] })?.data ?? (d as Conversation[])
+      setConvs(Array.isArray(arr) ? arr.slice(0, 6) : [])
+    }).catch(() => {})
   }, [])
 
   useEffect(() => {
-    const from = todayStr
-    const to   = new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10)
-    api.getUpcomingEvents(from, to)
-      .then(d => setUpcomingEvents(d as UpcomingEvent[]))
-      .catch(() => {})
+    const to = new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10)
+    api.getUpcomingEvents(todayStr, to).then(d => setUpcoming(d as UpcomingEvent[])).catch(() => {})
   }, [todayStr])
 
   useEffect(() => {
-    api.getInactiveClients(30)
-      .then(d => setInactiveClients(d as InactiveClient[]))
-      .catch(() => {})
+    api.getOverdueEvents().then(d => setOverdue(d as OverdueEvent[])).catch(() => {})
   }, [])
 
-  useEffect(() => {
-    api.getConversations()
-      .then((d: unknown) => {
-        const arr = (d as { ok?: boolean; data?: Conversation[] })?.data ?? (d as Conversation[])
-        setConversations(Array.isArray(arr) ? arr.slice(0, 5) : [])
-      })
-      .catch(() => {})
-  }, [])
+  const completeBooking = async (id: string) => {
+    setCI(id)
+    try {
+      await api.completeBooking(id)
+      setTB(prev => prev.filter(b => b.id !== id))
+      toast.success('✓ Servicio completado')
+    } catch { toast.error('Error al completar') }
+    finally { setCI(null) }
+  }
 
   const notifyAll = async () => {
     setNotifying(true)
     try {
       await Promise.all(overdueEvents.map(e => api.notifyEvent(e.id)))
-      setOverdueEvents([])
+      setOverdue([])
       toast.success('✓ Recordatorios enviados')
     } catch { toast.error('Error al notificar') }
     finally { setNotifying(false) }
   }
 
-  const completeBooking = async (id: string) => {
-    setCompletingId(id)
-    try {
-      await api.completeBooking(id)
-      setTodayBookings(prev => prev.filter(b => b.id !== id))
-      toast.success('✓ Servicio completado')
-    } catch { toast.error('Error al completar') }
-    finally { setCompletingId(null) }
-  }
-
-  const mapsUrl = todayBookings.length
-    ? `https://www.google.com/maps/dir/${todayBookings.map(b => b.pet?.user?.phone ?? '').join('/')}`
-    : 'https://maps.google.com'
-
-  const occupancy = stats
-    ? Math.min(100, Math.round((stats.bookings_today / Math.max(stats.bookings_this_week / 5 || 1, 1)) * 100))
+  const S = (k: string) => STATUS_STYLE[k] ?? STATUS_STYLE.PENDING
+  const weekTrend = stats
+    ? Math.round(((stats.bookings_this_week - stats.bookings_last_week) / Math.max(stats.bookings_last_week, 1)) * 100)
     : 0
+  const monthIncome = (stats?.bookings_this_month ?? 0) * 62
+  const todayIncome = todayBookings.reduce((s, b) => s + (b.price ?? 62), 0)
 
   return (
-    <div className="space-y-4 pb-8">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, paddingBottom: 32 }}>
 
-      {/* ══════════════════════════════════════════════════════════════
-          HEADER INTELIGENTE
-      ══════════════════════════════════════════════════════════════ */}
-      <Link
-        href="/bookings"
-        className="block rounded-2xl overflow-hidden px-6 py-5 cursor-pointer transition-opacity hover:opacity-95"
-        style={{ background: 'linear-gradient(135deg,#3b10b5 0%,#601EF9 60%,#7c3aff 100%)' }}
-      >
-        <div className="absolute -top-10 -right-10 w-48 h-48 rounded-full opacity-10"
-          style={{ background: 'radial-gradient(circle,#fff 0%,transparent 70%)', position: 'absolute' }} />
-        <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      {/* ── BANNER ────────────────────────────────────────────── */}
+      <Link href="/bookings" style={{
+        display: 'block', borderRadius: 18, padding: '20px 24px',
+        background: 'linear-gradient(135deg,#3b10b5 0%,#601EF9 55%,#7c3aff 100%)',
+        textDecoration: 'none',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
           <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#c4b5fd' }}>
-                Torre de control · <span className="capitalize">{today}</span>
-              </span>
-            </div>
-            <h1 className="text-white text-xl font-bold mb-1">{clinicName}</h1>
-            {clinicAddress ? (
-              <div className="flex items-center gap-1.5">
-                <span style={{ color: '#a78bfa', fontSize: 13 }}>📍</span>
-                <span className="text-sm" style={{ color: '#c4b5fd' }}>{clinicAddress}</span>
-              </div>
-            ) : (
-              <Link href="/settings" className="text-xs underline" style={{ color: '#a78bfa' }}
-                onClick={e => e.stopPropagation()}>
-                + Agregar dirección de la clínica
-              </Link>
-            )}
+            <p style={{ color: '#c4b5fd', fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>
+              Torre de control · {new Date().toLocaleDateString('es-PE', { weekday: 'long', day: 'numeric', month: 'long' })}
+            </p>
+            <h1 style={{ color: '#fff', fontSize: 20, fontWeight: 700, margin: 0 }}>{clinicName}</h1>
           </div>
-          <div className="flex items-center gap-3 flex-wrap">
-            <Pill icon="🛵" label="Servicios hoy" value={loadingStats ? '…' : String(stats?.bookings_today ?? 0)} />
-            <Pill icon="⚠️" label="Vencidos" value={String(overdueEvents.length)} alert={overdueEvents.length > 0} />
-            <span className="hidden sm:block px-4 py-2 rounded-xl text-sm font-semibold text-white"
-              style={{ background: 'rgba(255,255,255,0.18)' }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            <BannerPill icon="📅" label="Citas hoy"  value={loadingStats ? '…' : String(stats?.bookings_today ?? 0)} />
+            <BannerPill icon="⚠️" label="Vencidos"   value={String(overdueEvents.length)} alert={overdueEvents.length > 0} />
+            <BannerPill icon="💬" label="Chats"       value={String(conversations.length)} />
+            <span style={{ background: 'rgba(255,255,255,0.18)', color: '#fff', padding: '7px 16px', borderRadius: 10, fontSize: 13, fontWeight: 600 }}>
               Ver agenda →
             </span>
           </div>
         </div>
       </Link>
 
-      {/* ══════════════════════════════════════════════════════════════
-          LAYOUT PRINCIPAL
-      ══════════════════════════════════════════════════════════════ */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      {/* ── STAT CARDS ────────────────────────────────────────── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10 }}>
+        <StatCard icon="📅" label="Citas este mes"    value={loadingStats ? '…' : String(stats?.bookings_this_month ?? 0)}
+          sub={weekTrend >= 0 ? `+${weekTrend}% vs sem. ant.` : `${weekTrend}% vs sem. ant.`}
+          color="#601EF9" trend={weekTrend} />
+        <StatCard icon="👥" label="Clientes totales"  value={loadingStats ? '…' : String(stats?.clients_total ?? 0)}
+          sub={`+${stats?.clients_this_month ?? 0} este mes`} color="#0ea5e9" />
+        <StatCard icon="💰" label="Ingresos est. mes" value={loadingStats ? '…' : `S/ ${monthIncome}`}
+          sub={`${stats?.bookings_this_month ?? 0} servicios`} color="#10b981" />
+        <StatCard icon="🔔" label="Eventos próximos"  value={loadingStats ? '…' : String(stats?.events_next_7_days ?? 0)}
+          sub={`${stats?.events_overdue ?? 0} vencidos`}
+          color={(stats?.events_overdue ?? 0) > 0 ? '#ef4444' : '#f59e0b'}
+          alert={(stats?.events_overdue ?? 0) > 0} />
+      </div>
 
-        {/* ── Columna izquierda (2/3) ── */}
-        <div className="lg:col-span-2 space-y-4">
+      {/* ── MAIN GRID ─────────────────────────────────────────── */}
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16 }}>
 
-          {/* RUTAS DEL DÍA */}
-          <Section>
-            <SectionHeader
-              icon="🛵"
-              title="Rutas del día"
-              badge={todayBookings.length > 0 ? `${todayBookings.length} paradas` : undefined}
-              action={
-                todayBookings.length > 0 ? (
-                  <a
-                    href={mapsUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs font-semibold px-3 py-1.5 rounded-xl flex items-center gap-1.5"
-                    style={{ background: '#F3EEFF', color: '#601EF9' }}
-                  >
-                    <span>🗺️</span> Google Maps
-                  </a>
-                ) : null
-              }
+        {/* LEFT */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+          {/* AGENDA DEL DÍA */}
+          <Card>
+            <CardHeader icon="🗓️" title="Agenda de hoy"
+              badge={todayBookings.length > 0 ? `${todayBookings.length} citas` : undefined}
+              action={<Link href="/bookings" style={{ fontSize: 12, fontWeight: 600, color: '#601EF9', textDecoration: 'none' }}>Ver agenda →</Link>}
             />
-
-            {/* Mapa visual de ruta */}
-            {loadingBookings ? (
-              <div className="h-32 rounded-2xl animate-pulse" style={{ background: '#F3EEFF' }} />
+            {loadingTB ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {[1, 2].map(i => <div key={i} style={{ height: 60, borderRadius: 12, background: '#F3EEFF' }} />)}
+              </div>
             ) : todayBookings.length === 0 ? (
-              <EmptyRoute />
-            ) : (
-              <>
-                <RouteMap bookings={todayBookings} clinicName={clinicName} />
-
-                {/* Lista de paradas */}
-                <div className="mt-3 space-y-0">
-                  {/* Origen */}
-                  <RouteStop
-                    index={0}
-                    isClinic
-                    label={clinicName || 'Clínica (origen)'}
-                    sub="Punto de inicio"
-                    isFirst
-                  />
-                  {todayBookings.map((b, i) => (
-                    <RouteStop
-                      key={b.id}
-                      index={i + 1}
-                      label={`${b.pet?.name ?? '?'} · ${b.pet?.user?.name ?? b.pet?.user?.phone ?? '?'}`}
-                      sub={`${b.time} · ${EVENT_LABEL[b.notes ?? ''] ?? b.notes ?? 'Servicio'}`}
-                      emoji={PET_EMOJI[b.pet?.type ?? 'other']}
-                      onComplete={() => completeBooking(b.id)}
-                      completing={completingId === b.id}
-                      isLast={i === todayBookings.length - 1}
-                    />
-                  ))}
-                  {/* Retorno */}
-                  <RouteStop
-                    index={todayBookings.length + 1}
-                    isClinic
-                    label={clinicName || 'Clínica (retorno)'}
-                    sub="Punto de llegada"
-                    isReturn
-                  />
-                </div>
-
-                {/* Métricas de ruta */}
-                <div className="grid grid-cols-3 gap-2 mt-4">
-                  <RouteStat label="Paradas" value={String(todayBookings.length)} icon="📍" />
-                  <RouteStat label="Est. duración" value={`~${todayBookings.length * 35}m`} icon="⏱️" />
-                  <RouteStat label="Eficiencia" value={todayBookings.length >= 3 ? 'Alta' : 'Normal'} icon="⚡" color={todayBookings.length >= 3 ? '#10b981' : '#f59e0b'} />
-                </div>
-
-                {/* Acciones de ruta */}
-                <div className="flex flex-wrap gap-2 mt-3 pt-3" style={{ borderTop: '1px solid #f1f5f9' }}>
-                  <RouteAction icon="🔄" label="Recalcular" onClick={() => toast.success('Ruta recalculada')} />
-                  <RouteAction
-                    icon="💬"
-                    label="Enviar por WhatsApp"
-                    onClick={() => {
-                      const text = encodeURIComponent(
-                        `📍 Ruta de hoy (${todayStr}):\n` +
-                        todayBookings.map((b, i) => `${i + 1}. ${b.time} · ${b.pet?.name} · ${b.pet?.user?.name ?? b.pet?.user?.phone}`).join('\n')
-                      )
-                      window.open(`https://wa.me/?text=${text}`, '_blank')
-                    }}
-                  />
-                  <Link href="/bookings">
-                    <RouteAction icon="📅" label="Ver agenda completa" onClick={() => {}} />
-                  </Link>
-                </div>
-              </>
-            )}
-          </Section>
-
-          {/* OPORTUNIDADES */}
-          <Section>
-            <SectionHeader
-              icon="🎯"
-              title="Oportunidades"
-              badge={overdueEvents.length > 0 ? `${overdueEvents.length} sin notificar` : undefined}
-              badgeColor="#ef4444"
-              action={
-                overdueEvents.length > 0 ? (
-                  <button
-                    onClick={notifyAll}
-                    disabled={notifying}
-                    className="text-xs font-semibold px-3 py-1.5 rounded-xl"
-                    style={{ background: '#fef2f2', color: '#dc2626' }}
-                  >
-                    {notifying ? 'Enviando…' : '📨 Notificar todos'}
-                  </button>
-                ) : null
-              }
-            />
-
-            {overdueEvents.length === 0 ? (
-              <div className="flex items-center gap-3 py-4">
-                <span className="text-2xl">✅</span>
-                <div>
-                  <p className="text-sm font-semibold" style={{ color: '#0f172a' }}>Todo al día</p>
-                  <p className="text-xs" style={{ color: '#94a3b8' }}>No hay eventos vencidos pendientes de notificación.</p>
-                </div>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '32px 0', gap: 10 }}>
+                <span style={{ fontSize: 36 }}>📋</span>
+                <p style={{ fontSize: 14, fontWeight: 600, color: '#0f172a', margin: 0 }}>Sin citas programadas hoy</p>
+                <p style={{ fontSize: 12, color: '#94a3b8', margin: 0 }}>Agenda nuevas citas para verlas aquí</p>
+                <Link href="/bookings?new=1" style={{ marginTop: 4, padding: '8px 18px', borderRadius: 10,
+                  fontSize: 12, fontWeight: 700, color: '#fff',
+                  background: 'linear-gradient(135deg,#3b10b5,#601EF9)', textDecoration: 'none' }}>
+                  + Nueva cita
+                </Link>
               </div>
             ) : (
-              <div className="space-y-2">
-                {overdueEvents.slice(0, 5).map(e => {
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {todayBookings.map(b => {
+                  const st = S(b.status)
+                  return (
+                    <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px',
+                      borderRadius: 12, border: '1px solid #ede9fe', background: '#fafafa' }}>
+                      <div style={{ minWidth: 48, textAlign: 'center' }}>
+                        <p style={{ fontSize: 15, fontWeight: 700, color: '#601EF9', margin: 0 }}>{b.time}</p>
+                      </div>
+                      <div style={{ width: 1, height: 36, background: '#ede9fe', flexShrink: 0 }} />
+                      <div style={{ width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
+                        background: 'linear-gradient(135deg,#ede9fe,#c4b5fd)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>
+                        {PET_EMOJI[b.pet?.type ?? 'other']}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ fontSize: 14, fontWeight: 600, color: '#0f172a', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {b.pet?.name ?? '?'}{' '}
+                          <span style={{ fontWeight: 400, color: '#64748b' }}>· {b.pet?.user?.name ?? b.pet?.user?.phone ?? '?'}</span>
+                        </p>
+                        <p style={{ fontSize: 12, color: '#94a3b8', margin: 0, marginTop: 2 }}>{b.notes ?? 'Servicio'}</p>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                        <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 20, background: st.bg, color: st.color }}>
+                          {st.label}
+                        </span>
+                        {b.status === 'CONFIRMED' && (
+                          <button onClick={() => completeBooking(b.id)} disabled={completingId === b.id}
+                            style={{ fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 8,
+                              background: '#601EF9', color: '#fff', border: 'none', cursor: 'pointer',
+                              opacity: completingId === b.id ? 0.6 : 1 }}>
+                            {completingId === b.id ? '…' : '✓'}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+                <div style={{ display: 'flex', gap: 8, marginTop: 4, paddingTop: 12, borderTop: '1px solid #f1f5f9' }}>
+                  <MiniStat label="Citas hoy"       value={String(todayBookings.length)} />
+                  <MiniStat label="Est. ingresos"   value={`S/ ${todayIncome}`} />
+                  <MiniStat label="Completadas"     value={String(todayBookings.filter(b => b.status === 'COMPLETED').length)} />
+                </div>
+              </div>
+            )}
+          </Card>
+
+          {/* PRÓXIMOS 3 DÍAS */}
+          {upcomingEvents.length > 0 && (
+            <Card>
+              <CardHeader icon="📆" title="Próximos 3 días"
+                badge={`${upcomingEvents.length} eventos`}
+                action={<Link href="/events" style={{ fontSize: 12, fontWeight: 600, color: '#601EF9', textDecoration: 'none' }}>Ver todos →</Link>}
+              />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {upcomingEvents.slice(0, 5).map(e => {
+                  const d    = new Date(e.scheduled_date + 'T00:00:00')
+                  const diff = Math.round((d.getTime() - Date.now()) / 86400000)
+                  const chip = diff === 0 ? 'Hoy' : diff === 1 ? 'Mañana' : `En ${diff}d`
+                  const chipColor = diff === 0 ? '#16a34a' : diff === 1 ? '#d97706' : '#601EF9'
+                  const chipBg   = diff === 0 ? '#dcfce7' : diff === 1 ? '#fef3c7' : '#F3EEFF'
+                  return (
+                    <Link key={e.id} href={e.pet ? `/pets/${e.pet.id}` : '/events'}
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+                        padding: '10px 12px', borderRadius: 10, background: '#F9F9FB',
+                        border: '1px solid #ede9fe', textDecoration: 'none' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span style={{ fontSize: 20 }}>{PET_EMOJI[e.pet?.type ?? 'other']}</span>
+                        <div>
+                          <p style={{ fontSize: 13, fontWeight: 600, color: '#0f172a', margin: 0 }}>
+                            {e.pet?.name ?? '?'}{' '}
+                            <span style={{ fontWeight: 400, color: '#94a3b8' }}>· {e.pet?.user?.name ?? e.pet?.user?.phone ?? '?'}</span>
+                          </p>
+                          <p style={{ fontSize: 11, color: '#94a3b8', margin: 0 }}>
+                            {EVENT_LABEL[e.type] ?? e.type} · {e.scheduled_date}
+                          </p>
+                        </div>
+                      </div>
+                      <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20,
+                        background: chipBg, color: chipColor, flexShrink: 0 }}>{chip}</span>
+                    </Link>
+                  )
+                })}
+              </div>
+            </Card>
+          )}
+
+          {/* OPORTUNIDADES */}
+          {overdueEvents.length > 0 && (
+            <Card>
+              <CardHeader icon="🎯" title="Oportunidades"
+                badge={`${overdueEvents.length} sin notificar`} badgeRed
+                action={
+                  <button onClick={notifyAll} disabled={notifying}
+                    style={{ fontSize: 12, fontWeight: 600, padding: '5px 12px', borderRadius: 8,
+                      background: '#fef2f2', color: '#dc2626', border: 'none', cursor: 'pointer' }}>
+                    {notifying ? 'Enviando…' : '📨 Notificar todos'}
+                  </button>
+                }
+              />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {overdueEvents.slice(0, 4).map(e => {
                   const days = Math.floor((Date.now() - new Date(e.scheduled_date).getTime()) / 86400000)
                   return (
-                    <div key={e.id} className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl"
-                      style={{ background: '#fef2f2', border: '1px solid #fecaca' }}>
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="w-1.5 h-1.5 rounded-full shrink-0 animate-pulse" style={{ background: '#ef4444' }} />
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold truncate" style={{ color: '#0f172a' }}>
-                            {e.pet?.name ?? '?'} · <span className="font-normal">{e.pet?.user?.name ?? e.pet?.user?.phone ?? '?'}</span>
+                    <div key={e.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+                      padding: '10px 12px', borderRadius: 10, background: '#fef2f2', border: '1px solid #fecaca' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                        <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#ef4444', flexShrink: 0, display: 'inline-block' }} />
+                        <div style={{ minWidth: 0 }}>
+                          <p style={{ fontSize: 13, fontWeight: 600, color: '#0f172a', margin: 0 }}>
+                            {e.pet?.name ?? '?'}{' '}
+                            <span style={{ fontWeight: 400 }}>· {e.pet?.user?.name ?? e.pet?.user?.phone ?? '?'}</span>
                           </p>
-                          <p className="text-xs" style={{ color: '#ef4444' }}>
+                          <p style={{ fontSize: 11, color: '#ef4444', margin: 0 }}>
                             {EVENT_LABEL[e.type] ?? e.type} · vencido hace {days}d
                           </p>
                         </div>
                       </div>
-                      <button
-                        onClick={async () => {
-                          await api.notifyEvent(e.id)
-                          setOverdueEvents(prev => prev.filter(x => x.id !== e.id))
-                          toast.success('Recordatorio enviado')
-                        }}
-                        className="text-xs font-semibold px-2.5 py-1 rounded-lg shrink-0"
-                        style={{ background: '#dc2626', color: '#fff' }}
-                      >
+                      <button onClick={async () => {
+                        await api.notifyEvent(e.id)
+                        setOverdue(prev => prev.filter(x => x.id !== e.id))
+                        toast.success('Recordatorio enviado')
+                      }} style={{ fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 8,
+                        background: '#dc2626', color: '#fff', border: 'none', cursor: 'pointer', flexShrink: 0 }}>
                         Notificar
                       </button>
                     </div>
                   )
                 })}
-                {overdueEvents.length > 5 && (
-                  <p className="text-xs text-center" style={{ color: '#94a3b8' }}>
-                    +{overdueEvents.length - 5} más — <button onClick={notifyAll} className="underline font-semibold" style={{ color: '#601EF9' }}>Notificar todos</button>
-                  </p>
-                )}
               </div>
-            )}
-
-            {/* Siguiente evento */}
-            {stats?.events_next_7_days !== undefined && stats.events_next_7_days > 0 && (
-              <div className="flex items-center justify-between mt-3 pt-3" style={{ borderTop: '1px solid #f1f5f9' }}>
-                <div className="flex items-center gap-2">
-                  <span className="text-base">📋</span>
-                  <div>
-                    <p className="text-xs font-semibold" style={{ color: '#0f172a' }}>{stats.events_next_7_days} eventos próximos 7 días</p>
-                    <p className="text-[11px]" style={{ color: '#94a3b8' }}>{stats.events_pending} pendientes en total</p>
-                  </div>
-                </div>
-                <Link href="/events" className="text-xs font-semibold" style={{ color: '#601EF9' }}>Ver todos →</Link>
-              </div>
-            )}
-          </Section>
-          {/* PRÓXIMOS SEGUIMIENTOS */}
-          {upcomingEvents.length > 0 && (
-            <Section>
-              <SectionHeader
-                icon="📅"
-                title="Próximos 3 días"
-                badge={`${upcomingEvents.length} eventos`}
-                action={<Link href="/events" className="text-xs font-semibold" style={{ color: '#601EF9' }}>Ver todos →</Link>}
-              />
-              <div className="space-y-2">
-                {upcomingEvents.slice(0, 6).map(e => {
-                  const d    = new Date(e.scheduled_date + 'T00:00:00')
-                  const diff = Math.round((d.getTime() - Date.now()) / 86400000)
-                  const label = diff === 0 ? 'Hoy' : diff === 1 ? 'Mañana' : `En ${diff}d`
-                  const isToday = diff === 0
-                  const isTomorrow = diff === 1
-                  return (
-                    <Link key={e.id} href={e.pet ? `/pets/${e.pet.id}` : '/events'}
-                      className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl transition-colors"
-                      style={{ background: isToday ? '#f0fdf4' : isTomorrow ? '#fffbeb' : '#F9F9FB',
-                               border: `1px solid ${isToday ? '#bbf7d0' : isTomorrow ? '#fde68a' : '#ede9fe'}` }}
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="text-base">{PET_EMOJI[e.pet?.type ?? 'other']}</span>
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold truncate" style={{ color: '#0f172a' }}>
-                            {e.pet?.name ?? '?'}
-                            <span className="font-normal text-xs ml-1" style={{ color: '#64748b' }}>
-                              · {e.pet?.user?.name ?? e.pet?.user?.phone ?? '?'}
-                            </span>
-                          </p>
-                          <p className="text-xs" style={{ color: '#64748b' }}>
-                            {EVENT_LABEL[e.type.toUpperCase()] ?? e.type} · {e.scheduled_date}
-                          </p>
-                        </div>
-                      </div>
-                      <span className="text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0"
-                        style={{ background: isToday ? '#dcfce7' : isTomorrow ? '#fef3c7' : '#F3EEFF',
-                                 color: isToday ? '#16a34a' : isTomorrow ? '#d97706' : '#601EF9' }}>
-                        {label}
-                      </span>
-                    </Link>
-                  )
-                })}
-              </div>
-            </Section>
+            </Card>
           )}
 
         </div>
 
-        {/* ── Columna derecha (1/3) ── */}
-        <div className="space-y-4">
+        {/* RIGHT */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
           {/* CONVERSACIONES */}
-          <Section>
-            <SectionHeader
-              icon="💬"
-              title="Conversaciones"
-              action={<Link href="/chats" className="text-xs font-semibold" style={{ color: '#601EF9' }}>Ver todas →</Link>}
+          <Card>
+            <CardHeader icon="💬" title="Conversaciones"
+              action={<Link href="/chats" style={{ fontSize: 12, fontWeight: 600, color: '#601EF9', textDecoration: 'none' }}>Ver todas →</Link>}
             />
-
             {conversations.length === 0 ? (
-              <div className="flex flex-col items-center py-6 gap-2">
-                <span className="text-3xl">💬</span>
-                <p className="text-xs text-center" style={{ color: '#94a3b8' }}>Sin conversaciones activas</p>
-                <Link href="/chats" className="text-xs font-semibold" style={{ color: '#601EF9' }}>Abrir chats →</Link>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '24px 0', gap: 8 }}>
+                <span style={{ fontSize: 28 }}>💬</span>
+                <p style={{ fontSize: 12, color: '#94a3b8', margin: 0 }}>Sin conversaciones activas</p>
               </div>
             ) : (
-              <div className="space-y-1">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 {conversations.map(c => (
                   <Link key={c.id} href="/chats"
-                    className="flex items-center gap-2.5 px-2 py-2.5 rounded-xl transition-colors"
-                    onMouseEnter={e => e.currentTarget.style.background = '#F3EEFF'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                  >
-                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0"
-                      style={{ background: 'linear-gradient(135deg,#601EF9,#3b10b5)' }}>
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 8px',
+                      borderRadius: 10, textDecoration: 'none' }}
+                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = '#F3EEFF'}
+                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}>
+                    <div style={{ width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
+                      background: 'linear-gradient(135deg,#601EF9,#3b10b5)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 13, fontWeight: 700, color: '#fff' }}>
                       {(c.client_name ?? c.phone).charAt(0).toUpperCase()}
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-1">
-                        <p className="text-xs font-semibold truncate" style={{ color: '#0f172a' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4 }}>
+                        <p style={{ fontSize: 12, fontWeight: 600, color: '#0f172a', margin: 0,
+                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {c.client_name ?? c.phone}
                         </p>
                         {c.unread_count > 0 && (
-                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full text-white shrink-0"
-                            style={{ background: '#601EF9' }}>
-                            {c.unread_count}
-                          </span>
+                          <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 20,
+                            background: '#601EF9', color: '#fff', flexShrink: 0 }}>{c.unread_count}</span>
                         )}
                       </div>
-                      <p className="text-[11px] truncate" style={{ color: '#94a3b8' }}>
-                        {c.bot_active ? '🤖 Bot activo · ' : ''}{c.last_message ?? 'Sin mensajes'}
+                      <p style={{ fontSize: 11, color: '#94a3b8', margin: 0,
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {c.bot_active ? '🤖 Bot · ' : ''}{c.last_message ?? 'Sin mensajes'}
                       </p>
                     </div>
                   </Link>
                 ))}
               </div>
             )}
-          </Section>
-
-          {/* CLIENTES INACTIVOS */}
-          {inactiveClients.length > 0 && (
-            <Section>
-              <SectionHeader
-                icon="💤"
-                title="Sin actividad 30d+"
-                badge={`${inactiveClients.length}`}
-                badgeColor="#f59e0b"
-              />
-              <div className="space-y-1">
-                {inactiveClients.slice(0, 5).map(c => (
-                  <Link key={c.id} href={`/clients`}
-                    className="flex items-center gap-2.5 px-2 py-2 rounded-xl transition-colors"
-                    onMouseEnter={e => e.currentTarget.style.background = '#fffbeb'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                  >
-                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0"
-                      style={{ background: 'linear-gradient(135deg,#f59e0b,#d97706)' }}>
-                      {(c.name ?? c.phone).charAt(0).toUpperCase()}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold truncate" style={{ color: '#0f172a' }}>
-                        {c.name ?? c.phone}
-                      </p>
-                      <p className="text-[11px] truncate" style={{ color: '#94a3b8' }}>
-                        {c.pets.map(p => p.name).join(', ')}
-                      </p>
-                    </div>
-                    <span className="text-[10px] shrink-0" style={{ color: '#d97706' }}>Contactar</span>
-                  </Link>
-                ))}
-              </div>
-              {inactiveClients.length > 5 && (
-                <p className="text-[11px] mt-2" style={{ color: '#94a3b8' }}>
-                  +{inactiveClients.length - 5} clientes más sin actividad
-                </p>
-              )}
-            </Section>
-          )}
+          </Card>
 
           {/* ACCIONES RÁPIDAS */}
-          <Section>
-            <SectionHeader icon="⚡" title="Acciones rápidas" />
-            <div className="grid grid-cols-2 gap-2">
+          <Card>
+            <CardHeader icon="⚡" title="Acciones rápidas" />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
               {[
                 { icon: '📅', label: 'Nueva cita',    href: '/bookings?new=1' },
                 { icon: '👤', label: 'Nuevo cliente', href: '/clients' },
@@ -526,197 +383,72 @@ export default function DashboardPage() {
                 { icon: '📋', label: 'Nuevo evento',  href: '/events' },
               ].map(a => (
                 <Link key={a.label} href={a.href}
-                  className="flex flex-col items-center gap-2 py-3 px-2 rounded-2xl text-center transition-all hover:-translate-y-0.5"
-                  style={{ background: '#F9F9FB', border: '1.5px solid #ede9fe' }}
-                  onMouseEnter={e => { e.currentTarget.style.background = '#F3EEFF'; e.currentTarget.style.borderColor = '#c4b5fd' }}
-                  onMouseLeave={e => { e.currentTarget.style.background = '#F9F9FB'; e.currentTarget.style.borderColor = '#ede9fe' }}
-                >
-                  <span className="text-xl">{a.icon}</span>
-                  <span className="text-[11px] font-semibold" style={{ color: '#334155' }}>{a.label}</span>
+                  style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                    padding: '14px 8px', borderRadius: 12, textAlign: 'center', textDecoration: 'none',
+                    background: '#F9F9FB', border: '1.5px solid #ede9fe', transition: 'all 0.15s' }}
+                  onMouseEnter={e => {
+                    const el = e.currentTarget as HTMLElement
+                    el.style.background = '#F3EEFF'
+                    el.style.borderColor = '#c4b5fd'
+                    el.style.transform = 'translateY(-1px)'
+                  }}
+                  onMouseLeave={e => {
+                    const el = e.currentTarget as HTMLElement
+                    el.style.background = '#F9F9FB'
+                    el.style.borderColor = '#ede9fe'
+                    el.style.transform = 'translateY(0)'
+                  }}>
+                  <span style={{ fontSize: 22 }}>{a.icon}</span>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: '#334155' }}>{a.label}</span>
                 </Link>
               ))}
             </div>
-          </Section>
+          </Card>
 
-          {/* MINI MÉTRICAS */}
-          <Section>
-            <SectionHeader icon="📊" title="Métricas del día" />
-            <div className="space-y-3">
-              <MetricRow
-                label="Servicios realizados"
-                value={loadingStats ? '…' : `${stats?.bookings_today ?? 0}`}
-                sub={`de ${Math.max(stats?.bookings_today ?? 0, 6)} posibles`}
-                percent={occupancy}
-                color="#601EF9"
-              />
-              <MetricRow
-                label="Esta semana"
-                value={loadingStats ? '…' : `${stats?.bookings_this_week ?? 0}`}
-                sub={`vs ${stats?.bookings_last_week ?? 0} sem. ant.`}
-                percent={Math.min(100, ((stats?.bookings_this_week ?? 0) / Math.max(stats?.bookings_last_week ?? 1, 1)) * 100)}
-                color="#10b981"
-              />
-              <MetricRow
-                label="Clientes totales"
-                value={loadingStats ? '…' : `${stats?.clients_total ?? 0}`}
-                sub={`+${stats?.clients_this_month ?? 0} este mes`}
-                percent={Math.min(100, ((stats?.clients_this_month ?? 0) / Math.max(stats?.clients_total ?? 1, 1)) * 100)}
-                color="#f59e0b"
-              />
+          {/* MÉTRICAS */}
+          <Card>
+            <CardHeader icon="📊" title="Rendimiento semanal" />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <MetricBar label="Servicios"         value={stats?.bookings_this_week ?? 0}
+                max={Math.max(stats?.bookings_this_week ?? 0, stats?.bookings_last_week ?? 0, 10)}
+                color="#601EF9" sub={`vs ${stats?.bookings_last_week ?? 0} sem. ant.`} loading={loadingStats} />
+              <MetricBar label="Nuevos clientes"   value={stats?.clients_this_month ?? 0}
+                max={Math.max(stats?.clients_this_month ?? 0, 10)}
+                color="#0ea5e9" sub={`${stats?.clients_total ?? 0} total`} loading={loadingStats} />
+              <MetricBar label="Eventos pendientes" value={stats?.events_pending ?? 0}
+                max={Math.max(stats?.events_pending ?? 0, 10)}
+                color="#f59e0b" sub={`${stats?.events_next_7_days ?? 0} próx. 7 días`} loading={loadingStats} />
             </div>
-          </Section>
+          </Card>
 
         </div>
       </div>
-
     </div>
   )
 }
 
-// ─── Componente: Mapa visual de ruta ──────────────────────────────────────────
-function RouteMap({ bookings, clinicName }: { bookings: TodayBooking[]; clinicName: string }) {
-  const stops = bookings.length
-  const width  = 100
-  const pad    = 12
-  const step   = stops > 0 ? (width - pad * 2) / (stops + 1) : 0
+// ── Sub-components ─────────────────────────────────────────────────────────────
 
-  const points = [
-    { x: pad, label: '🏥', isClinic: true },
-    ...bookings.map((b, i) => ({ x: pad + step * (i + 1), label: PET_EMOJI[b.pet?.type ?? 'other'], time: b.time, name: b.pet?.name ?? '?', isClinic: false })),
-    { x: width - pad, label: '🏥', isClinic: true },
-  ]
-
+function Card({ children }: { children: React.ReactNode }) {
   return (
-    <div className="relative rounded-2xl overflow-hidden p-4" style={{ background: 'linear-gradient(135deg,#F3EEFF 0%,#ede9fe 100%)', border: '1px solid #ddd6fe' }}>
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-[11px] font-semibold uppercase tracking-widest" style={{ color: '#7c3aed' }}>Ruta del día</span>
-        <span className="text-[11px]" style={{ color: '#94a3b8' }}>{bookings.length} paradas</span>
-      </div>
-
-      {/* SVG route line */}
-      <svg viewBox={`0 0 ${width} 24`} className="w-full" style={{ height: 56, overflow: 'visible' }}>
-        {/* Línea de ruta */}
-        <path
-          d={`M ${points[0].x} 12 ${points.slice(1).map(p => `L ${p.x} 12`).join(' ')}`}
-          fill="none" stroke="#601EF9" strokeWidth="1.5" strokeDasharray="3 2" opacity="0.5"
-        />
-        {/* Puntos */}
-        {points.map((p, i) => (
-          <g key={i}>
-            <circle cx={p.x} cy={12} r={p.isClinic ? 5 : 4}
-              fill={p.isClinic ? '#601EF9' : '#fff'}
-              stroke="#601EF9" strokeWidth="1.5"
-            />
-            {!p.isClinic && (
-              <text x={p.x} y={14} textAnchor="middle" fontSize="5" fill="#601EF9" fontWeight="bold">
-                {i}
-              </text>
-            )}
-          </g>
-        ))}
-      </svg>
-
-      {/* Labels */}
-      <div className="flex justify-between mt-1">
-        <span className="text-[10px] font-semibold" style={{ color: '#601EF9' }}>🏥 {clinicName || 'Clínica'}</span>
-        {bookings.length > 0 && bookings.map((b, i) => (
-          <span key={i} className="text-[10px] font-medium" style={{ color: '#7c3aed' }}>
-            {i + 1}. {b.time}
-          </span>
-        ))}
-        <span className="text-[10px] font-semibold" style={{ color: '#601EF9' }}>🏥 Retorno</span>
-      </div>
-    </div>
-  )
-}
-
-function EmptyRoute() {
-  return (
-    <div className="flex flex-col items-center py-8 gap-3 rounded-2xl" style={{ background: '#F9F9FB', border: '1.5px dashed #ddd6fe' }}>
-      <span className="text-4xl">🛵</span>
-      <div className="text-center">
-        <p className="text-sm font-semibold" style={{ color: '#0f172a' }}>Sin servicios programados hoy</p>
-        <p className="text-xs mt-0.5" style={{ color: '#94a3b8' }}>Agendá citas para ver las rutas del día</p>
-      </div>
-      <Link href="/bookings?new=1"
-        className="px-4 py-2 rounded-xl text-xs font-bold text-white"
-        style={{ background: 'linear-gradient(135deg,#3b10b5,#601EF9)' }}>
-        + Agendar ahora
-      </Link>
-    </div>
-  )
-}
-
-// ─── Componente: Parada de ruta ───────────────────────────────────────────────
-function RouteStop({
-  index, isClinic, label, sub, emoji, isFirst, isLast, isReturn, onComplete, completing,
-}: {
-  index: number; isClinic?: boolean; label: string; sub: string
-  emoji?: string; isFirst?: boolean; isLast?: boolean; isReturn?: boolean
-  onComplete?: () => void; completing?: boolean
-}) {
-  return (
-    <div className="flex items-start gap-3">
-      {/* Línea vertical */}
-      <div className="flex flex-col items-center shrink-0" style={{ width: 28 }}>
-        <div
-          className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 z-10"
-          style={isClinic
-            ? { background: '#601EF9', color: '#fff' }
-            : { background: '#F3EEFF', color: '#601EF9', border: '2px solid #ddd6fe' }}
-        >
-          {isClinic ? '🏥' : index}
-        </div>
-        {!isLast && !isReturn && (
-          <div className="w-0.5 h-8 mt-0.5" style={{ background: '#ddd6fe' }} />
-        )}
-      </div>
-
-      {/* Contenido */}
-      <div className="flex-1 pb-3 min-w-0">
-        <div className="flex items-center justify-between gap-2">
-          <div className="min-w-0">
-            <p className="text-sm font-semibold truncate" style={{ color: isClinic ? '#601EF9' : '#0f172a' }}>
-              {emoji && <span className="mr-1">{emoji}</span>}{label}
-            </p>
-            <p className="text-[11px]" style={{ color: '#94a3b8' }}>{sub}</p>
-          </div>
-          {onComplete && !isClinic && (
-            <button
-              onClick={onComplete}
-              disabled={completing}
-              className="text-xs font-semibold px-2.5 py-1 rounded-lg text-white shrink-0 disabled:opacity-50"
-              style={{ background: '#601EF9' }}
-            >
-              {completing ? '…' : '✓'}
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ─── Pequeños componentes ──────────────────────────────────────────────────────
-function Section({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="rounded-2xl p-5" style={{ background: '#fff', border: '1px solid #ede9fe', boxShadow: '0 1px 4px rgba(96,30,249,0.04)' }}>
+    <div style={{ background: '#fff', border: '1px solid #ede9fe', borderRadius: 16,
+      padding: 20, boxShadow: '0 1px 6px rgba(96,30,249,0.05)' }}>
       {children}
     </div>
   )
 }
 
-function SectionHeader({ icon, title, badge, badgeColor, action }: {
-  icon: string; title: string; badge?: string; badgeColor?: string; action?: React.ReactNode
+function CardHeader({ icon, title, badge, badgeRed, action }: {
+  icon: string; title: string; badge?: string; badgeRed?: boolean; action?: React.ReactNode
 }) {
   return (
-    <div className="flex items-center justify-between mb-4">
-      <div className="flex items-center gap-2">
-        <span className="text-base">{icon}</span>
-        <span className="text-sm font-bold" style={{ color: '#0f172a' }}>{title}</span>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ fontSize: 16 }}>{icon}</span>
+        <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>{title}</span>
         {badge && (
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-            style={{ background: badgeColor ? '#fef2f2' : '#F3EEFF', color: badgeColor ?? '#601EF9' }}>
+          <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20,
+            background: badgeRed ? '#fef2f2' : '#F3EEFF', color: badgeRed ? '#dc2626' : '#601EF9' }}>
             {badge}
           </span>
         )}
@@ -726,59 +458,68 @@ function SectionHeader({ icon, title, badge, badgeColor, action }: {
   )
 }
 
-function Pill({ icon, label, value, alert }: { icon: string; label: string; value: string; alert?: boolean }) {
-  return (
-    <div className="flex items-center gap-2 px-3 py-2 rounded-xl"
-      style={{ background: alert && Number(value) > 0 ? 'rgba(239,68,68,0.15)' : 'rgba(255,255,255,0.13)' }}>
-      <span>{icon}</span>
-      <div>
-        <p className="text-[10px] font-medium" style={{ color: '#c4b5fd' }}>{label}</p>
-        <p className="text-sm font-bold" style={{ color: alert && Number(value) > 0 ? '#fca5a5' : '#fff' }}>{value}</p>
-      </div>
-    </div>
-  )
-}
-
-function RouteStat({ label, value, icon, color }: { label: string; value: string; icon: string; color?: string }) {
-  return (
-    <div className="flex flex-col items-center gap-1 p-3 rounded-xl" style={{ background: '#F9F9FB', border: '1px solid #ede9fe' }}>
-      <span className="text-lg">{icon}</span>
-      <span className="text-sm font-bold" style={{ color: color ?? '#0f172a' }}>{value}</span>
-      <span className="text-[10px] font-medium text-center" style={{ color: '#94a3b8' }}>{label}</span>
-    </div>
-  )
-}
-
-function RouteAction({ icon, label, onClick }: { icon: string; label: string; onClick: () => void }) {
-  return (
-    <button onClick={onClick}
-      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors"
-      style={{ background: '#F3EEFF', color: '#601EF9' }}
-      onMouseEnter={e => e.currentTarget.style.background = '#ede9fe'}
-      onMouseLeave={e => e.currentTarget.style.background = '#F3EEFF'}
-    >
-      <span>{icon}</span> {label}
-    </button>
-  )
-}
-
-function MetricRow({ label, value, sub, percent, color }: {
-  label: string; value: string; sub: string; percent: number; color: string
+function BannerPill({ icon, label, value, alert }: {
+  icon: string; label: string; value: string; alert?: boolean
 }) {
   return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px', borderRadius: 10,
+      background: alert && Number(value) > 0 ? 'rgba(239,68,68,0.18)' : 'rgba(255,255,255,0.13)' }}>
+      <span style={{ fontSize: 14 }}>{icon}</span>
+      <div>
+        <p style={{ color: '#c4b5fd', fontSize: 10, fontWeight: 600, margin: 0 }}>{label}</p>
+        <p style={{ color: alert && Number(value) > 0 ? '#fca5a5' : '#fff', fontSize: 14, fontWeight: 700, margin: 0 }}>{value}</p>
+      </div>
+    </div>
+  )
+}
+
+function StatCard({ icon, label, value, sub, color, trend, alert }: {
+  icon: string; label: string; value: string; sub: string; color: string; trend?: number; alert?: boolean
+}) {
+  return (
+    <div style={{ background: '#fff', border: '1px solid #ede9fe', borderRadius: 14,
+      padding: '14px 16px', boxShadow: '0 1px 4px rgba(96,30,249,0.04)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+        <span style={{ fontSize: 20 }}>{icon}</span>
+        {trend !== undefined && (
+          <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 20,
+            background: trend >= 0 ? '#f0fdf4' : '#fef2f2', color: trend >= 0 ? '#16a34a' : '#dc2626' }}>
+            {trend >= 0 ? '↑' : '↓'} {Math.abs(trend)}%
+          </span>
+        )}
+      </div>
+      <p style={{ fontSize: 24, fontWeight: 700, color: alert ? '#ef4444' : color, margin: 0, lineHeight: 1 }}>{value}</p>
+      <p style={{ fontSize: 12, fontWeight: 500, color: '#334155', margin: '4px 0 2px' }}>{label}</p>
+      <p style={{ fontSize: 11, color: '#94a3b8', margin: 0 }}>{sub}</p>
+    </div>
+  )
+}
+
+function MiniStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={{ flex: 1, background: '#F9F9FB', borderRadius: 8, padding: '8px 10px', border: '1px solid #ede9fe' }}>
+      <p style={{ fontSize: 13, fontWeight: 700, color: '#601EF9', margin: 0 }}>{value}</p>
+      <p style={{ fontSize: 10, color: '#94a3b8', margin: 0 }}>{label}</p>
+    </div>
+  )
+}
+
+function MetricBar({ label, value, max, color, sub, loading }: {
+  label: string; value: number; max: number; color: string; sub: string; loading: boolean
+}) {
+  const pct = Math.min(100, Math.max(4, Math.round((value / Math.max(max, 1)) * 100)))
+  return (
     <div>
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-xs font-semibold" style={{ color: '#334155' }}>{label}</span>
-        <div className="text-right">
-          <span className="text-sm font-bold" style={{ color: '#0f172a' }}>{value}</span>
-          <span className="text-[10px] ml-1.5" style={{ color: '#94a3b8' }}>{sub}</span>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 5 }}>
+        <span style={{ fontSize: 12, fontWeight: 600, color: '#334155' }}>{label}</span>
+        <div>
+          <span style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>{loading ? '…' : value}</span>
+          <span style={{ fontSize: 10, color: '#94a3b8', marginLeft: 6 }}>{sub}</span>
         </div>
       </div>
-      <div className="h-1.5 rounded-full overflow-hidden" style={{ background: '#f1f5f9' }}>
-        <div
-          className="h-full rounded-full transition-all duration-700"
-          style={{ width: `${Math.max(4, percent)}%`, background: color }}
-        />
+      <div style={{ height: 6, borderRadius: 6, background: '#f1f5f9', overflow: 'hidden' }}>
+        <div style={{ height: '100%', borderRadius: 6, background: color,
+          width: `${pct}%`, transition: 'width 0.7s ease' }} />
       </div>
     </div>
   )
