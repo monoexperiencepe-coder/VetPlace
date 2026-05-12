@@ -20,4 +20,6 @@ export async function GET(request: NextRequest) {
     if (error) handleSupabaseError(error)
     return ok(data ?? [])
   } catch (e) {
-    return handleR
+    return handleRouteError(e)
+  }
+}

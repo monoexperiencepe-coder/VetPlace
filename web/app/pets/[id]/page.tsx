@@ -237,7 +237,7 @@ export default function PetDetailPage() {
         api.getPet(petId) as Promise<Pet>,
         api.getEventsByPet(petId) as Promise<VetEvent[]>,
         api.getBookingsByPet(petId) as Promise<Booking[]>,
-        api.getMedicalRecords(petId) as Promise<MedicalRecord[]>,
+        (api.getMedicalRecords(petId) as Promise<MedicalRecord[]>).catch(() => [] as MedicalRecord[]),
       ])
       setPet(petData); setEvents(eventsData); setBookings(bookingsData); setRecords(recordsData)
     } catch (e: unknown) {
