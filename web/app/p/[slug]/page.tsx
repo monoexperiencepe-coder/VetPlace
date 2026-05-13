@@ -99,56 +99,69 @@ function LoginScreen({ slug, clinic, onSuccess }: {
   }
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: '#f8f5ff' }}>
+    <div className="min-h-screen flex items-center justify-center p-5" style={{ background: '#F4F4F8' }}>
+      <div className="w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl bg-white">
 
-      {/* Header gradiente */}
-      <div className="relative flex flex-col items-center justify-end px-6 pt-16 pb-14"
-        style={{ background: 'linear-gradient(145deg,#3b10b5 0%,#601EF9 65%,#8b5cf6 100%)', minHeight: '44vh' }}>
-        <div className="absolute top-8 right-8 w-32 h-32 rounded-full opacity-10" style={{ background: '#fff' }} />
-        <div className="absolute top-20 right-20 w-14 h-14 rounded-full opacity-10" style={{ background: '#fff' }} />
-        <div className="absolute bottom-12 left-6 w-20 h-20 rounded-full opacity-10" style={{ background: '#fff' }} />
-        <div className="relative z-10 flex flex-col items-center">
-          {clinic?.logo_url
-            ? <img src={clinic.logo_url} alt={clinic?.name} className="w-20 h-20 object-contain mb-4 drop-shadow-lg" />
-            : <img src="/logo.png" alt="VetPlace" className="w-20 h-20 object-contain mb-4 drop-shadow-lg" />
-          }
-          <h1 className="text-2xl font-bold text-white text-center tracking-tight">
-            Pasaporte de mascotas
-          </h1>
-          <p className="text-white/65 text-sm text-center mt-1">
-            {clinic?.name ?? 'Tu clínica veterinaria'}
-          </p>
+        {/* Header morado — igual al panel derecho del login de clínica */}
+        <div className="relative flex flex-col items-center justify-center py-10 px-6 overflow-hidden"
+          style={{ background: 'linear-gradient(145deg,#3b10b5 0%,#601EF9 55%,#7c3aff 100%)' }}>
+          <div className="absolute -top-10 -left-10 w-40 h-40 rounded-full opacity-20"
+            style={{ background: 'radial-gradient(circle,#fff 0%,transparent 70%)' }} />
+          <div className="absolute -bottom-12 -right-12 w-44 h-44 rounded-full opacity-10"
+            style={{ background: '#fff' }} />
+          <div className="relative z-10 flex flex-col items-center">
+            <div className="w-20 h-20 rounded-2xl flex items-center justify-center mb-3 shadow-lg"
+              style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(8px)' }}>
+              {clinic?.logo_url
+                ? <img src={clinic.logo_url} alt={clinic?.name} className="w-14 h-14 object-contain" />
+                : <img src="/logo.png" alt="VetPlace" className="w-14 h-14 object-contain" />
+              }
+            </div>
+            <p className="text-white font-bold text-base">{clinic?.name ?? 'VetPlace'}</p>
+            <p className="text-white/60 text-xs mt-0.5">Pasaporte de mascotas</p>
+          </div>
         </div>
-      </div>
 
-      {/* Card flotante */}
-      <div className="flex-1 px-5 -mt-6">
-        <div className="rounded-3xl p-6 shadow-2xl w-full max-w-sm mx-auto"
-          style={{ background: '#fff', border: '1px solid #ede9fe' }}>
-          <h2 className="text-lg font-bold mb-1" style={{ color: '#0f172a' }}>Hola 👋</h2>
-          <p className="text-sm mb-5" style={{ color: '#94a3b8' }}>
-            Ingresa tu número para ver el pasaporte de tu mascota
-          </p>
-          <label className="block text-xs font-bold mb-1.5 tracking-wider uppercase" style={{ color: '#601EF9' }}>
-            Número de celular
-          </label>
-          <input
-            type="tel" inputMode="numeric" placeholder="987 654 321"
-            value={phone} onChange={e => setPhone(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleLogin()}
-            className="w-full rounded-xl px-4 py-3.5 outline-none mb-4"
-            style={{ background: '#f8f5ff', border: '1.5px solid #ddd6fe', color: '#0f172a', fontSize: '16px' }}
-            autoFocus
-          />
+        {/* Formulario — mismo estilo que login de clínica */}
+        <div className="px-7 py-8 flex flex-col gap-5">
+          <div>
+            <h1 className="text-xl font-bold" style={{ color: '#0f172a' }}>Bienvenido 👋</h1>
+            <p className="text-sm mt-1" style={{ color: '#64748b' }}>
+              Ingresa tu celular para ver el pasaporte de tu mascota
+            </p>
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold mb-1.5 block" style={{ color: '#334155' }}>
+              Número de celular
+            </label>
+            <div className="relative">
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="#94a3b8" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+              </svg>
+              <input
+                type="tel" inputMode="numeric" placeholder="987 654 321"
+                value={phone} onChange={e => setPhone(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleLogin()}
+                className="w-full pl-10 pr-4 py-3 rounded-xl text-sm outline-none transition-all"
+                style={{ background: '#F9F9FB', border: '1.5px solid #E5E7EB', color: '#0f172a', fontSize: '16px' }}
+                onFocus={e => (e.currentTarget.style.border = '1.5px solid #601EF9')}
+                onBlur={e  => (e.currentTarget.style.border = '1.5px solid #E5E7EB')}
+                autoFocus
+              />
+            </div>
+          </div>
+
           {error && (
-            <div className="rounded-xl px-4 py-3 mb-4 text-xs font-medium"
+            <div className="px-4 py-3 rounded-xl text-sm font-medium"
               style={{ background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca' }}>
               {error}
             </div>
           )}
+
           <button onClick={handleLogin} disabled={loading}
-            className="w-full py-4 rounded-2xl text-white font-bold disabled:opacity-50"
-            style={{ background: 'linear-gradient(135deg,#3b10b5,#601EF9)', fontSize: '15px', boxShadow: '0 6px 20px rgba(96,30,249,0.4)' }}>
+            className="w-full py-3 rounded-xl text-sm font-bold text-white transition-opacity disabled:opacity-70"
+            style={{ background: 'linear-gradient(135deg,#3b10b5 0%,#601EF9 100%)' }}>
             {loading
               ? <span className="flex items-center justify-center gap-2">
                   <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin inline-block" />
@@ -156,10 +169,11 @@ function LoginScreen({ slug, clinic, onSuccess }: {
                 </span>
               : 'Ver mi pasaporte →'}
           </button>
+
+          <p className="text-center text-[11px]" style={{ color: '#c8c8d0' }}>
+            © {new Date().getFullYear()} VetPlace. Todos los derechos reservados.
+          </p>
         </div>
-        <p className="text-xs text-center mt-6 mb-8" style={{ color: '#cbd5e1' }}>
-          Powered by VetPlace
-        </p>
       </div>
     </div>
   )
