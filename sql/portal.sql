@@ -39,4 +39,4 @@ CREATE INDEX IF NOT EXISTS idx_portal_otps_expires ON portal_otps(expires_at);
 
 ALTER TABLE portal_otps ENABLE ROW LEVEL SECURITY;
 
-RAISE NOTICE '✅ Portal tables ready';
+DO $$ BEGIN RAISE NOTICE '✅ Portal tables ready'; END $$;

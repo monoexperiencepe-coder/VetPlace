@@ -493,9 +493,22 @@ export default function PortalPage({ params }: { params: Promise<{ slug: string 
       <LoginScreen
         slug={slug}
         clinic={clinic}
-        onSuccess={(token) => {
+        onSuccess={async (token) => {
+          if (!token) { setLoadError('No se pudo obtener tu sesión. Intenta de nuevo.'); return }
           sessionStorage.setItem(`portal_token_${slug}`, token)
-          window.location.href = `/p/${slug}?t=${token}`
+          // Cargar datos directamente sin redirigir
+          try {
+            const res = await fetch(`/api/portal/token?t=${token}`)
+            const d = await res.json()
+            const payload = d.data ?? d
+            if (payload?.id) {
+              setClientData(payload)
+            } else {
+              setLoadError(d.error ?? d.data?.error ?? 'No se encontraron tus datos.')
+            }
+          } catch {
+            setLoadError('Error de conexión. Intenta de nuevo.')
+          }
         }}
       />
     )
