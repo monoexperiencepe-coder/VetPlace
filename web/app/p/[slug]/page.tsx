@@ -102,15 +102,12 @@ function LoginScreen({ slug, clinic, onSuccess }: {
     <div className="min-h-screen flex flex-col items-center justify-center px-5"
       style={{ background: 'linear-gradient(160deg,#f5f0ff 0%,#ffffff 60%)' }}>
 
-      {/* Logo libre, sin contenedor */}
+      {/* Logo libre, sin contenedor ni texto repetido */}
       <div className="flex flex-col items-center mb-10">
         {clinic?.logo_url
-          ? <img src={clinic.logo_url} alt={clinic.name} className="w-20 h-20 object-contain mb-4" />
-          : <img src="/logo.png" alt="VetPlace" className="w-20 h-20 object-contain mb-4" />
+          ? <img src={clinic.logo_url} alt={clinic.name} className="w-28 h-28 object-contain" />
+          : <img src="/logo.png" alt="VetPlace" className="w-28 h-28 object-contain" />
         }
-        <p className="text-sm font-medium text-center" style={{ color: '#601EF9' }}>
-          {clinic?.name ?? 'VetPlace'}
-        </p>
       </div>
 
       <div className="w-full max-w-xs">

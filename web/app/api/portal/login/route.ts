@@ -43,7 +43,18 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    return ok({ token: client.portal_token })
+    // Si el token es null (cliente anterior a portal.sql), generarlo ahora
+    let token = client.portal_token
+    if (!token) {
+      const newToken = crypto.randomUUID()
+      await supabaseAdmin
+        .from('clients')
+        .update({ portal_token: newToken })
+        .eq('id', client.id)
+      token = newToken
+    }
+
+    return ok({ token })
   } catch (e) {
     return handleRouteError(e)
   }
