@@ -124,15 +124,14 @@ function LoginScreen({ slug, clinic, onSuccess }: {
       {/* Logo + nombre clínica */}
       <div className="flex flex-col items-center mb-8">
         {clinic?.logo_url
-          ? <img src={clinic.logo_url} alt={clinic.name} className="w-16 h-16 rounded-2xl object-contain mb-3" />
-          : <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-3 text-3xl"
-              style={{ background: '#601EF9' }}>🐾</div>
+          ? <img src={clinic.logo_url} alt={clinic.name} className="w-16 h-16 rounded-2xl object-contain mb-3 shadow-md" />
+          : <img src="/logo.png" alt="VetPlace" className="w-16 h-16 rounded-2xl object-contain mb-3 shadow-md" />
         }
         <h1 className="text-xl font-bold text-center" style={{ color: '#0f172a' }}>
-          {clinic?.name ?? 'Clínica Veterinaria'}
+          {clinic?.name ?? 'Portal Veterinario'}
         </h1>
         <p className="text-sm mt-1 text-center" style={{ color: '#64748b' }}>
-          Portal del cliente
+          Pasaporte virtual de tu mascota
         </p>
       </div>
 

@@ -18,13 +18,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Verificar que la clínica existe
-    const { data: clinic } = await supabaseAdmin
+    const { data: clinic, error: clinicError } = await supabaseAdmin
       .from('clinics')
-      .select('id, name, phone as clinic_phone')
+      .select('id, name, phone')
       .eq('slug', clinic_slug)
       .maybeSingle()
 
-    if (!clinic) return Response.json({ error: 'Clínica no encontrada' }, { status: 404 })
+    if (clinicError) console.error('[OTP] clinic query error:', clinicError)
+    if (!clinic) return Response.json({ error: 'Portal no disponible. Contacta a tu clínica.' }, { status: 404 })
 
     // Verificar que el cliente existe en esa clínica
     const normalized = phone.startsWith('+') ? phone : `+51${phone.replace(/\D/g, '')}`
