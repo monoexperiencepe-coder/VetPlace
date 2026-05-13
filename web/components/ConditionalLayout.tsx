@@ -4,7 +4,7 @@ import { usePathname } from 'next/navigation'
 import Sidebar from '@/components/Sidebar'
 import TopBar from '@/components/TopBar'
 
-const AUTH_ROUTES = ['/login', '/register', '/reset-password', '/onboarding']
+const AUTH_ROUTES = ['/login', '/register', '/reset-password', '/onboarding', '/p']
 
 export default function ConditionalLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
