@@ -99,43 +99,65 @@ function LoginScreen({ slug, clinic, onSuccess }: {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-5"
-      style={{ background: 'linear-gradient(160deg,#f5f0ff 0%,#ffffff 60%)' }}>
+    <div className="min-h-screen flex flex-col" style={{ background: '#f8f5ff' }}>
 
-      {/* Logo libre, sin contenedor ni texto repetido */}
-      <div className="flex flex-col items-center mb-10">
-        {clinic?.logo_url
-          ? <img src={clinic.logo_url} alt={clinic.name} className="w-28 h-28 object-contain" />
-          : <img src="/logo.png" alt="VetPlace" className="w-28 h-28 object-contain" />
-        }
+      {/* Header gradiente */}
+      <div className="relative flex flex-col items-center justify-end px-6 pt-16 pb-14"
+        style={{ background: 'linear-gradient(145deg,#3b10b5 0%,#601EF9 65%,#8b5cf6 100%)', minHeight: '44vh' }}>
+        <div className="absolute top-8 right-8 w-32 h-32 rounded-full opacity-10" style={{ background: '#fff' }} />
+        <div className="absolute top-20 right-20 w-14 h-14 rounded-full opacity-10" style={{ background: '#fff' }} />
+        <div className="absolute bottom-12 left-6 w-20 h-20 rounded-full opacity-10" style={{ background: '#fff' }} />
+        <div className="relative z-10 flex flex-col items-center">
+          {clinic?.logo_url
+            ? <img src={clinic.logo_url} alt={clinic?.name} className="w-20 h-20 object-contain mb-4 drop-shadow-lg" />
+            : <img src="/logo.png" alt="VetPlace" className="w-20 h-20 object-contain mb-4 drop-shadow-lg" />
+          }
+          <h1 className="text-2xl font-bold text-white text-center tracking-tight">
+            Pasaporte de mascotas
+          </h1>
+          <p className="text-white/65 text-sm text-center mt-1">
+            {clinic?.name ?? 'Tu clínica veterinaria'}
+          </p>
+        </div>
       </div>
 
-      <div className="w-full max-w-xs">
-        <h2 className="text-2xl font-bold text-center mb-1" style={{ color: '#0f172a' }}>
-          Hola 👋
-        </h2>
-        <p className="text-sm text-center mb-6" style={{ color: '#64748b' }}>
-          Ingresa tu número para ver el pasaporte de tu mascota
-        </p>
-
-        <div className="rounded-3xl p-5 shadow-lg" style={{ background: '#fff', border: '1px solid #ede9fe' }}>
+      {/* Card flotante */}
+      <div className="flex-1 px-5 -mt-6">
+        <div className="rounded-3xl p-6 shadow-2xl w-full max-w-sm mx-auto"
+          style={{ background: '#fff', border: '1px solid #ede9fe' }}>
+          <h2 className="text-lg font-bold mb-1" style={{ color: '#0f172a' }}>Hola 👋</h2>
+          <p className="text-sm mb-5" style={{ color: '#94a3b8' }}>
+            Ingresa tu número para ver el pasaporte de tu mascota
+          </p>
+          <label className="block text-xs font-bold mb-1.5 tracking-wider uppercase" style={{ color: '#601EF9' }}>
+            Número de celular
+          </label>
           <input
             type="tel" inputMode="numeric" placeholder="987 654 321"
             value={phone} onChange={e => setPhone(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleLogin()}
-            className="w-full rounded-xl px-4 py-3 text-sm outline-none mb-3"
-            style={{ background: '#f8faff', border: '1.5px solid #e4ebff', color: '#0f172a' }}
+            className="w-full rounded-xl px-4 py-3.5 outline-none mb-4"
+            style={{ background: '#f8f5ff', border: '1.5px solid #ddd6fe', color: '#0f172a', fontSize: '16px' }}
             autoFocus
           />
-          {error && <p className="text-xs text-red-500 mb-3">{error}</p>}
+          {error && (
+            <div className="rounded-xl px-4 py-3 mb-4 text-xs font-medium"
+              style={{ background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca' }}>
+              {error}
+            </div>
+          )}
           <button onClick={handleLogin} disabled={loading}
-            className="w-full py-3 rounded-xl text-white text-sm font-semibold disabled:opacity-50"
-            style={{ background: 'linear-gradient(135deg,#3b10b5,#601EF9)' }}>
-            {loading ? 'Buscando...' : 'Ver mi pasaporte →'}
+            className="w-full py-4 rounded-2xl text-white font-bold disabled:opacity-50"
+            style={{ background: 'linear-gradient(135deg,#3b10b5,#601EF9)', fontSize: '15px', boxShadow: '0 6px 20px rgba(96,30,249,0.4)' }}>
+            {loading
+              ? <span className="flex items-center justify-center gap-2">
+                  <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin inline-block" />
+                  Buscando...
+                </span>
+              : 'Ver mi pasaporte →'}
           </button>
         </div>
-
-        <p className="text-xs text-center mt-5" style={{ color: '#cbd5e1' }}>
+        <p className="text-xs text-center mt-6 mb-8" style={{ color: '#cbd5e1' }}>
           Powered by VetPlace
         </p>
       </div>
@@ -393,21 +415,23 @@ function PassportScreen({ data }: { data: ClientData }) {
       <div className="fixed bottom-0 left-0 right-0 px-4 pb-6 pt-3"
         style={{ background: 'linear-gradient(to top, #f8f6ff 80%, transparent)' }}>
         <div className="flex gap-3 max-w-sm mx-auto">
-          <button
-            onClick={() => {
-              const msg = encodeURIComponent(`Hola! Soy ${data.name ?? data.phone} y quisiera agendar una cita para ${pet.name} 📅`)
-              const num = clinic.phone?.replace(/\D/g, '') ?? ''
-              window.open(`https://wa.me/${num}?text=${msg}`, '_blank')
-            }}
-            className="flex-1 py-3.5 rounded-2xl text-sm font-bold text-white flex items-center justify-center gap-2"
-            style={{ background: '#25D366', boxShadow: '0 4px 16px rgba(37,211,102,0.4)' }}>
-            <span className="text-lg">💬</span> WhatsApp
-          </button>
-          {whatsappUrl && (
+          {clinic.phone && (
             <button
               onClick={() => {
-                const msg = encodeURIComponent(`Hola! Quisiera agendar una cita para ${pet.name} 🐾`)
-                const num = clinic.phone?.replace(/\D/g, '') ?? ''
+                const num = `51${clinic.phone!.replace(/\D/g, '').replace(/^51/, '')}`
+                const msg = encodeURIComponent(`Hola! Soy ${data.name ?? data.phone} y tengo una consulta sobre ${pet.name} 🐾`)
+                window.open(`https://wa.me/${num}?text=${msg}`, '_blank')
+              }}
+              className="flex-1 py-3.5 rounded-2xl text-sm font-bold text-white flex items-center justify-center gap-2"
+              style={{ background: '#25D366', boxShadow: '0 4px 16px rgba(37,211,102,0.4)' }}>
+              <span className="text-lg">💬</span> Consultar
+            </button>
+          )}
+          {clinic.phone && (
+            <button
+              onClick={() => {
+                const num = `51${clinic.phone!.replace(/\D/g, '').replace(/^51/, '')}`
+                const msg = encodeURIComponent(`Hola! Soy ${data.name ?? data.phone} y quisiera agendar una cita para ${pet.name} 📅`)
                 window.open(`https://wa.me/${num}?text=${msg}`, '_blank')
               }}
               className="flex-1 py-3.5 rounded-2xl text-sm font-bold text-white flex items-center justify-center gap-2"
