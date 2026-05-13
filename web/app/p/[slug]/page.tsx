@@ -94,7 +94,7 @@ function LoginScreen({ slug, clinic, onSuccess }: {
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'No se pudo ingresar'); return }
-      onSuccess(data.token)
+      onSuccess(data.data?.token ?? data.token)
     } finally { setLoading(false) }
   }
 
