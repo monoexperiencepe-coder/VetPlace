@@ -750,26 +750,35 @@ function TabNegocio() {
 function TabQR() {
   const { user } = useAuth()
   const clinicId = user?.user_metadata?.clinic_id as string | undefined
-
-  const appUrl    = process.env.NEXT_PUBLIC_APP_URL ?? (typeof window !== 'undefined' ? window.location.origin : 'https://tuapp.com')
-  const joinUrl   = clinicId ? `${appUrl}/join/${clinicId}` : null
-  const qrUrl     = joinUrl  ? `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(joinUrl)}&bgcolor=ffffff&color=601EF9&qzone=2` : null
+  const [slug, setSlug] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
 
+  useEffect(() => {
+    if (!clinicId) return
+    fetch('/api/clinics/me').then(r => r.json()).then(d => {
+      const s = d?.data?.slug ?? d?.slug
+      if (s) setSlug(s)
+    }).catch(() => {})
+  }, [clinicId])
+
+  const appUrl  = typeof window !== 'undefined' ? window.location.origin : 'https://vet-place.vercel.app'
+  const portalUrl = slug ? `${appUrl}/p/${slug}` : null
+  const qrUrl   = portalUrl ? `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(portalUrl)}&bgcolor=ffffff&color=3b10b5&qzone=2` : null
+
   const copyLink = () => {
-    if (!joinUrl) return
-    navigator.clipboard.writeText(joinUrl)
+    if (!portalUrl) return
+    navigator.clipboard.writeText(portalUrl)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
 
-  if (!clinicId) {
+  if (!clinicId || !slug) {
     return (
-      <Card title="QR de registro" subtitle="Tu código QR para nuevos clientes">
+      <Card title="QR & Pasaporte de clientes" subtitle="Código QR para que tus clientes accedan a su pasaporte virtual">
         <div className="flex flex-col items-center py-10 gap-3">
-          <span className="text-4xl">⚠️</span>
+          <span className="text-4xl">⏳</span>
           <p className="text-sm text-center" style={{ color: '#64748b' }}>
-            Primero completá los datos del negocio para generar tu QR.
+            {clinicId ? 'Generando tu QR...' : 'Completá los datos del negocio primero.'}
           </p>
         </div>
       </Card>
@@ -777,7 +786,7 @@ function TabQR() {
   }
 
   return (
-    <Card title="QR de registro" subtitle="Compartí este QR o link con tus clientes para que registren sus mascotas directamente en tu clínica.">
+    <Card title="QR & Pasaporte de clientes" subtitle="Compartí este QR para que tus clientes accedan a su pasaporte virtual desde su celular.">
       <div className="flex flex-col md:flex-row gap-8 items-center">
         {/* QR */}
         <div className="shrink-0 flex flex-col items-center gap-3">
@@ -785,9 +794,9 @@ function TabQR() {
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={qrUrl}
-              alt="QR de registro"
-              width={220}
-              height={220}
+              alt="QR pasaporte"
+              width={240}
+              height={240}
               className="rounded-2xl shadow-md"
               style={{ border: '4px solid #F3EEFF' }}
             />
@@ -804,13 +813,13 @@ function TabQR() {
         {/* Info */}
         <div className="flex-1 space-y-4">
           <div>
-            <p className="text-xs font-semibold mb-1.5" style={{ color: '#334155' }}>Link de registro</p>
+            <p className="text-xs font-semibold mb-1.5" style={{ color: '#334155' }}>Link del pasaporte</p>
             <div className="flex items-center gap-2">
               <div
                 className="flex-1 px-3 py-2.5 rounded-xl text-xs font-mono truncate"
                 style={{ background: '#F9F9FB', border: '1.5px solid #E5E7EB', color: '#601EF9' }}
               >
-                {joinUrl}
+                {portalUrl}
               </div>
               <button
                 onClick={copyLink}
@@ -824,10 +833,10 @@ function TabQR() {
 
           <div className="space-y-2.5">
             <p className="text-xs font-semibold" style={{ color: '#334155' }}>¿Cómo funciona?</p>
-            <Step n="1" text="El cliente escanea el QR con su celular" />
-            <Step n="2" text="Completa su nombre, teléfono y datos de su mascota" />
-            <Step n="3" text="El registro queda vinculado automáticamente a tu clínica" />
-            <Step n="4" text="Podés verlo en la sección Clientes" />
+            <Step n="1" text="El cliente escanea el QR o recibe el link por WhatsApp" />
+            <Step n="2" text="Ingresa su número de celular" />
+            <Step n="3" text="Ve su historial, citas y próximos eventos" />
+            <Step n="4" text="Puede agendar o consultar directo desde ahí" />
           </div>
 
           <div

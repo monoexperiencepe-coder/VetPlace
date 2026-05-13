@@ -29,6 +29,14 @@ interface OverdueEvent {
   id: string; type: string; scheduled_date: string
   pet: { id: string; name: string; user: { id: string; name?: string; phone: string } | null } | null
 }
+interface RouteStop {
+  id: string; stop_order: number; address?: string; status?: string
+  booking?: { id: string; time: string; notes?: string } | null
+  client_name?: string
+}
+interface TodayRoute {
+  id: string; name: string; driver_name?: string; stops: RouteStop[]
+}
 
 const PET_EMOJI: Record<string, string> = { dog: '🐕', cat: '🐱', bird: '🐦', rabbit: '🐇', other: '🐾' }
 const EVENT_LABEL: Record<string, string> = { vaccine: 'Vacuna', grooming: 'Baño', checkup: 'Consulta', deworming: 'Desparasitación' }
@@ -51,6 +59,7 @@ export default function DashboardPage() {
   const [clinicName, setClinicName]   = useState('Mi Clínica')
   const [completingId, setCI]         = useState<string | null>(null)
   const [notifying, setNotifying]     = useState(false)
+  const [todayRoutes, setTodayRoutes] = useState<TodayRoute[]>([])
 
   const todayStr = new Date().toISOString().slice(0, 10)
 
@@ -89,6 +98,13 @@ export default function DashboardPage() {
 
   useEffect(() => {
     api.getOverdueEvents().then(d => setOverdue(d as OverdueEvent[])).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    fetch(`/api/routes?date=${new Date().toISOString().slice(0,10)}`)
+      .then(r => r.json())
+      .then(d => { const arr = d?.data ?? d; if (Array.isArray(arr)) setTodayRoutes(arr) })
+      .catch(() => {})
   }, [])
 
   const completeBooking = async (id: string) => {
@@ -325,6 +341,55 @@ export default function DashboardPage() {
 
         {/* RIGHT */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+          {/* RUTAS DEL DÍA */}
+          {todayRoutes.length > 0 && (
+            <Card>
+              <CardHeader icon="🗺️" title="Rutas de hoy"
+                badge={`${todayRoutes.length} ruta${todayRoutes.length > 1 ? 's' : ''}`}
+              />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {todayRoutes.map(route => (
+                  <div key={route.id} style={{ border: '1px solid #ede9fe', borderRadius: 12, overflow: 'hidden' }}>
+                    <div style={{ padding: '8px 12px', background: '#F3EEFF', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: '#3b10b5' }}>{route.name}</span>
+                      {route.driver_name && <span style={{ fontSize: 11, color: '#7c3aed' }}>🚗 {route.driver_name}</span>}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                      {(route.stops ?? []).slice(0, 5).map((stop, i) => (
+                        <div key={stop.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 10,
+                          padding: '8px 12px', borderTop: i > 0 ? '1px solid #f1f5f9' : 'none' }}>
+                          <span style={{ width: 20, height: 20, borderRadius: '50%', background: '#601EF9',
+                            color: '#fff', fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center',
+                            justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>{stop.stop_order}</span>
+                          <div style={{ minWidth: 0, flex: 1 }}>
+                            <p style={{ fontSize: 12, fontWeight: 600, color: '#0f172a', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {stop.address ?? stop.booking?.notes ?? `Parada ${stop.stop_order}`}
+                            </p>
+                            {stop.booking?.time && (
+                              <p style={{ fontSize: 11, color: '#94a3b8', margin: 0 }}>⏰ {stop.booking.time}</p>
+                            )}
+                          </div>
+                          {stop.status && (
+                            <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 20, flexShrink: 0,
+                              background: stop.status === 'completed' ? '#dcfce7' : '#F3EEFF',
+                              color: stop.status === 'completed' ? '#16a34a' : '#601EF9' }}>
+                              {stop.status === 'completed' ? '✓' : '•'}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                      {route.stops.length > 5 && (
+                        <p style={{ fontSize: 11, color: '#94a3b8', padding: '6px 12px', margin: 0 }}>
+                          +{route.stops.length - 5} paradas más
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
 
           {/* CONVERSACIONES */}
           <Card>

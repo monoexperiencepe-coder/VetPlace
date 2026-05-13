@@ -110,13 +110,10 @@ function LoginScreen({ slug, clinic, onSuccess }: {
           <div className="absolute -bottom-12 -right-12 w-44 h-44 rounded-full opacity-10"
             style={{ background: '#fff' }} />
           <div className="relative z-10 flex flex-col items-center">
-            <div className="w-20 h-20 rounded-2xl flex items-center justify-center mb-3 shadow-lg"
-              style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(8px)' }}>
-              {clinic?.logo_url
-                ? <img src={clinic.logo_url} alt={clinic?.name} className="w-14 h-14 object-contain" />
-                : <img src="/logo.png" alt="VetPlace" className="w-14 h-14 object-contain" />
-              }
-            </div>
+            {clinic?.logo_url
+              ? <img src={clinic.logo_url} alt={clinic?.name} className="w-16 h-16 object-contain mb-3 drop-shadow-lg" />
+              : <img src="/logo.png" alt="VetPlace" className="w-16 h-16 object-contain mb-3 drop-shadow-lg" style={{ filter: 'brightness(0) invert(1)' }} />
+            }
             <p className="text-white font-bold text-base">{clinic?.name ?? 'VetPlace'}</p>
             <p className="text-white/60 text-xs mt-0.5">Pasaporte de mascotas</p>
           </div>
@@ -217,12 +214,27 @@ function PassportScreen({ data }: { data: ClientData }) {
         <div className="flex items-center gap-3 mb-5">
           {clinic.logo_url
             ? <img src={clinic.logo_url} alt={clinic.name} className="w-9 h-9 rounded-xl object-contain bg-white" />
-            : <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center text-lg">🐾</div>
+            : <img src="/logo.png" alt="VetPlace" className="w-9 h-9 rounded-xl object-contain" style={{ filter: 'brightness(0) invert(1)' }} />
           }
-          <div>
+          <div className="flex-1">
             <p className="text-white/70 text-[11px] font-medium uppercase tracking-wide">Pasaporte</p>
             <p className="text-white text-sm font-bold leading-tight">{clinic.name}</p>
           </div>
+          {/* Botón cerrar sesión */}
+          <button
+            onClick={() => {
+              // Limpiar sesión de todas las keys del portal
+              Object.keys(sessionStorage).filter(k => k.startsWith('portal_token_')).forEach(k => sessionStorage.removeItem(k))
+              window.location.reload()
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold"
+            style={{ background: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.85)' }}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/>
+            </svg>
+            Salir
+          </button>
         </div>
 
         {/* Owner card */}
