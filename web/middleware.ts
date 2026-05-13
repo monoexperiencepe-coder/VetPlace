@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 
-const PUBLIC_ROUTES = ['/login', '/register', '/join', '/reset-password']
+const PUBLIC_ROUTES = ['/login', '/register', '/join', '/reset-password', '/p', '/api/portal']
 // Rutas que requieren sesión pero no el layout principal
 const AUTH_ONLY_ROUTES = ['/onboarding']
 
@@ -19,6 +19,10 @@ export function middleware(request: NextRequest) {
   const isAuthOnly = AUTH_ONLY_ROUTES.some(r => pathname === r || pathname.startsWith(r + '/'))
 
   if (isPublic) {
+    // /p/[slug] es pública para todos, incluso si hay sesión de clínica abierta
+    if (pathname.startsWith('/p/') || pathname.startsWith('/api/portal')) {
+      return NextResponse.next()
+    }
     // Si ya está logueado y va a login/register, redirigir al dashboard
     if (hasSession) return NextResponse.redirect(new URL('/', request.url))
     return NextResponse.next()
