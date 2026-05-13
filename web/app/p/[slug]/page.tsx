@@ -78,113 +78,69 @@ function LoginScreen({ slug, clinic, onSuccess }: {
   clinic: Clinic | null
   onSuccess: (token: string) => void
 }) {
-  const [phone, setPhone]   = useState('')
-  const [code, setCode]     = useState('')
-  const [step, setStep]     = useState<'phone' | 'code'>('phone')
+  const [phone, setPhone]     = useState('')
   const [loading, setLoading] = useState(false)
-  const [error, setError]   = useState('')
-  const [devCode, setDevCode] = useState('')
+  const [error, setError]     = useState('')
 
-  const sendOtp = async () => {
+  const handleLogin = async () => {
     const clean = phone.replace(/\D/g, '')
     if (clean.length < 7) { setError('Ingresa un número válido'); return }
     setLoading(true); setError('')
     try {
-      const res = await fetch('/api/portal/otp-send', {
+      const res = await fetch('/api/portal/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone: clean, clinic_slug: slug }),
       })
       const data = await res.json()
-      if (!res.ok) { setError(data.error ?? 'Error al enviar código'); return }
-      if (data._dev_code) setDevCode(data._dev_code)
-      setStep('code')
-    } finally { setLoading(false) }
-  }
-
-  const verifyOtp = async () => {
-    if (code.length < 6) { setError('Ingresa el código de 6 dígitos'); return }
-    setLoading(true); setError('')
-    try {
-      const res = await fetch('/api/portal/otp-verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, code, clinic_slug: slug }),
-      })
-      const data = await res.json()
-      if (!res.ok) { setError(data.error ?? 'Código incorrecto'); return }
+      if (!res.ok) { setError(data.error ?? 'No se pudo ingresar'); return }
       onSuccess(data.token)
     } finally { setLoading(false) }
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-5 py-10"
+    <div className="min-h-screen flex flex-col items-center justify-center px-5"
       style={{ background: 'linear-gradient(160deg,#f5f0ff 0%,#ffffff 60%)' }}>
 
-      {/* Logo + nombre clínica */}
-      <div className="flex flex-col items-center mb-8">
+      {/* Logo libre, sin contenedor */}
+      <div className="flex flex-col items-center mb-10">
         {clinic?.logo_url
-          ? <img src={clinic.logo_url} alt={clinic.name} className="w-16 h-16 rounded-2xl object-contain mb-3 shadow-md" />
-          : <img src="/logo.png" alt="VetPlace" className="w-16 h-16 rounded-2xl object-contain mb-3 shadow-md" />
+          ? <img src={clinic.logo_url} alt={clinic.name} className="w-20 h-20 object-contain mb-4" />
+          : <img src="/logo.png" alt="VetPlace" className="w-20 h-20 object-contain mb-4" />
         }
-        <h1 className="text-xl font-bold text-center" style={{ color: '#0f172a' }}>
-          {clinic?.name ?? 'Portal Veterinario'}
-        </h1>
-        <p className="text-sm mt-1 text-center" style={{ color: '#64748b' }}>
-          Pasaporte virtual de tu mascota
+        <p className="text-sm font-medium text-center" style={{ color: '#601EF9' }}>
+          {clinic?.name ?? 'VetPlace'}
         </p>
       </div>
 
-      <div className="w-full max-w-sm">
-        <div className="rounded-3xl p-6 shadow-lg" style={{ background: '#fff', border: '1px solid #ede9fe' }}>
+      <div className="w-full max-w-xs">
+        <h2 className="text-2xl font-bold text-center mb-1" style={{ color: '#0f172a' }}>
+          Hola 👋
+        </h2>
+        <p className="text-sm text-center mb-6" style={{ color: '#64748b' }}>
+          Ingresa tu número para ver el pasaporte de tu mascota
+        </p>
 
-          {step === 'phone' ? (
-            <>
-              <h2 className="text-base font-bold mb-1" style={{ color: '#0f172a' }}>Ingresa tu número</h2>
-              <p className="text-xs mb-4" style={{ color: '#94a3b8' }}>Te enviaremos un código de verificación por WhatsApp</p>
-              <input
-                type="tel" inputMode="numeric" placeholder="987 654 321"
-                value={phone} onChange={e => setPhone(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && sendOtp()}
-                className="w-full rounded-xl px-4 py-3 text-sm outline-none mb-3"
-                style={{ background: '#f8faff', border: '1.5px solid #e4ebff', color: '#0f172a' }}
-                autoFocus
-              />
-              {error && <p className="text-xs text-red-500 mb-3">{error}</p>}
-              <button onClick={sendOtp} disabled={loading}
-                className="w-full py-3 rounded-xl text-white text-sm font-semibold disabled:opacity-50"
-                style={{ background: 'linear-gradient(135deg,#3b10b5,#601EF9)' }}>
-                {loading ? 'Enviando...' : 'Recibir código por WhatsApp →'}
-              </button>
-            </>
-          ) : (
-            <>
-              <h2 className="text-base font-bold mb-1" style={{ color: '#0f172a' }}>Ingresa el código</h2>
-              <p className="text-xs mb-4" style={{ color: '#94a3b8' }}>
-                Enviamos un código de 6 dígitos a <strong>{phone}</strong>
-                {devCode && <span className="ml-2 font-bold text-violet-600">[dev: {devCode}]</span>}
-              </p>
-              <input
-                type="text" inputMode="numeric" maxLength={6} placeholder="000000"
-                value={code} onChange={e => setCode(e.target.value.replace(/\D/g, ''))}
-                onKeyDown={e => e.key === 'Enter' && verifyOtp()}
-                className="w-full rounded-xl px-4 py-3 text-2xl font-bold text-center tracking-widest outline-none mb-3"
-                style={{ background: '#f8faff', border: '1.5px solid #e4ebff', color: '#601EF9' }}
-                autoFocus
-              />
-              {error && <p className="text-xs text-red-500 mb-3">{error}</p>}
-              <button onClick={verifyOtp} disabled={loading}
-                className="w-full py-3 rounded-xl text-white text-sm font-semibold disabled:opacity-50 mb-3"
-                style={{ background: 'linear-gradient(135deg,#3b10b5,#601EF9)' }}>
-                {loading ? 'Verificando...' : 'Entrar a mi pasaporte →'}
-              </button>
-              <button onClick={() => { setStep('phone'); setCode(''); setError('') }}
-                className="w-full text-xs text-center" style={{ color: '#94a3b8' }}>
-                Cambiar número
-              </button>
-            </>
-          )}
+        <div className="rounded-3xl p-5 shadow-lg" style={{ background: '#fff', border: '1px solid #ede9fe' }}>
+          <input
+            type="tel" inputMode="numeric" placeholder="987 654 321"
+            value={phone} onChange={e => setPhone(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleLogin()}
+            className="w-full rounded-xl px-4 py-3 text-sm outline-none mb-3"
+            style={{ background: '#f8faff', border: '1.5px solid #e4ebff', color: '#0f172a' }}
+            autoFocus
+          />
+          {error && <p className="text-xs text-red-500 mb-3">{error}</p>}
+          <button onClick={handleLogin} disabled={loading}
+            className="w-full py-3 rounded-xl text-white text-sm font-semibold disabled:opacity-50"
+            style={{ background: 'linear-gradient(135deg,#3b10b5,#601EF9)' }}>
+            {loading ? 'Buscando...' : 'Ver mi pasaporte →'}
+          </button>
         </div>
+
+        <p className="text-xs text-center mt-5" style={{ color: '#cbd5e1' }}>
+          Powered by VetPlace
+        </p>
       </div>
     </div>
   )
