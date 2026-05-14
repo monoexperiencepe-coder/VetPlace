@@ -499,4 +499,98 @@ export default function DashboardPage() {
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
-function Card({ children }: { 
+function Card({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{ background: '#fff', border: '1px solid #ede9fe', borderRadius: 16,
+      padding: 20, boxShadow: '0 1px 6px rgba(96,30,249,0.05)' }}>
+      {children}
+    </div>
+  )
+}
+
+function CardHeader({ icon, title, badge, badgeRed, action }: {
+  icon: string; title: string; badge?: string; badgeRed?: boolean; action?: React.ReactNode
+}) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ fontSize: 16 }}>{icon}</span>
+        <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>{title}</span>
+        {badge && (
+          <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20,
+            background: badgeRed ? '#fef2f2' : '#F3EEFF', color: badgeRed ? '#dc2626' : '#601EF9' }}>
+            {badge}
+          </span>
+        )}
+      </div>
+      {action}
+    </div>
+  )
+}
+
+function BannerPill({ icon, label, value, alert }: {
+  icon: string; label: string; value: string; alert?: boolean
+}) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px', borderRadius: 10,
+      background: alert && Number(value) > 0 ? 'rgba(239,68,68,0.18)' : 'rgba(255,255,255,0.13)' }}>
+      <span style={{ fontSize: 14 }}>{icon}</span>
+      <div>
+        <p style={{ color: '#c4b5fd', fontSize: 10, fontWeight: 600, margin: 0 }}>{label}</p>
+        <p style={{ color: alert && Number(value) > 0 ? '#fca5a5' : '#fff', fontSize: 14, fontWeight: 700, margin: 0 }}>{value}</p>
+      </div>
+    </div>
+  )
+}
+
+function StatCard({ icon, label, value, sub, color, trend, alert }: {
+  icon: string; label: string; value: string; sub: string; color: string; trend?: number; alert?: boolean
+}) {
+  return (
+    <div style={{ background: '#fff', border: '1px solid #ede9fe', borderRadius: 14,
+      padding: '14px 16px', boxShadow: '0 1px 4px rgba(96,30,249,0.04)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+        <span style={{ fontSize: 20 }}>{icon}</span>
+        {trend !== undefined && (
+          <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 20,
+            background: trend >= 0 ? '#f0fdf4' : '#fef2f2', color: trend >= 0 ? '#16a34a' : '#dc2626' }}>
+            {trend >= 0 ? '↑' : '↓'} {Math.abs(trend)}%
+          </span>
+        )}
+      </div>
+      <p style={{ fontSize: 24, fontWeight: 700, color: alert ? '#ef4444' : color, margin: 0, lineHeight: 1 }}>{value}</p>
+      <p style={{ fontSize: 12, fontWeight: 500, color: '#334155', margin: '4px 0 2px' }}>{label}</p>
+      <p style={{ fontSize: 11, color: '#94a3b8', margin: 0 }}>{sub}</p>
+    </div>
+  )
+}
+
+function MiniStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={{ flex: 1, background: '#F9F9FB', borderRadius: 8, padding: '8px 10px', border: '1px solid #ede9fe' }}>
+      <p style={{ fontSize: 13, fontWeight: 700, color: '#601EF9', margin: 0 }}>{value}</p>
+      <p style={{ fontSize: 10, color: '#94a3b8', margin: 0 }}>{label}</p>
+    </div>
+  )
+}
+
+function MetricBar({ label, value, max, color, sub, loading }: {
+  label: string; value: number; max: number; color: string; sub: string; loading: boolean
+}) {
+  const pct = Math.min(100, Math.max(4, Math.round((value / Math.max(max, 1)) * 100)))
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 5 }}>
+        <span style={{ fontSize: 12, fontWeight: 600, color: '#334155' }}>{label}</span>
+        <div>
+          <span style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>{loading ? '…' : value}</span>
+          <span style={{ fontSize: 10, color: '#94a3b8', marginLeft: 6 }}>{sub}</span>
+        </div>
+      </div>
+      <div style={{ height: 6, borderRadius: 6, background: '#f1f5f9', overflow: 'hidden' }}>
+        <div style={{ height: '100%', borderRadius: 6, background: color,
+          width: `${pct}%`, transition: 'width 0.7s ease' }} />
+      </div>
+    </div>
+  )
+}
