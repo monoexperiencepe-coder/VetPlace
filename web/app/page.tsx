@@ -59,7 +59,24 @@ export default function DashboardPage() {
   const [clinicName, setClinicName]   = useState('Mi Clínica')
   const [completingId, setCI]         = useState<string | null>(null)
   const [notifying, setNotifying]     = useState(false)
-  const [todayRoutes, setTodayRoutes] = useState<TodayRoute[]>([])
+  const DEMO_ROUTES: TodayRoute[] = [
+    {
+      id: 'demo-1', name: 'Ruta Norte', driver_name: 'Carlos M.',
+      stops: [
+        { id: 's1', stop_order: 1, address: 'Av. Los Pinos 342, San Borja', status: 'completed', client_name: 'María García', booking: { id: 'b1', time: '09:00', notes: 'Baño y corte' } },
+        { id: 's2', stop_order: 2, address: 'Jr. Las Flores 118, Surco', status: 'pending',   client_name: 'Juan Pérez',  booking: { id: 'b2', time: '10:30', notes: 'Vacuna antirrábica' } },
+        { id: 's3', stop_order: 3, address: 'Calle Lima 55, Miraflores',  status: 'pending',   client_name: 'Ana Torres',  booking: { id: 'b3', time: '12:00', notes: 'Control general' } },
+      ],
+    },
+    {
+      id: 'demo-2', name: 'Ruta Sur', driver_name: 'Luis R.',
+      stops: [
+        { id: 's4', stop_order: 1, address: 'Av. Grau 890, Barranco',      status: 'completed', client_name: 'Rosa Chávez', booking: { id: 'b4', time: '08:30', notes: 'Desparasitación' } },
+        { id: 's5', stop_order: 2, address: 'Jr. Tacna 210, Chorrillos',   status: 'pending',   client_name: 'Pedro Ríos',  booking: { id: 'b5', time: '11:00', notes: 'Baño medicado' } },
+      ],
+    },
+  ]
+  const [todayRoutes, setTodayRoutes] = useState<TodayRoute[]>(DEMO_ROUTES)
 
   const todayStr = new Date().toISOString().slice(0, 10)
 

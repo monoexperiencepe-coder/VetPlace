@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { CLINIC_NAME_STORAGE_KEY } from '@/hooks/useClinicName'
 import { useAuth } from '@/context/AuthContext'
 import { createClient } from '@/lib/supabase'
-import { api } from '@/lib/api'
+import { api, type AutomationRecord } from '@/lib/api'
 import { useToast } from '@/context/ToastContext'
 
 // ─── Nav sections ─────────────────────────────────────────────────────────────
@@ -985,73 +985,269 @@ function TabBot() {
 }
 
 // ─── TAB: Automatizaciones ───────────────────────────────────────────────────
-function TabAutomatizaciones() {
-  const [automations, setAutomations] = useState<Array<{ id: string; name: string; trigger: string; enabled: boolean; category?: string }>>([])
-  const [loading, setLoading] = useState(true)
-  const toast = useToast()
+const AUTO_TRIGGER_LABELS: Record<string, string> = {
+  booking_created:   'Se envía al crear un turno',
+  booking_completed: 'Se envía al completar un turno',
+  booking_cancelled: 'Se envía al cancelar un turno',
+  client_created:    'Se envía al registrar un nuevo cliente',
+  pet_grooming_due:  'Se envía 2 días antes del próximo baño programado',
+  pet_event_due:     'Se envía días antes del evento veterinario programado',
+  payment_received:  'Se envía al registrar un pago',
+}
+const AUTO_CAT_COLORS: Record<string, { bg: string; color: string }> = {
+  'Cuidado':      { bg: '#dbeafe', color: '#1e40af' },
+  'Salud':        { bg: '#dcfce7', color: '#166534' },
+  'Citas':        { bg: '#F3EEFF', color: '#601EF9' },
+  'Captación':    { bg: '#fef9c3', color: '#854d0e' },
+  'Fidelización': { bg: '#fce7f3', color: '#9d174d' },
+  'Reactivación': { bg: '#ffedd5', color: '#9a3412' },
+  'General':      { bg: '#f1f5f9', color: '#475569' },
+}
 
-  const TRIGGER_LABELS: Record<string, string> = {
-    booking_created:   'Al crear una cita',
-    booking_completed: 'Al completar una cita',
-    booking_cancelled: 'Al cancelar una cita',
-    client_created:    'Al registrar un cliente nuevo',
-    pet_grooming_due:  '2 días antes del próximo baño',
-    pet_event_due:     'Días antes del evento veterinario',
-    payment_received:  'Al registrar un pago',
-  }
+function TabAutomatizaciones() {
+  const toast = useToast()
+  const [automations, setAutomations] = useState<AutomationRecord[]>([])
+  const [loading, setLoading] = useState(true)
+  const [selected, setSelected] = useState<AutomationRecord | null>(null)
 
   useEffect(() => {
-    api.getAutomations().then((d: unknown) => {
-      const arr = (d as { data?: unknown[] })?.data ?? (d as unknown[])
-      setAutomations(Array.isArray(arr) ? arr as typeof automations : [])
-    }).catch(() => {}).finally(() => setLoading(false))
+    api.getAutomations()
+      .then(d => setAutomations(d))
+      .catch(() => {})
+      .finally(() => setLoading(false))
   }, [])
 
-  const toggleEnabled = async (id: string, enabled: boolean) => {
-    setAutomations(prev => prev.map(a => a.id === id ? { ...a, enabled } : a))
+  const handleSaved = (updated: AutomationRecord) =>
+    setAutomations(prev => prev.map(a => a.id === updated.id ? updated : a))
+
+  const toggleQuick = async (auto: AutomationRecord, e: React.MouseEvent) => {
+    e.stopPropagation()
+    const next = !auto.active
+    setAutomations(prev => prev.map(a => a.id === auto.id ? { ...a, active: next } : a))
     try {
-      await api.updateAutomation(id, { enabled })
+      await api.updateAutomation(auto.id, { active: next })
+      toast.success(`${next ? '✅' : '⏸️'} "${auto.name}" ${next ? 'activada' : 'pausada'}`)
     } catch {
-      setAutomations(prev => prev.map(a => a.id === id ? { ...a, enabled: !enabled } : a))
-      toast.error('Error al actualizar')
+      setAutomations(prev => prev.map(a => a.id === auto.id ? { ...a, active: !next } : a))
+      toast.error('No se pudo actualizar')
     }
   }
 
+  const activeCount = automations.filter(a => a.active).length
+
   return (
-    <Card title="Automatizaciones" subtitle="Mensajes automáticos que se envían a tus clientes por WhatsApp.">
-      <div className="space-y-3">
-        {loading ? (
-          <div className="flex justify-center py-8"><div className="w-6 h-6 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: '#601EF9', borderTopColor: 'transparent' }} /></div>
-        ) : automations.length === 0 ? (
-          <div className="text-center py-8">
-            <p className="text-sm" style={{ color: '#94a3b8' }}>Sin automatizaciones creadas todavía.</p>
-          </div>
-        ) : (
-          automations.map(a => (
-            <div key={a.id} className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl"
-              style={{ background: '#F9F9FB', border: '1.5px solid #E5E7EB' }}>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold truncate" style={{ color: '#0f172a' }}>{a.name}</p>
-                <p className="text-xs mt-0.5" style={{ color: '#94a3b8' }}>{TRIGGER_LABELS[a.trigger] ?? a.trigger}</p>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer shrink-0">
-                <input type="checkbox" checked={a.enabled} onChange={e => toggleEnabled(a.id, e.target.checked)} className="sr-only peer" />
-                <div className="w-10 h-5 rounded-full peer transition-colors peer-checked:bg-[#601EF9] bg-gray-200
-                  after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full
-                  after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-5" />
-              </label>
-            </div>
-          ))
-        )}
-        <div className="pt-1">
-          <a href="/automations"
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all"
-            style={{ background: '#F3EEFF', color: '#601EF9' }}>
-            ⚡ Editar mensajes y crear nuevas →
-          </a>
+    <div className="space-y-5">
+      {/* Header */}
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <p className="text-sm" style={{ color: '#64748b' }}>
+          Envía recordatorios automáticos a tus clientes por WhatsApp
+        </p>
+        <div className="flex items-center gap-2 px-4 py-2 rounded-xl shrink-0"
+          style={{ background: activeCount > 0 ? '#F3EEFF' : '#F9F9FB', border: '1px solid #ede9fe' }}>
+          <span className="w-2 h-2 rounded-full" style={{ background: activeCount > 0 ? '#601EF9' : '#CBD5E1' }} />
+          <span className="text-sm font-semibold" style={{ color: activeCount > 0 ? '#601EF9' : '#94a3b8' }}>
+            {activeCount} de {automations.length} activas
+          </span>
         </div>
       </div>
-    </Card>
+
+      {loading ? (
+        <div className="flex justify-center py-16">
+          <div className="w-7 h-7 rounded-full border-2 border-t-transparent animate-spin"
+            style={{ borderColor: '#601EF9', borderTopColor: 'transparent' }} />
+        </div>
+      ) : automations.length === 0 ? (
+        <div className="text-center py-16" style={{ color: '#94a3b8' }}>
+          <p className="text-4xl mb-3">⚡</p>
+          <p className="text-sm">No hay automatizaciones configuradas todavía.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {automations.map(auto => {
+            const cat = AUTO_CAT_COLORS[auto.category ?? 'General'] ?? AUTO_CAT_COLORS['General']
+            return (
+              <button key={auto.id} onClick={() => setSelected(auto)}
+                className="text-left rounded-2xl p-5 flex flex-col gap-3 transition-all hover:-translate-y-0.5 hover:shadow-md"
+                style={{
+                  background: '#fff',
+                  border: auto.active ? '1.5px solid #a78bfa' : '1px solid #ede9fe',
+                  boxShadow: auto.active ? '0 0 0 3px rgba(96,30,249,0.06)' : undefined,
+                }}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-3">
+                    <div className="w-11 h-11 rounded-2xl flex items-center justify-center text-2xl shrink-0"
+                      style={{ background: cat.bg }}>
+                      {auto.icon ?? '⚡'}
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                        style={{ background: cat.bg, color: cat.color }}>
+                        {auto.category ?? 'General'}
+                      </span>
+                      <p className="text-sm font-bold mt-0.5 leading-tight" style={{ color: '#0f172a' }}>
+                        {auto.name}
+                      </p>
+                    </div>
+                  </div>
+                  <button onClick={e => toggleQuick(auto, e)}
+                    className="relative w-11 h-6 rounded-full transition-colors shrink-0 mt-0.5"
+                    style={{ background: auto.active ? '#601EF9' : '#CBD5E1' }}>
+                    <span className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform"
+                      style={{ transform: auto.active ? 'translateX(22px)' : 'translateX(2px)' }} />
+                  </button>
+                </div>
+                <p className="text-xs leading-relaxed" style={{ color: '#64748b' }}>
+                  {auto.description ?? ''}
+                </p>
+                <div className="flex items-center gap-2 px-3 py-2 rounded-xl"
+                  style={{ background: '#F9F9FB', border: '1px solid #f1f5f9' }}>
+                  <span className="text-sm">⏰</span>
+                  <p className="text-[11px]" style={{ color: '#94a3b8' }}>
+                    {AUTO_TRIGGER_LABELS[auto.trigger_event] ?? auto.trigger_event}
+                  </p>
+                </div>
+                <div className="flex items-center justify-between pt-1" style={{ borderTop: '1px solid #f1f5f9' }}>
+                  <span className="text-[11px] font-semibold" style={{ color: auto.active ? '#601EF9' : '#94a3b8' }}>
+                    {auto.active ? '● Activa' : '○ Pausada'}
+                  </span>
+                  <span className="text-[11px]" style={{ color: '#c4b5fd' }}>Editar →</span>
+                </div>
+              </button>
+            )
+          })}
+        </div>
+      )}
+
+      <div className="flex items-center gap-3 px-5 py-4 rounded-2xl"
+        style={{ background: '#F9F9FB', border: '1px solid #ede9fe' }}>
+        <span className="text-xl">💡</span>
+        <div>
+          <p className="text-sm font-semibold" style={{ color: '#334155' }}>
+            Los mensajes se envían por WhatsApp automáticamente
+          </p>
+          <p className="text-xs mt-0.5" style={{ color: '#94a3b8' }}>
+            Asegurate de tener WhatsApp Business conectado para que las automatizaciones funcionen.
+          </p>
+        </div>
+      </div>
+
+      {selected && (
+        <AutomationDrawerInline
+          automation={selected}
+          onClose={() => setSelected(null)}
+          onSaved={updated => { handleSaved(updated); setSelected(null) }}
+        />
+      )}
+    </div>
+  )
+}
+
+function AutomationDrawerInline({ automation, onClose, onSaved }: {
+  automation: AutomationRecord
+  onClose: () => void
+  onSaved: (updated: AutomationRecord) => void
+}) {
+  const toast = useToast()
+  const [active,  setActive]  = useState(automation.active)
+  const [message, setMessage] = useState(automation.message_template ?? '')
+  const [delay,   setDelay]   = useState(automation.delay_minutes)
+  const [saving,  setSaving]  = useState(false)
+  const cat = AUTO_CAT_COLORS[automation.category ?? 'General'] ?? AUTO_CAT_COLORS['General']
+
+  const VARIABLES = [
+    { tag: '{client_name}', label: 'Nombre del cliente' },
+    { tag: '{pet_name}',    label: 'Nombre de la mascota' },
+    { tag: '{fecha}',       label: 'Fecha programada' },
+    { tag: '{booking_time}',label: 'Hora del turno' },
+    { tag: '{booking_date}',label: 'Fecha del turno' },
+  ]
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      const updated = await api.updateAutomation(automation.id, { active, message_template: message, delay_minutes: delay })
+      onSaved(updated)
+      toast.success('Automatización guardada ✅')
+    } catch { toast.error('No se pudo guardar') }
+    finally { setSaving(false) }
+  }
+
+  return (
+    <>
+      <div className="fixed inset-0 z-40" style={{ background: 'rgba(0,0,0,0.3)' }} onClick={onClose} />
+      <div className="fixed right-0 top-0 h-full z-50 flex flex-col overflow-y-auto"
+        style={{ width: 420, background: '#fff', boxShadow: '-4px 0 24px rgba(0,0,0,0.10)' }}>
+        <div className="flex items-center justify-between px-6 py-5" style={{ borderBottom: '1px solid #f1f5f9' }}>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl" style={{ background: cat.bg }}>
+              {automation.icon ?? '⚡'}
+            </div>
+            <div>
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: cat.bg, color: cat.color }}>
+                {automation.category ?? 'General'}
+              </span>
+              <p className="text-sm font-bold mt-0.5" style={{ color: '#0f172a' }}>{automation.name}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-xl leading-none" style={{ color: '#94a3b8' }}>×</button>
+        </div>
+        <div className="flex-1 px-6 py-5 space-y-5 overflow-y-auto">
+          <div className="flex items-center justify-between px-4 py-3 rounded-xl" style={{ background: '#F9F9FB', border: '1px solid #ede9fe' }}>
+            <div>
+              <p className="text-sm font-semibold" style={{ color: '#0f172a' }}>Estado</p>
+              <p className="text-xs" style={{ color: '#94a3b8' }}>{active ? 'Esta automatización está activa' : 'Esta automatización está pausada'}</p>
+            </div>
+            <button onClick={() => setActive(v => !v)}
+              className="relative w-12 h-6 rounded-full transition-colors"
+              style={{ background: active ? '#601EF9' : '#CBD5E1' }}>
+              <span className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform"
+                style={{ transform: active ? 'translateX(26px)' : 'translateX(2px)' }} />
+            </button>
+          </div>
+          <div>
+            <label className="text-xs font-semibold mb-2 block" style={{ color: '#334155' }}>Mensaje de WhatsApp</label>
+            <textarea rows={5} value={message} onChange={e => setMessage(e.target.value)}
+              className="w-full px-4 py-3 rounded-xl text-sm outline-none resize-none"
+              style={{ background: '#F9F9FB', border: '1.5px solid #E5E7EB', color: '#0f172a', fontFamily: 'inherit' }}
+              onFocus={e => (e.currentTarget.style.border = '1.5px solid #601EF9')}
+              onBlur={e => (e.currentTarget.style.border = '1.5px solid #E5E7EB')}
+              placeholder="Ej: Hola {client_name}, recordatorio para {pet_name}…" />
+          </div>
+          <div>
+            <label className="text-xs font-semibold mb-2 block" style={{ color: '#334155' }}>Variables disponibles</label>
+            <div className="flex flex-wrap gap-2">
+              {VARIABLES.map(v => (
+                <button key={v.tag} onClick={() => setMessage(p => p + v.tag)}
+                  className="px-3 py-1 rounded-full text-xs font-medium"
+                  style={{ background: '#F3EEFF', color: '#601EF9', border: '1px solid #ede9fe' }}>
+                  {v.tag}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="text-xs font-semibold mb-2 block" style={{ color: '#334155' }}>Demora (minutos)</label>
+            <input type="number" min={0} value={delay ?? 0} onChange={e => setDelay(Number(e.target.value))}
+              className="w-full px-4 py-3 rounded-xl text-sm outline-none"
+              style={{ background: '#F9F9FB', border: '1.5px solid #E5E7EB', color: '#0f172a' }}
+              onFocus={e => (e.currentTarget.style.border = '1.5px solid #601EF9')}
+              onBlur={e => (e.currentTarget.style.border = '1.5px solid #E5E7EB')} />
+          </div>
+        </div>
+        <div className="px-6 py-5 flex gap-3" style={{ borderTop: '1px solid #f1f5f9' }}>
+          <button onClick={handleSave} disabled={saving}
+            className="flex-1 py-3 rounded-2xl text-sm font-bold transition-opacity text-white"
+            style={{ background: '#601EF9', opacity: saving ? 0.6 : 1 }}>
+            {saving ? 'Guardando…' : 'Guardar cambios'}
+          </button>
+          <button onClick={onClose}
+            className="px-5 py-3 rounded-2xl text-sm font-semibold"
+            style={{ background: '#F9F9FB', color: '#94a3b8', border: '1px solid #e2e8f0' }}>
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </>
   )
 }
 

@@ -208,8 +208,8 @@ function LoginScreen({ slug, clinic, onSuccess }: {
             style={{ background: '#fff' }} />
           <div className="relative z-10 flex flex-col items-center">
             {clinic?.logo_url
-              ? <img src={clinic.logo_url} alt={clinic?.name} className="w-16 h-16 object-contain mb-3 drop-shadow-lg" />
-              : <img src="/logo.png" alt="VetPlace" className="w-16 h-16 object-contain mb-3 drop-shadow-lg" style={{ filter: 'brightness(0) invert(1)' }} />
+              ? <img src={clinic.logo_url} alt={clinic?.name} className="w-24 h-24 object-contain mb-3 drop-shadow-lg" />
+              : <img src="/logo.png" alt="VetPlace" className="w-24 h-24 object-contain mb-3 drop-shadow-lg" style={{ filter: 'brightness(0) invert(1)' }} />
             }
             <p className="text-white font-bold text-base">{clinic?.name ?? 'VetPlace'}</p>
             <p className="text-white/60 text-xs mt-0.5">Pasaporte de mascotas</p>
@@ -262,6 +262,12 @@ function LoginScreen({ slug, clinic, onSuccess }: {
                   Buscando...
                 </span>
               : 'Ver mi pasaporte →'}
+          </button>
+
+          <button onClick={() => setShowRegister(true)}
+            className="w-full py-2.5 rounded-xl text-sm font-semibold transition-all"
+            style={{ background: '#F3EEFF', color: '#601EF9', border: '1.5px solid #ede9fe' }}>
+            ¿Eres nuevo? Regístrate →
           </button>
 
           <p className="text-center text-[11px]" style={{ color: '#c8c8d0' }}>
