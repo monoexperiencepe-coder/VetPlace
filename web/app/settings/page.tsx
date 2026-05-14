@@ -7,6 +7,7 @@ import { CLINIC_NAME_STORAGE_KEY } from '@/hooks/useClinicName'
 import { useAuth } from '@/context/AuthContext'
 import { createClient } from '@/lib/supabase'
 import { api } from '@/lib/api'
+import { useToast } from '@/context/ToastContext'
 
 // ─── Nav sections ─────────────────────────────────────────────────────────────
 type Section =
@@ -1479,4 +1480,60 @@ function TabServicios() {
                   <input
                     type="number"
                     step="0.01"
-                    defaultValue={svc.
+                    defaultValue={svc.price ?? ''}
+                    placeholder="—"
+                    onBlur={e => updatePrice(svc, e.target.value)}
+                    className="w-20 px-2 py-1 text-sm font-bold rounded-lg text-right outline-none"
+                    style={{ border: '1px solid #e2e8f0', color: '#0f172a' }}
+                  />
+                </div>
+                <button onClick={() => toggleActive(svc)}
+                  className="text-[11px] font-semibold px-2 py-1 rounded-lg"
+                  style={{ background: svc.active ? '#f0fdf4' : '#f8fafc', color: svc.active ? '#16a34a' : '#94a3b8' }}>
+                  {svc.active ? 'Activo' : 'Inactivo'}
+                </button>
+                <button onClick={() => handleDelete(svc.id)}
+                  className="w-6 h-6 rounded-lg flex items-center justify-center hover:bg-red-50">
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="#ef4444" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            ))}
+            {adding && (
+              <form onSubmit={handleAdd} className="flex items-center gap-2 px-4 py-3">
+                <input autoFocus type="text" placeholder="Nombre del servicio"
+                  value={newName} onChange={e => setNewName(e.target.value)}
+                  className="flex-1 px-3 py-2 text-sm rounded-xl outline-none"
+                  style={{ border: '1.5px solid #601EF9', color: '#0f172a' }} />
+                <span className="text-xs" style={{ color: '#64748b' }}>S/</span>
+                <input type="number" step="0.01" placeholder="Precio"
+                  value={newPrice} onChange={e => setNewPrice(e.target.value)}
+                  className="w-24 px-2 py-2 text-sm rounded-xl outline-none text-right"
+                  style={{ border: '1px solid #e2e8f0' }} />
+                <button type="submit" disabled={saving}
+                  className="text-xs font-bold px-3 py-2 rounded-xl text-white disabled:opacity-50"
+                  style={{ background: '#601EF9' }}>
+                  {saving ? '...' : 'Guardar'}
+                </button>
+                <button type="button" onClick={() => { setAdding(false); setNewName(''); setNewPrice('') }}
+                  className="text-xs px-3 py-2 rounded-xl"
+                  style={{ background: '#F1F5F9', color: '#64748b' }}>
+                  Cancelar
+                </button>
+              </form>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-2xl p-4" style={{ background: '#fffbeb', border: '1px solid #fde68a' }}>
+        <p className="text-xs font-semibold" style={{ color: '#92400e' }}>
+          Tip: Para precios por mascota (ej. bano de Golden vs Chihuahua), podes editar el precio
+          default directamente en el perfil de cada mascota.
+        </p>
+      </div>
+    </div>
+  )
+}
+
