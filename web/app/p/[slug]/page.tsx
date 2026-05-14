@@ -491,4 +491,133 @@ function PassportScreen({ data }: { data: ClientData }) {
                 {r.diagnosis && <p className="text-xs font-medium mb-1" style={{ color: '#0f172a' }}>{r.diagnosis}</p>}
                 {r.treatment && <p className="text-xs mb-1" style={{ color: '#475569' }}>💊 {r.treatment}</p>}
                 {r.notes && <p className="text-xs" style={{ color: '#64748b' }}>{r.notes}</p>}
-                <div className="flex items-center gap-3 mt-2 pt-2" style={{ borde
+                                <div className="flex items-center gap-3 mt-2 pt-2" style={{ borderTop: '1px solid #ede9fe' }}>
+                  {r.vet && <span className="text-xs mr-2" style={{ color: '#94a3b8' }}>👨‍⚕️ {r.vet}</span>}
+                  {r.weight && <span className="text-xs" style={{ color: '#94a3b8' }}>⚖️ {r.weight} kg</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* ── Tab: Eventos ── */}
+        {tab === 'eventos' && (
+          <div className="space-y-3">
+            {upcomingEvents.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-3xl mb-2">💉</p>
+                <p className="text-sm" style={{ color: '#94a3b8' }}>Sin eventos pendientes</p>
+              </div>
+            ) : upcomingEvents.map(e => (
+              <div key={e.id} className="rounded-2xl p-4 shadow-sm" style={{ background: '#fff', border: '1px solid #ede9fe' }}>
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-bold" style={{ color: '#0f172a' }}>
+                      {EVENT_LABEL[e.type] ?? e.type}
+                    </p>
+                    <p className="text-xs mt-0.5" style={{ color: '#64748b' }}>
+                      📅 {formatDate(e.scheduled_date)}
+                    </p>
+                  </div>
+                  <span className="text-xs font-semibold px-2.5 py-1 rounded-lg"
+                    style={{ background: '#fef9c3', color: '#854d0e' }}>
+                    {STATUS_LABEL[e.status] ?? e.status}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* ── WhatsApp CTA ── */}
+        {whatsappUrl && (
+          <div className="rounded-2xl p-4 shadow-sm" style={{ background: '#dcfce7', border: '1px solid #86efac' }}>
+            <p className="text-xs font-semibold mb-3" style={{ color: '#166534' }}>
+              ¿Necesitas ayuda o quieres agendar?
+            </p>
+            <div className="flex flex-col gap-2">
+              <a href={whatsappUrl} target="_blank" rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold text-white"
+                style={{ background: '#22c55e' }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347zM12 0C5.373 0 0 5.373 0 12c0 2.123.555 4.112 1.529 5.842L.057 23.714a.5.5 0 00.636.612l5.965-1.837A11.945 11.945 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.9 0-3.687-.5-5.24-1.373l-.374-.222-3.89 1.198 1.098-3.786-.243-.385A9.952 9.952 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/>
+                </svg>
+                Consultar por WhatsApp
+              </a>
+              <a href={`https://wa.me/${clinic.phone?.replace(/\D/g,'')}?text=${encodeURIComponent(`Hola! Soy ${data.name ?? data.phone} y quiero agendar una cita para ${pet.name} 📅`)}`}
+                target="_blank" rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold"
+                style={{ background: '#f0fdf4', color: '#16a34a', border: '1.5px solid #86efac' }}>
+                📅 Agendar cita
+              </a>
+            </div>
+          </div>
+        )}
+
+      </div>
+    </div>
+  )
+}
+
+// ─── Main Page ─────────────────────────────────────────────────────────────────
+export default function PortalPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = use(params)
+  const [clientData, setClientData] = useState<ClientData | null>(null)
+  const [clinic, setClinic] = useState<Clinic | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  // Fetch clinic info for login screen
+  useEffect(() => {
+    fetch(`/api/portal/clinic/${slug}`)
+      .then(r => r.json())
+      .then(d => setClinic(d.data ?? d))
+      .catch(() => {})
+  }, [slug])
+
+  // Check for token in URL or sessionStorage
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search)
+    const urlToken = urlParams.get('t')
+    const storedToken = sessionStorage.getItem(`portal_token_${slug}`)
+    const token = urlToken || storedToken
+
+    if (token && token !== 'undefined' && token !== 'null') {
+      fetch(`/api/portal/token?t=${token}`)
+        .then(r => r.json())
+        .then(d => {
+          const payload = d.data ?? d
+          if (payload?.id) {
+            setClientData(payload)
+            sessionStorage.setItem(`portal_token_${slug}`, token)
+          }
+        })
+        .catch(() => {})
+        .finally(() => setLoading(false))
+    } else {
+      setLoading(false)
+    }
+  }, [slug])
+
+  const handleSuccess = (token: string) => {
+    sessionStorage.setItem(`portal_token_${slug}`, token)
+    fetch(`/api/portal/token?t=${token}`)
+      .then(r => r.json())
+      .then(d => {
+        const payload = d.data ?? d
+        if (payload?.id) setClientData(payload)
+      })
+      .catch(() => {})
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: '#f8f6ff' }}>
+        <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin"
+          style={{ borderColor: '#601EF9', borderTopColor: 'transparent' }} />
+      </div>
+    )
+  }
+
+  if (clientData) return <PassportScreen data={clientData} />
+  return <LoginScreen slug={slug} clinic={clinic} onSuccess={handleSuccess} />
+}
