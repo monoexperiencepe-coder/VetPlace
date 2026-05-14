@@ -73,28 +73,89 @@ function formatDate(d: string) {
 function todayStr() { return new Date().toISOString().slice(0, 10) }
 
 // ─── Register Screen ──────────────────────────────────────────────────────────
-function RegisterScreen({ slug, clinic, onBack, onSuccess }: {
-  slug: string
-  clinic: Clinic | null
-  onBack: () => void
-  onSuccess: (token: string) => void
+const LIMA_DISTRICTS = [
+  'Miraflores','San Isidro','Surco','La Molina','Barranco','Chorrillos','San Borja',
+  'Jesús María','Lince','San Miguel','Pueblo Libre','Magdalena del Mar','Breña','Rímac',
+  'Ate','La Victoria','El Agustino','San Juan de Miraflores','Villa María del Triunfo',
+  'Villa El Salvador','Comas','Los Olivos','San Martín de Porres','Independencia',
+  'Carabayllo','Puente Piedra','Santa Anita','San Juan de Lurigancho','Callao','Otro',
+]
+
+const PET_TYPES_REG = [
+  { v: 'dog',    l: 'Perro',    emoji: '🐶' },
+  { v: 'cat',    l: 'Gato',     emoji: '🐱' },
+  { v: 'bird',   l: 'Ave',      emoji: '🦜' },
+  { v: 'rabbit', l: 'Conejo',   emoji: '🐰' },
+  { v: 'other',  l: 'Otro',     emoji: '🐾' },
+]
+
+const STEPS = [
+  { n: 1, icon: '👤', title: '¿Cómo te llamas?',       sub: 'Datos principales' },
+  { n: 2, icon: '📍', title: '¿Dónde te ubicamos?',    sub: 'Contacto y ubicación' },
+  { n: 3, icon: '🐾', title: '¿Cómo se llama tu mascota?', sub: 'Tu compañero' },
+]
+
+function FieldInput({ label, value, onChange, placeholder, type = 'text', required = false }: {
+  label: string; value: string; onChange: (v: string) => void
+  placeholder: string; type?: string; required?: boolean
 }) {
-  const [form, setForm] = useState({ name: '', phone: '', email: '', pet_name: '', pet_type: 'dog' })
+  return (
+    <div>
+      <label className="text-xs font-semibold mb-1.5 block" style={{ color: '#334155' }}>
+        {label}{required && <span style={{ color: '#601EF9' }}> *</span>}
+      </label>
+      <input type={type} inputMode={type === 'tel' ? 'numeric' : undefined}
+        placeholder={placeholder} value={value}
+        onChange={e => onChange(e.target.value)}
+        className="w-full px-4 py-3 rounded-xl text-sm outline-none transition-all"
+        style={{ background: '#F9F9FB', border: '1.5px solid #E5E7EB', color: '#0f172a', fontSize: '16px' }}
+        onFocus={e => (e.currentTarget.style.border = '1.5px solid #601EF9')}
+        onBlur={e  => (e.currentTarget.style.border = '1.5px solid #E5E7EB')} />
+    </div>
+  )
+}
+
+function RegisterScreen({ slug, clinic, onBack, onSuccess }: {
+  slug: string; clinic: Clinic | null; onBack: () => void; onSuccess: (token: string) => void
+}) {
+  const [step, setStep]     = useState(1)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const [error, setError]   = useState('')
+  const [form, setForm] = useState({
+    name: '', phone: '', email: '', address: '', district: '', notes: '',
+    pet_name: '', pet_type: 'dog', pet_breed: '', pet_birth: '', grooming_days: '30',
+  })
+  const set = (k: keyof typeof form) => (v: string) => setForm(f => ({ ...f, [k]: v }))
 
-  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
-    setForm(f => ({ ...f, [k]: e.target.value }))
+  const next = () => {
+    setError('')
+    if (step === 1) {
+      if (!form.name.trim()) { setError('Ingresa tu nombre completo'); return }
+      if (form.phone.replace(/\D/g, '').length < 7) { setError('Ingresa un número de celular válido'); return }
+    }
+    setStep(s => s + 1)
+  }
 
-  const handleRegister = async () => {
-    if (!form.name.trim()) { setError('Ingresa tu nombre'); return }
-    if (form.phone.replace(/\D/g, '').length < 7) { setError('Ingresa un número válido'); return }
+  const handleSubmit = async () => {
     setLoading(true); setError('')
     try {
       const res = await fetch('/api/portal/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, phone: form.phone.replace(/\D/g, ''), clinic_slug: slug }),
+        body: JSON.stringify({
+          name: form.name.trim(),
+          phone: form.phone.replace(/\D/g, ''),
+          email: form.email.trim() || null,
+          address: form.address.trim() || null,
+          district: form.district || null,
+          notes: form.notes.trim() || null,
+          pet_name: form.pet_name.trim() || null,
+          pet_type: form.pet_type,
+          pet_breed: form.pet_breed.trim() || null,
+          pet_birth: form.pet_birth || null,
+          grooming_days: form.pet_name ? Number(form.grooming_days) || 30 : null,
+          clinic_slug: slug,
+        }),
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Error al registrarse'); return }
@@ -102,62 +163,182 @@ function RegisterScreen({ slug, clinic, onBack, onSuccess }: {
     } finally { setLoading(false) }
   }
 
-  const PET_TYPES = [{ v: 'dog', l: '🐶 Perro' }, { v: 'cat', l: '🐱 Gato' }, { v: 'bird', l: '🦜 Ave' }, { v: 'rabbit', l: '🐰 Conejo' }, { v: 'other', l: '🐾 Otro' }]
+  const progress = ((step - 1) / (STEPS.length - 1)) * 100
+  const currentStep = STEPS[step - 1]
 
   return (
-    <div className="min-h-screen flex items-start justify-center p-5 pt-8" style={{ background: '#F4F4F8' }}>
+    <div className="min-h-screen flex items-center justify-center p-4" style={{ background: '#F4F4F8' }}>
       <div className="w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl bg-white">
-        <div className="relative flex flex-col items-center justify-center py-8 px-6 overflow-hidden"
+
+        {/* ── Compact header ── */}
+        <div className="relative px-6 pt-6 pb-5 overflow-hidden"
           style={{ background: 'linear-gradient(145deg,#3b10b5 0%,#601EF9 55%,#7c3aff 100%)' }}>
-          <div className="absolute -top-10 -left-10 w-40 h-40 rounded-full opacity-20"
-            style={{ background: 'radial-gradient(circle,#fff 0%,transparent 70%)' }} />
-          <div className="relative z-10 flex flex-col items-center">
-            {clinic?.logo_url
-              ? <img src={clinic.logo_url} alt={clinic?.name} className="h-14 object-contain mb-2 drop-shadow-lg" />
-              : <img src="/logo.png" alt="VetPlace" className="h-14 object-contain mb-2 drop-shadow-lg" style={{ filter: 'brightness(0) invert(1)' }} />
-            }
-            <p className="text-white/70 text-xs mt-1">{clinic?.name ?? 'VetPlace'}</p>
+          <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full opacity-10" style={{ background: '#fff' }} />
+
+          {/* Top bar */}
+          <div className="relative z-10 flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              {clinic?.logo_url
+                ? <img src={clinic.logo_url} alt="" className="w-7 h-7 rounded-lg object-contain" />
+                : <img src="/logo.png" alt="" className="w-7 h-7 object-contain" style={{ filter: 'brightness(0) invert(1)' }} />
+              }
+              <span className="text-white/80 text-xs font-semibold">{clinic?.name ?? 'VetPlace'}</span>
+            </div>
+            <span className="text-white/50 text-xs">Paso {step} de {STEPS.length}</span>
+          </div>
+
+          {/* Step hero */}
+          <div className="relative z-10 flex items-center gap-4 mb-4">
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl shrink-0"
+              style={{ background: 'rgba(255,255,255,0.18)', backdropFilter: 'blur(8px)' }}>
+              {currentStep.icon}
+            </div>
+            <div>
+              <p className="text-white/60 text-[10px] font-semibold uppercase tracking-wider">{currentStep.sub}</p>
+              <h2 className="text-white font-bold text-lg leading-tight">{currentStep.title}</h2>
+            </div>
+          </div>
+
+          {/* Progress bar */}
+          <div className="relative z-10 rounded-full overflow-hidden" style={{ height: 4, background: 'rgba(255,255,255,0.2)' }}>
+            <div className="h-full rounded-full transition-all duration-500"
+              style={{ width: `${progress + 50}%`, background: 'rgba(255,255,255,0.85)' }} />
+          </div>
+
+          {/* Dots */}
+          <div className="relative z-10 flex justify-center gap-2 mt-3">
+            {STEPS.map(s => (
+              <div key={s.n} className="rounded-full transition-all duration-300"
+                style={{
+                  width: step === s.n ? 20 : 6, height: 6,
+                  background: step >= s.n ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.25)',
+                }} />
+            ))}
           </div>
         </div>
-        <div className="px-7 py-6 flex flex-col gap-4">
-          <div>
-            <h1 className="text-xl font-bold" style={{ color: '#0f172a' }}>Crear cuenta 🐾</h1>
-            <p className="text-sm mt-1" style={{ color: '#64748b' }}>Registra tus datos para acceder al pasaporte de tu mascota</p>
-          </div>
-          {[
-            { label: 'Tu nombre completo *', key: 'name' as const, placeholder: 'María García', type: 'text' },
-            { label: 'Celular *', key: 'phone' as const, placeholder: '987 654 321', type: 'tel' },
-            { label: 'Email (opcional)', key: 'email' as const, placeholder: 'maria@email.com', type: 'email' },
-            { label: 'Nombre de tu mascota', key: 'pet_name' as const, placeholder: 'Max', type: 'text' },
-          ].map(({ label, key, placeholder, type }) => (
-            <div key={key}>
-              <label className="text-xs font-semibold mb-1.5 block" style={{ color: '#334155' }}>{label}</label>
-              <input type={type} placeholder={placeholder} value={form[key]} onChange={set(key)}
-                className="w-full px-4 py-3 rounded-xl text-sm outline-none transition-all"
-                style={{ background: '#F9F9FB', border: '1.5px solid #E5E7EB', color: '#0f172a', fontSize: '16px' }}
-                onFocus={e => (e.currentTarget.style.border = '1.5px solid #601EF9')}
-                onBlur={e  => (e.currentTarget.style.border = '1.5px solid #E5E7EB')} />
-            </div>
-          ))}
-          {form.pet_name && (
-            <div>
-              <label className="text-xs font-semibold mb-1.5 block" style={{ color: '#334155' }}>Tipo de mascota</label>
-              <select value={form.pet_type} onChange={set('pet_type')}
-                className="w-full px-4 py-3 rounded-xl text-sm outline-none"
-                style={{ background: '#F9F9FB', border: '1.5px solid #E5E7EB', color: '#0f172a', fontSize: '16px' }}>
-                {PET_TYPES.map(p => <option key={p.v} value={p.v}>{p.l}</option>)}
-              </select>
+
+        {/* ── Step content ── */}
+        <div className="px-6 py-5 flex flex-col gap-4">
+
+          {/* Step 1 — Identidad */}
+          {step === 1 && (
+            <>
+              <FieldInput label="Nombre completo" value={form.name} onChange={set('name')}
+                placeholder="María García" required />
+              <FieldInput label="Celular" value={form.phone} onChange={set('phone')}
+                placeholder="987 654 321" type="tel" required />
+            </>
+          )}
+
+          {/* Step 2 — Contacto */}
+          {step === 2 && (
+            <>
+              <FieldInput label="Email" value={form.email} onChange={set('email')}
+                placeholder="maria@email.com" type="email" />
+              <FieldInput label="Dirección" value={form.address} onChange={set('address')}
+                placeholder="Av. Arequipa 1234" />
+              <div>
+                <label className="text-xs font-semibold mb-1.5 block" style={{ color: '#334155' }}>Distrito</label>
+                <select value={form.district} onChange={e => set('district')(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl text-sm outline-none"
+                  style={{ background: '#F9F9FB', border: '1.5px solid #E5E7EB', color: form.district ? '#0f172a' : '#94a3b8', fontSize: '16px' }}
+                  onFocus={e => (e.currentTarget.style.border = '1.5px solid #601EF9')}
+                  onBlur={e  => (e.currentTarget.style.border = '1.5px solid #E5E7EB')}>
+                  <option value="">Seleccionar distrito...</option>
+                  {LIMA_DISTRICTS.map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-semibold mb-1.5 block" style={{ color: '#334155' }}>Notas (opcional)</label>
+                <textarea rows={2} placeholder="Observaciones generales..." value={form.notes}
+                  onChange={e => set('notes')(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl text-sm outline-none resize-none"
+                  style={{ background: '#F9F9FB', border: '1.5px solid #E5E7EB', color: '#0f172a', fontSize: '16px', fontFamily: 'inherit' }}
+                  onFocus={e => (e.currentTarget.style.border = '1.5px solid #601EF9')}
+                  onBlur={e  => (e.currentTarget.style.border = '1.5px solid #E5E7EB')} />
+              </div>
+            </>
+          )}
+
+          {/* Step 3 — Mascota */}
+          {step === 3 && (
+            <>
+              {/* Pet type selector */}
+              <div>
+                <label className="text-xs font-semibold mb-2 block" style={{ color: '#334155' }}>Especie</label>
+                <div className="grid grid-cols-5 gap-2">
+                  {PET_TYPES_REG.map(p => (
+                    <button key={p.v} type="button" onClick={() => set('pet_type')(p.v)}
+                      className="flex flex-col items-center gap-1 py-2.5 rounded-xl text-xs font-semibold transition-all"
+                      style={{
+                        background: form.pet_type === p.v ? '#F3EEFF' : '#F9F9FB',
+                        border: form.pet_type === p.v ? '1.5px solid #601EF9' : '1.5px solid #E5E7EB',
+                        color: form.pet_type === p.v ? '#601EF9' : '#94a3b8',
+                      }}>
+                      <span className="text-xl">{p.emoji}</span>
+                      <span style={{ fontSize: 9 }}>{p.l}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <FieldInput label="Nombre de la mascota" value={form.pet_name} onChange={set('pet_name')}
+                placeholder="Rex, Luna, Max..." />
+              <FieldInput label="Raza" value={form.pet_breed} onChange={set('pet_breed')}
+                placeholder="Labrador, Mestizo..." />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold mb-1.5 block" style={{ color: '#334155' }}>Nacimiento</label>
+                  <input type="date" value={form.pet_birth} onChange={e => set('pet_birth')(e.target.value)}
+                    className="w-full px-3 py-3 rounded-xl text-sm outline-none"
+                    style={{ background: '#F9F9FB', border: '1.5px solid #E5E7EB', color: '#0f172a', fontSize: '15px' }}
+                    onFocus={e => (e.currentTarget.style.border = '1.5px solid #601EF9')}
+                    onBlur={e  => (e.currentTarget.style.border = '1.5px solid #E5E7EB')} />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold mb-1.5 block" style={{ color: '#334155' }}>Baño cada (días)</label>
+                  <input type="number" min={1} value={form.grooming_days} onChange={e => set('grooming_days')(e.target.value)}
+                    className="w-full px-3 py-3 rounded-xl text-sm outline-none"
+                    style={{ background: '#F9F9FB', border: '1.5px solid #E5E7EB', color: '#0f172a', fontSize: '16px' }}
+                    onFocus={e => (e.currentTarget.style.border = '1.5px solid #601EF9')}
+                    onBlur={e  => (e.currentTarget.style.border = '1.5px solid #E5E7EB')} />
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Error */}
+          {error && (
+            <div className="px-4 py-3 rounded-xl text-sm font-medium"
+              style={{ background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca' }}>
+              {error}
             </div>
           )}
-          {error && <div className="px-4 py-3 rounded-xl text-sm font-medium" style={{ background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca' }}>{error}</div>}
-          <button onClick={handleRegister} disabled={loading}
-            className="w-full py-3 rounded-xl text-sm font-bold text-white disabled:opacity-70"
-            style={{ background: 'linear-gradient(135deg,#3b10b5 0%,#601EF9 100%)' }}>
-            {loading ? 'Registrando...' : 'Crear cuenta →'}
-          </button>
-          <button onClick={onBack} className="w-full text-sm text-center font-medium" style={{ color: '#94a3b8' }}>
-            ← Ya tengo cuenta
-          </button>
+
+          {/* Actions */}
+          <div className="flex flex-col gap-2 pt-1">
+            {step < STEPS.length ? (
+              <button onClick={next}
+                className="w-full py-3 rounded-xl text-sm font-bold text-white"
+                style={{ background: 'linear-gradient(135deg,#3b10b5 0%,#601EF9 100%)' }}>
+                Continuar →
+              </button>
+            ) : (
+              <button onClick={handleSubmit} disabled={loading}
+                className="w-full py-3 rounded-xl text-sm font-bold text-white disabled:opacity-70"
+                style={{ background: 'linear-gradient(135deg,#3b10b5 0%,#601EF9 100%)' }}>
+                {loading
+                  ? <span className="flex items-center justify-center gap-2">
+                      <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin inline-block" />
+                      Creando tu cuenta...
+                    </span>
+                  : '🐾 Crear mi perfil'}
+              </button>
+            )}
+            <button onClick={step === 1 ? onBack : () => { setError(''); setStep(s => s - 1) }}
+              className="w-full py-2 text-sm font-medium" style={{ color: '#94a3b8' }}>
+              {step === 1 ? '← Ya tengo cuenta' : '← Volver'}
+            </button>
+          </div>
         </div>
       </div>
     </div>

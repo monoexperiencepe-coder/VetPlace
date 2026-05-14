@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
   try {
-    const { name, phone, email, pet_name, pet_type, clinic_slug } = await request.json()
+    const { name, phone, email, address, district, notes, pet_name, pet_type, pet_breed, pet_birth, grooming_days, clinic_slug } = await request.json()
 
     if (!name?.trim() || !phone?.trim() || !clinic_slug?.trim()) {
       return Response.json({ error: 'Nombre, teléfono y clínica son requeridos.' }, { status: 400 })
@@ -54,6 +54,9 @@ export async function POST(request: NextRequest) {
         name: name.trim(),
         phone: normalized,
         email: email?.trim() || null,
+        address: address?.trim() || null,
+        district: district?.trim() || null,
+        notes: notes?.trim() || null,
         clinic_id: clinic.id,
         portal_token: portalToken,
       })
@@ -72,6 +75,9 @@ export async function POST(request: NextRequest) {
         .insert({
           name: pet_name.trim(),
           type: pet_type ?? 'dog',
+          breed: pet_breed?.trim() || null,
+          birth_date: pet_birth || null,
+          grooming_every_days: grooming_days ? Number(grooming_days) : null,
           user_id: newClient.id,
           clinic_id: clinic.id,
         })
