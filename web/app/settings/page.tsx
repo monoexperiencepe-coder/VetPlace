@@ -118,7 +118,7 @@ export default function SettingsPage() {
           {section === 'whatsapp'       && <TabWhatsApp />}
           {section === 'qr'             && <TabQR />}
           {section === 'bot'              && <TabBot />}
-          {section === 'automatizaciones' && <RedirectTo href="/automations" />}
+          {section === 'automatizaciones' && <TabAutomatizaciones />}
           {section === 'notificaciones'   && <TabNotificaciones />}
           {section === 'cuenta'         && <TabCuenta router={router} />}
           {section === 'servicios'      && <TabServicios />}
@@ -985,17 +985,70 @@ function TabBot() {
 
 // ─── TAB: Automatizaciones ───────────────────────────────────────────────────
 function TabAutomatizaciones() {
+  const [automations, setAutomations] = useState<Array<{ id: string; name: string; trigger: string; enabled: boolean; category?: string }>>([])
+  const [loading, setLoading] = useState(true)
+  const toast = useToast()
+
+  const TRIGGER_LABELS: Record<string, string> = {
+    booking_created:   'Al crear una cita',
+    booking_completed: 'Al completar una cita',
+    booking_cancelled: 'Al cancelar una cita',
+    client_created:    'Al registrar un cliente nuevo',
+    pet_grooming_due:  '2 días antes del próximo baño',
+    pet_event_due:     'Días antes del evento veterinario',
+    payment_received:  'Al registrar un pago',
+  }
+
+  useEffect(() => {
+    api.getAutomations().then((d: unknown) => {
+      const arr = (d as { data?: unknown[] })?.data ?? (d as unknown[])
+      setAutomations(Array.isArray(arr) ? arr as typeof automations : [])
+    }).catch(() => {}).finally(() => setLoading(false))
+  }, [])
+
+  const toggleEnabled = async (id: string, enabled: boolean) => {
+    setAutomations(prev => prev.map(a => a.id === id ? { ...a, enabled } : a))
+    try {
+      await api.updateAutomation(id, { enabled })
+    } catch {
+      setAutomations(prev => prev.map(a => a.id === id ? { ...a, enabled: !enabled } : a))
+      toast.error('Error al actualizar')
+    }
+  }
+
   return (
-    <Card title="Automatizaciones" subtitle="Mensajes automáticos que se envían a tus clientes por WhatsApp según eventos del sistema.">
-      <div className="space-y-4">
-        <p className="text-sm" style={{ color: '#475569' }}>
-          Configura qué mensajes se envían automáticamente al crear una cita, al completarla, antes de una vacuna, y más.
-        </p>
-        <a href="/automations"
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-all"
-          style={{ background: '#601EF9' }}>
-          ⚡ Administrar automatizaciones →
-        </a>
+    <Card title="Automatizaciones" subtitle="Mensajes automáticos que se envían a tus clientes por WhatsApp.">
+      <div className="space-y-3">
+        {loading ? (
+          <div className="flex justify-center py-8"><div className="w-6 h-6 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: '#601EF9', borderTopColor: 'transparent' }} /></div>
+        ) : automations.length === 0 ? (
+          <div className="text-center py-8">
+            <p className="text-sm" style={{ color: '#94a3b8' }}>Sin automatizaciones creadas todavía.</p>
+          </div>
+        ) : (
+          automations.map(a => (
+            <div key={a.id} className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl"
+              style={{ background: '#F9F9FB', border: '1.5px solid #E5E7EB' }}>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold truncate" style={{ color: '#0f172a' }}>{a.name}</p>
+                <p className="text-xs mt-0.5" style={{ color: '#94a3b8' }}>{TRIGGER_LABELS[a.trigger] ?? a.trigger}</p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                <input type="checkbox" checked={a.enabled} onChange={e => toggleEnabled(a.id, e.target.checked)} className="sr-only peer" />
+                <div className="w-10 h-5 rounded-full peer transition-colors peer-checked:bg-[#601EF9] bg-gray-200
+                  after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full
+                  after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-5" />
+              </label>
+            </div>
+          ))
+        )}
+        <div className="pt-1">
+          <a href="/automations"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all"
+            style={{ background: '#F3EEFF', color: '#601EF9' }}>
+            ⚡ Editar mensajes y crear nuevas →
+          </a>
+        </div>
       </div>
     </Card>
   )
@@ -1426,60 +1479,4 @@ function TabServicios() {
                   <input
                     type="number"
                     step="0.01"
-                    defaultValue={svc.price ?? ''}
-                    placeholder="—"
-                    onBlur={e => updatePrice(svc, e.target.value)}
-                    className="w-20 px-2 py-1 text-sm font-bold rounded-lg text-right outline-none"
-                    style={{ border: '1px solid #e2e8f0', color: '#0f172a' }}
-                  />
-                </div>
-                <button onClick={() => toggleActive(svc)}
-                  className="text-[11px] font-semibold px-2 py-1 rounded-lg"
-                  style={{ background: svc.active ? '#f0fdf4' : '#f8fafc', color: svc.active ? '#16a34a' : '#94a3b8' }}>
-                  {svc.active ? 'Activo' : 'Inactivo'}
-                </button>
-                <button onClick={() => handleDelete(svc.id)}
-                  className="w-6 h-6 rounded-lg flex items-center justify-center hover:bg-red-50">
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="#ef4444" strokeWidth={2.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-            ))}
-            {adding && (
-              <form onSubmit={handleAdd} className="flex items-center gap-2 px-4 py-3">
-                <input autoFocus type="text" placeholder="Nombre del servicio"
-                  value={newName} onChange={e => setNewName(e.target.value)}
-                  className="flex-1 px-3 py-2 text-sm rounded-xl outline-none"
-                  style={{ border: '1.5px solid #601EF9', color: '#0f172a' }} />
-                <span className="text-xs" style={{ color: '#64748b' }}>S/</span>
-                <input type="number" step="0.01" placeholder="Precio"
-                  value={newPrice} onChange={e => setNewPrice(e.target.value)}
-                  className="w-24 px-2 py-2 text-sm rounded-xl outline-none text-right"
-                  style={{ border: '1px solid #e2e8f0' }} />
-                <button type="submit" disabled={saving}
-                  className="text-xs font-bold px-3 py-2 rounded-xl text-white disabled:opacity-50"
-                  style={{ background: '#601EF9' }}>
-                  {saving ? '...' : 'Guardar'}
-                </button>
-                <button type="button" onClick={() => { setAdding(false); setNewName(''); setNewPrice('') }}
-                  className="text-xs px-3 py-2 rounded-xl"
-                  style={{ background: '#F1F5F9', color: '#64748b' }}>
-                  Cancelar
-                </button>
-              </form>
-            )}
-          </div>
-        )}
-      </div>
-
-      <div className="rounded-2xl p-4" style={{ background: '#fffbeb', border: '1px solid #fde68a' }}>
-        <p className="text-xs font-semibold" style={{ color: '#92400e' }}>
-          Tip: Para precios por mascota (ej. bano de Golden vs Chihuahua), podes editar el precio
-          default directamente en el perfil de cada mascota.
-        </p>
-      </div>
-    </div>
-  )
-}
-
+                    defaultValue={svc.

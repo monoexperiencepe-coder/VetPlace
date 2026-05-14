@@ -72,15 +72,112 @@ function formatDate(d: string) {
 
 function todayStr() { return new Date().toISOString().slice(0, 10) }
 
+// ─── Register Screen ──────────────────────────────────────────────────────────
+function RegisterScreen({ slug, clinic, onBack, onSuccess }: {
+  slug: string
+  clinic: Clinic | null
+  onBack: () => void
+  onSuccess: (token: string) => void
+}) {
+  const [form, setForm] = useState({ name: '', phone: '', email: '', pet_name: '', pet_type: 'dog' })
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+    setForm(f => ({ ...f, [k]: e.target.value }))
+
+  const handleRegister = async () => {
+    if (!form.name.trim()) { setError('Ingresa tu nombre'); return }
+    if (form.phone.replace(/\D/g, '').length < 7) { setError('Ingresa un número válido'); return }
+    setLoading(true); setError('')
+    try {
+      const res = await fetch('/api/portal/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...form, phone: form.phone.replace(/\D/g, ''), clinic_slug: slug }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error ?? 'Error al registrarse'); return }
+      onSuccess(data.data?.token ?? data.token)
+    } finally { setLoading(false) }
+  }
+
+  const PET_TYPES = [{ v: 'dog', l: '🐶 Perro' }, { v: 'cat', l: '🐱 Gato' }, { v: 'bird', l: '🦜 Ave' }, { v: 'rabbit', l: '🐰 Conejo' }, { v: 'other', l: '🐾 Otro' }]
+
+  return (
+    <div className="min-h-screen flex items-start justify-center p-5 pt-8" style={{ background: '#F4F4F8' }}>
+      <div className="w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl bg-white">
+        <div className="relative flex flex-col items-center justify-center py-8 px-6 overflow-hidden"
+          style={{ background: 'linear-gradient(145deg,#3b10b5 0%,#601EF9 55%,#7c3aff 100%)' }}>
+          <div className="absolute -top-10 -left-10 w-40 h-40 rounded-full opacity-20"
+            style={{ background: 'radial-gradient(circle,#fff 0%,transparent 70%)' }} />
+          <div className="relative z-10 flex flex-col items-center">
+            {clinic?.logo_url
+              ? <img src={clinic.logo_url} alt={clinic?.name} className="h-14 object-contain mb-2 drop-shadow-lg" />
+              : <img src="/logo.png" alt="VetPlace" className="h-14 object-contain mb-2 drop-shadow-lg" style={{ filter: 'brightness(0) invert(1)' }} />
+            }
+            <p className="text-white/70 text-xs mt-1">{clinic?.name ?? 'VetPlace'}</p>
+          </div>
+        </div>
+        <div className="px-7 py-6 flex flex-col gap-4">
+          <div>
+            <h1 className="text-xl font-bold" style={{ color: '#0f172a' }}>Crear cuenta 🐾</h1>
+            <p className="text-sm mt-1" style={{ color: '#64748b' }}>Registra tus datos para acceder al pasaporte de tu mascota</p>
+          </div>
+          {[
+            { label: 'Tu nombre completo *', key: 'name' as const, placeholder: 'María García', type: 'text' },
+            { label: 'Celular *', key: 'phone' as const, placeholder: '987 654 321', type: 'tel' },
+            { label: 'Email (opcional)', key: 'email' as const, placeholder: 'maria@email.com', type: 'email' },
+            { label: 'Nombre de tu mascota', key: 'pet_name' as const, placeholder: 'Max', type: 'text' },
+          ].map(({ label, key, placeholder, type }) => (
+            <div key={key}>
+              <label className="text-xs font-semibold mb-1.5 block" style={{ color: '#334155' }}>{label}</label>
+              <input type={type} placeholder={placeholder} value={form[key]} onChange={set(key)}
+                className="w-full px-4 py-3 rounded-xl text-sm outline-none transition-all"
+                style={{ background: '#F9F9FB', border: '1.5px solid #E5E7EB', color: '#0f172a', fontSize: '16px' }}
+                onFocus={e => (e.currentTarget.style.border = '1.5px solid #601EF9')}
+                onBlur={e  => (e.currentTarget.style.border = '1.5px solid #E5E7EB')} />
+            </div>
+          ))}
+          {form.pet_name && (
+            <div>
+              <label className="text-xs font-semibold mb-1.5 block" style={{ color: '#334155' }}>Tipo de mascota</label>
+              <select value={form.pet_type} onChange={set('pet_type')}
+                className="w-full px-4 py-3 rounded-xl text-sm outline-none"
+                style={{ background: '#F9F9FB', border: '1.5px solid #E5E7EB', color: '#0f172a', fontSize: '16px' }}>
+                {PET_TYPES.map(p => <option key={p.v} value={p.v}>{p.l}</option>)}
+              </select>
+            </div>
+          )}
+          {error && <div className="px-4 py-3 rounded-xl text-sm font-medium" style={{ background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca' }}>{error}</div>}
+          <button onClick={handleRegister} disabled={loading}
+            className="w-full py-3 rounded-xl text-sm font-bold text-white disabled:opacity-70"
+            style={{ background: 'linear-gradient(135deg,#3b10b5 0%,#601EF9 100%)' }}>
+            {loading ? 'Registrando...' : 'Crear cuenta →'}
+          </button>
+          <button onClick={onBack} className="w-full text-sm text-center font-medium" style={{ color: '#94a3b8' }}>
+            ← Ya tengo cuenta
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Login Screen ─────────────────────────────────────────────────────────────
 function LoginScreen({ slug, clinic, onSuccess }: {
   slug: string
   clinic: Clinic | null
   onSuccess: (token: string) => void
 }) {
-  const [phone, setPhone]     = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError]     = useState('')
+  const [phone, setPhone]       = useState('')
+  const [loading, setLoading]   = useState(false)
+  const [error, setError]       = useState('')
+  const [showRegister, setShowRegister] = useState(false)
+
+  if (showRegister) {
+    return <RegisterScreen slug={slug} clinic={clinic} onBack={() => setShowRegister(false)} onSuccess={onSuccess} />
+  }
 
   const handleLogin = async () => {
     const clean = phone.replace(/\D/g, '')
@@ -394,175 +491,4 @@ function PassportScreen({ data }: { data: ClientData }) {
                 {r.diagnosis && <p className="text-xs font-medium mb-1" style={{ color: '#0f172a' }}>{r.diagnosis}</p>}
                 {r.treatment && <p className="text-xs mb-1" style={{ color: '#475569' }}>💊 {r.treatment}</p>}
                 {r.notes && <p className="text-xs" style={{ color: '#64748b' }}>{r.notes}</p>}
-                <div className="flex items-center gap-3 mt-2 pt-2" style={{ borderTop: '1px solid #f1f5f9' }}>
-                  {r.vet && <span className="text-[11px]" style={{ color: '#94a3b8' }}>👨‍⚕️ {r.vet}</span>}
-                  {r.weight && <span className="text-[11px]" style={{ color: '#94a3b8' }}>⚖️ {r.weight} kg</span>}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* ── Tab: Eventos ── */}
-        {tab === 'eventos' && (
-          <div className="space-y-3">
-            {upcomingEvents.length === 0 ? (
-              <div className="text-center py-8">
-                <p className="text-3xl mb-2">💉</p>
-                <p className="text-sm" style={{ color: '#94a3b8' }}>Sin eventos próximos</p>
-              </div>
-            ) : upcomingEvents.map(e => {
-              const daysUntil = Math.ceil((new Date(e.scheduled_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
-              const urgent = daysUntil <= 7
-              return (
-                <div key={e.id} className="rounded-2xl p-4 shadow-sm" style={{ background: '#fff', border: `1px solid ${urgent ? '#fecaca' : '#ede9fe'}` }}>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <span className="text-2xl">{e.type === 'vaccine' ? '💉' : e.type === 'grooming' ? '✂️' : e.type === 'deworming' ? '💊' : '🏥'}</span>
-                      <div>
-                        <p className="text-sm font-bold" style={{ color: '#0f172a' }}>{EVENT_LABEL[e.type] ?? e.type}</p>
-                        <p className="text-xs" style={{ color: '#64748b' }}>{formatDate(e.scheduled_date)}</p>
-                      </div>
-                    </div>
-                    <span className="text-xs font-semibold px-2.5 py-1 rounded-lg"
-                      style={{ background: urgent ? '#fef2f2' : '#f0fdf4', color: urgent ? '#dc2626' : '#16a34a' }}>
-                      {urgent ? `¡En ${daysUntil}d!` : `En ${daysUntil}d`}
-                    </span>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        )}
-
-      </div>
-
-      {/* ── Bottom CTA bar ── */}
-      <div className="fixed bottom-0 left-0 right-0 px-4 pb-6 pt-3"
-        style={{ background: 'linear-gradient(to top, #f8f6ff 80%, transparent)' }}>
-        <div className="flex gap-3 max-w-sm mx-auto">
-          {clinic.phone && (
-            <button
-              onClick={() => {
-                const num = `51${clinic.phone!.replace(/\D/g, '').replace(/^51/, '')}`
-                const msg = encodeURIComponent(`Hola! Soy ${data.name ?? data.phone} y tengo una consulta sobre ${pet.name} 🐾`)
-                window.open(`https://wa.me/${num}?text=${msg}`, '_blank')
-              }}
-              className="flex-1 py-3.5 rounded-2xl text-sm font-bold text-white flex items-center justify-center gap-2"
-              style={{ background: '#25D366', boxShadow: '0 4px 16px rgba(37,211,102,0.4)' }}>
-              <span className="text-lg">💬</span> Consultar
-            </button>
-          )}
-          {clinic.phone && (
-            <button
-              onClick={() => {
-                const num = `51${clinic.phone!.replace(/\D/g, '').replace(/^51/, '')}`
-                const msg = encodeURIComponent(`Hola! Soy ${data.name ?? data.phone} y quisiera agendar una cita para ${pet.name} 📅`)
-                window.open(`https://wa.me/${num}?text=${msg}`, '_blank')
-              }}
-              className="flex-1 py-3.5 rounded-2xl text-sm font-bold text-white flex items-center justify-center gap-2"
-              style={{ background: 'linear-gradient(135deg,#3b10b5,#601EF9)', boxShadow: '0 4px 16px rgba(96,30,249,0.35)' }}>
-              <span className="text-base">📅</span> Agendar
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ─── Main Page ────────────────────────────────────────────────────────────────
-export default function PortalPage({ params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = use(params)
-  const [clinic, setClinic]       = useState<Clinic | null>(null)
-  const [clientData, setClientData] = useState<ClientData | null>(null)
-  const [loading, setLoading]     = useState(true)
-  const [loadError, setLoadError] = useState('')
-
-  // Intentar acceso directo por token desde URL (?t=...)
-  useEffect(() => {
-    const token = new URLSearchParams(window.location.search).get('t')
-
-    // Cargar info pública de la clínica
-    fetch(`/api/portal/clinic/${slug}`)
-      .then(r => r.json())
-      .then(d => { if (d.id) setClinic(d) })
-      .catch(() => {})
-
-    if (token) {
-      fetch(`/api/portal/token?t=${token}`)
-        .then(r => r.json())
-        .then(d => {
-          if (d.id) {
-            setClientData(d)
-            // Guardar token en sessionStorage para refrescos
-            sessionStorage.setItem(`portal_token_${slug}`, token)
-          } else {
-            setLoadError(d.error ?? 'Link inválido')
-          }
-        })
-        .catch(() => setLoadError('Error al cargar'))
-        .finally(() => setLoading(false))
-      return
-    }
-
-    // Sin token — verificar si hay sesión guardada
-    const saved = sessionStorage.getItem(`portal_token_${slug}`)
-    if (saved) {
-      fetch(`/api/portal/token?t=${saved}`)
-        .then(r => r.json())
-        .then(d => { if (d.id) setClientData(d) })
-        .catch(() => {})
-        .finally(() => setLoading(false))
-      return
-    }
-
-    setLoading(false)
-  }, [slug])
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: 'linear-gradient(160deg,#f5f0ff,#ffffff)' }}>
-        <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: '#601EF9', borderTopColor: 'transparent' }} />
-      </div>
-    )
-  }
-
-  if (loadError) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center px-6" style={{ background: 'linear-gradient(160deg,#f5f0ff,#ffffff)' }}>
-        <p className="text-4xl mb-3">🔗</p>
-        <h2 className="text-lg font-bold mb-2" style={{ color: '#0f172a' }}>Link inválido</h2>
-        <p className="text-sm text-center" style={{ color: '#64748b' }}>{loadError}</p>
-      </div>
-    )
-  }
-
-  if (!clientData) {
-    return (
-      <LoginScreen
-        slug={slug}
-        clinic={clinic}
-        onSuccess={async (token) => {
-          if (!token) { setLoadError('No se pudo obtener tu sesión. Intenta de nuevo.'); return }
-          sessionStorage.setItem(`portal_token_${slug}`, token)
-          // Cargar datos directamente sin redirigir
-          try {
-            const res = await fetch(`/api/portal/token?t=${token}`)
-            const d = await res.json()
-            const payload = d.data ?? d
-            if (payload?.id) {
-              setClientData(payload)
-            } else {
-              setLoadError(d.error ?? d.data?.error ?? 'No se encontraron tus datos.')
-            }
-          } catch {
-            setLoadError('Error de conexión. Intenta de nuevo.')
-          }
-        }}
-      />
-    )
-  }
-
-  return <PassportScreen data={clientData} />
-}
+                <div className="flex items-center gap-3 mt-2 pt-2" style={{ borde
