@@ -1,0 +1,11 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --brand: #9333ea;
+  --brand-light: #f5d0fe;
+}
+
+* { box-sizing: border-box; }
+html { font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif; }

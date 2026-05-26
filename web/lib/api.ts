@@ -251,4 +251,19 @@ export const api = {
     request(`/api/routes/${id}`, { method: 'DELETE' }),
   updateRouteStop: (routeId: string, stopId: string, patch: { status?: string; arrived_at?: string; notes?: string }) =>
     request(`/api/routes/${routeId}/stops/${stopId}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+  // Finance
+  getFinanceSummary: () =>
+    request<FinanceSummary>('/api/finance/summary'),
+}
+
+export interface FinanceSummary {
+  revenueThisMonth: number
+  revenueLastMonth: number
+  revenueGrowth: number | null
+  avgTicket: number
+  pendingCount: number
+  monthlyRevenue: { month: string; label: string; revenue: number }[]
+  topServices: { name: string; revenue: number; count: number }[]
+  topClients: { id: string; name: string; revenue: number; count: number }[]
+  inactiveClients: { id: string; name: string; phone: string; days_inactive: number }[]
 }
