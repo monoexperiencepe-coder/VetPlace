@@ -54,7 +54,7 @@ function fmt(n: number) { return n.toLocaleString('es-PE') }
 // ══════════════════════════════════════════════════════════════════════════
 export default function DashboardPage() {
   const toast                         = useToast()
-  const { isOwner }                   = useRole()
+  const { role, isOwner }              = useRole()
   const [stats, setStats]             = useState<StatsData | null>(null)
   const [finance, setFinance]         = useState<FinanceSummary>(DEMO_FINANCE)
   const [todayBookings, setTB]        = useState<TodayBooking[]>([])
@@ -150,16 +150,39 @@ export default function DashboardPage() {
         </Link>
       </div>}
 
-      {/* ══ Staff greeting (shown instead of revenue hero) ════════════════ */}
-      {!isOwner && (
+      {/* ══ Staff greeting — same visual weight as owner hero ══════════════ */}
+      {role === 'staff' && (
         <div style={{
-          borderRadius: 18, padding: '18px 24px',
+          borderRadius: 20, padding: '22px 28px',
           background: 'linear-gradient(135deg,#3b10b5 0%,#601EF9 55%,#7c3aff 100%)',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16,
         }}>
-          <p style={{ color: '#c4b5fd', fontSize: 12, fontWeight: 600, margin: '0 0 4px', letterSpacing: '0.05em' }}>
-            {getGreeting()} · {new Date().toLocaleDateString('es-PE', { weekday: 'long', day: 'numeric', month: 'long' })}
-          </p>
-          <h1 style={{ color: '#fff', fontSize: 20, fontWeight: 700, margin: 0 }}>{clinicName}</h1>
+          <div>
+            <p style={{ color: '#c4b5fd', fontSize: 12, fontWeight: 600, margin: '0 0 6px', letterSpacing: '0.05em' }}>
+              {getGreeting()} · {new Date().toLocaleDateString('es-PE', { weekday: 'long', day: 'numeric', month: 'long' })}
+            </p>
+            <h1 style={{ color: '#fff', fontSize: 20, fontWeight: 700, margin: '0 0 10px' }}>{clinicName}</h1>
+            <div style={{ display: 'flex', gap: 20 }}>
+              <div>
+                <p style={{ color: '#c4b5fd', fontSize: 10, fontWeight: 600, margin: '0 0 2px', letterSpacing: '0.06em' }}>CITAS HOY</p>
+                <p style={{ color: '#fff', fontSize: 32, fontWeight: 900, margin: 0, lineHeight: 1 }}>
+                  {stats?.bookings_today ?? (loadingTB ? '…' : todayBookings.length)}
+                </p>
+              </div>
+              <div>
+                <p style={{ color: '#c4b5fd', fontSize: 10, fontWeight: 600, margin: '0 0 2px', letterSpacing: '0.06em' }}>PENDIENTES</p>
+                <p style={{ color: '#fff', fontSize: 32, fontWeight: 900, margin: 0, lineHeight: 1 }}>
+                  {todayBookings.filter(b => b.status === 'CONFIRMED' || b.status === 'PENDING').length}
+                </p>
+              </div>
+            </div>
+          </div>
+          <Link href="/bookings?new=1" style={{
+            padding: '10px 20px', borderRadius: 12, background: '#fff',
+            color: '#601EF9', fontSize: 13, fontWeight: 700, textDecoration: 'none',
+          }}>
+            Nueva cita →
+          </Link>
         </div>
       )}
 
