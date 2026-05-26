@@ -1,9 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { api, type FinanceSummary } from '@/lib/api'
 import { useToast } from '@/context/ToastContext'
+import { useRole } from '@/hooks/useRole'
 
 // ─── Demo data ─────────────────────────────────────────────────────────────
 const DEMO: FinanceSummary = {
@@ -45,11 +47,18 @@ const DEMO: FinanceSummary = {
 function fmt(n: number) { return n.toLocaleString('es-PE') }
 
 export default function FinancesPage() {
-  const toast = useToast()
+  const toast             = useToast()
+  const router            = useRouter()
+  const { role, isOwner } = useRole()
   const [data, setData]     = useState<FinanceSummary>(DEMO)
   const [loading, setLoading] = useState(true)
   const [isDemo, setIsDemo] = useState(false)
   const [tab, setTab]       = useState<'overview' | 'clients' | 'recover'>('overview')
+
+  // Redirect staff away immediately once role is resolved
+  useEffect(() => {
+    if (role === 'staff') router.replace('/')
+  }, [role, router])
 
   useEffect(() => {
     api.getFinanceSummary()
@@ -63,6 +72,9 @@ export default function FinancesPage() {
       })
       .catch(() => { setIsDemo(true); setLoading(false) })
   }, [])
+
+  // Don't render anything until role is known (avoids flash for staff)
+  if (role === 'loading' || !isOwner) return null
 
   const gr = data.revenueGrowth
   const maxRevenue = Math.max(...data.monthlyRevenue.map(m => m.revenue), 1)
@@ -426,14 +438,4 @@ function FinKpi({ icon, label, value, sub, accent }: { icon: string; label: stri
   )
 }
 
-function InsightCard({ icon, title, body, color, bg }: { icon: string; title: string; body: string; color: string; bg: string }) {
-  return (
-    <div style={{ padding: '12px 14px', borderRadius: 12, background: bg }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
-        <span style={{ fontSize: 16 }}>{icon}</span>
-        <p style={{ fontSize: 13, fontWeight: 700, color, margin: 0 }}>{title}</p>
-      </div>
-      <p style={{ fontSize: 12, color: '#64748b', margin: 0, lineHeight: 1.5 }}>{body}</p>
-    </div>
-  )
-}
+function InsightCard({ icon, title, body, color, bg }: { icon: string; title: string; body: string; color: string; bg

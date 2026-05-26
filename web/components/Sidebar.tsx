@@ -4,36 +4,38 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { useClinicName } from '@/hooks/useClinicName'
-
-// ─── Nav: Panel arriba, Chats bajo (acceso rápido) ───────────────────────────
-const navSections = [
-  {
-    label: 'Operaciones',
-    items: [
-      { href: '/',         label: 'Dashboard', icon: DashIcon },
-      { href: '/bookings', label: 'Agenda',    icon: CalIcon },
-      { href: '/clients',  label: 'Clientes',  icon: ClientIcon },
-      { href: '/finances', label: 'Finanzas',  icon: MoneyIcon },
-    ],
-  },
-  {
-    label: 'Comunicación',
-    items: [
-      { href: '/chats',  label: 'Chats',          icon: ChatIcon },
-      { href: '/events', label: 'Recordatorios',  icon: EventIcon },
-    ],
-  },
-  {
-    label: 'Análisis',
-    items: [
-      { href: '/reports', label: 'Reportes', icon: ChartIcon },
-    ],
-  },
-]
+import { useRole } from '@/hooks/useRole'
 
 export default function Sidebar() {
-  const pathname = usePathname()
+  const pathname   = usePathname()
   const clinicName = useClinicName()
+  const { isOwner } = useRole()
+
+  // ─── Nav sections — Finanzas only visible to owner ─────────────────────
+  const navSections = [
+    {
+      label: 'Operaciones',
+      items: [
+        { href: '/',         label: 'Dashboard', icon: DashIcon },
+        { href: '/bookings', label: 'Agenda',    icon: CalIcon },
+        { href: '/clients',  label: 'Clientes',  icon: ClientIcon },
+        ...(isOwner ? [{ href: '/finances', label: 'Finanzas', icon: MoneyIcon }] : []),
+      ],
+    },
+    {
+      label: 'Comunicación',
+      items: [
+        { href: '/chats',  label: 'Chats',         icon: ChatIcon },
+        { href: '/events', label: 'Recordatorios', icon: EventIcon },
+      ],
+    },
+    ...(isOwner ? [{
+      label: 'Análisis',
+      items: [
+        { href: '/reports', label: 'Reportes', icon: ChartIcon },
+      ],
+    }] : []),
+  ]
 
   const isActive = (href: string) => {
     if (href === '/') return pathname === '/'
@@ -282,9 +284,4 @@ function RouteIcon({ active }: { active: boolean }) {
 function DotsIcon() {
   return (
     <svg className="w-4 h-4 shrink-0 ml-auto" fill="none" viewBox="0 0 24 24" stroke="#94a3b8" strokeWidth={2}>
-      <circle cx="12" cy="5"  r="1" fill="#94a3b8" />
-      <circle cx="12" cy="12" r="1" fill="#94a3b8" />
-      <circle cx="12" cy="19" r="1" fill="#94a3b8" />
-    </svg>
-  )
-}
+      <circle cx="12" cy="5" 
