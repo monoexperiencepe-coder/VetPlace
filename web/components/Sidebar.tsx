@@ -284,4 +284,9 @@ function RouteIcon({ active }: { active: boolean }) {
 function DotsIcon() {
   return (
     <svg className="w-4 h-4 shrink-0 ml-auto" fill="none" viewBox="0 0 24 24" stroke="#94a3b8" strokeWidth={2}>
-      <circle cx="12" cy="5" 
+      <circle cx="12" cy="5"  r="1" fill="#94a3b8" />
+      <circle cx="12" cy="12" r="1" fill="#94a3b8" />
+      <circle cx="12" cy="19" r="1" fill="#94a3b8" />
+    </svg>
+  )
+}

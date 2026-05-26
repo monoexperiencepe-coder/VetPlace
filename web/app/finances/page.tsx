@@ -437,5 +437,14 @@ function FinKpi({ icon, label, value, sub, accent }: { icon: string; label: stri
     </div>
   )
 }
-
-function InsightCard({ icon, title, body, color, bg }: { icon: string; title: string; body: string; color: string; bg
+function InsightCard({ icon, title, body, color, bg }: { icon: string; title: string; body: string; color: string; bg: string }) {
+  return (
+    <div style={{ padding: '12px 14px', borderRadius: 12, background: bg }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
+        <span style={{ fontSize: 16 }}>{icon}</span>
+        <p style={{ fontSize: 13, fontWeight: 700, color, margin: 0 }}>{title}</p>
+      </div>
+      <p style={{ fontSize: 12, color: '#64748b', margin: 0, lineHeight: 1.5 }}>{body}</p>
+    </div>
+  )
+}
