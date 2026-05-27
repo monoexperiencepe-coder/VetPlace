@@ -14,7 +14,7 @@ type Section =
   | 'clinica' | 'horarios' | 'logistica' | 'zonas' | 'servicios'
   | 'whatsapp' | 'qr'
   | 'bot' | 'automatizaciones' | 'notificaciones'
-  | 'cuenta'
+  | 'cuenta' | 'equipo'
 
 interface NavItem { id: Section; label: string; icon: string }
 
@@ -47,7 +47,8 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
   {
     label: 'Cuenta',
     items: [
-      { id: 'cuenta', label: 'Mi cuenta', icon: '👤' },
+      { id: 'cuenta',  label: 'Mi cuenta', icon: '👤' },
+      { id: 'equipo',  label: 'Equipo',    icon: '👥' },
     ],
   },
 ]
@@ -122,6 +123,7 @@ export default function SettingsPage() {
           {section === 'automatizaciones' && <TabAutomatizaciones />}
           {section === 'notificaciones'   && <TabNotificaciones />}
           {section === 'cuenta'         && <TabCuenta router={router} />}
+          {section === 'equipo'         && <TabEquipo />}
           {section === 'servicios'      && <TabServicios />}
         </div>
       </main>
@@ -1733,3 +1735,230 @@ function TabServicios() {
   )
 }
 
+// ─── TabEquipo ────────────────────────────────────────────────────────────────
+interface StaffMember {
+  id: string
+  name: string
+  email: string
+  role: 'staff' | 'manager'
+  invited_at: string
+  accepted_at: string | null
+  active: boolean
+}
+
+function TabEquipo() {
+  const [members, setMembers]   = useState<StaffMember[]>([])
+  const [loading, setLoading]   = useState(true)
+  const [email, setEmail]       = useState('')
+  const [name, setName]         = useState('')
+  const [role, setRole]         = useState<'staff' | 'manager'>('staff')
+  const [sending, setSending]   = useState(false)
+  const [msg, setMsg]           = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
+  const [removing, setRemoving] = useState<string | null>(null)
+
+  const load = async () => {
+    setLoading(true)
+    try {
+      const { createClient } = await import('@/lib/supabase')
+      const sb = createClient()
+      const { data: { session } } = await sb.auth.getSession()
+      const token = session?.access_token
+      const res = await fetch('/api/staff', { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+      const json = await res.json() as { data?: StaffMember[] }
+      setMembers(json.data ?? [])
+    } catch { setMembers([]) }
+    setLoading(false)
+  }
+
+  useEffect(() => { load() }, [])
+
+  const invite = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!email.trim()) return
+    setSending(true)
+    setMsg(null)
+    try {
+      const { createClient } = await import('@/lib/supabase')
+      const sb = createClient()
+      const { data: { session } } = await sb.auth.getSession()
+      const token = session?.access_token
+      const res = await fetch('/api/staff/invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ email: email.trim(), name: name.trim() || undefined, role }),
+      })
+      const json = await res.json() as { ok?: boolean; error?: string; message?: string; warning?: string }
+      if (json.ok) {
+        setMsg({ type: 'ok', text: json.message ?? json.warning ?? 'Invitación enviada ✓' })
+        setEmail('')
+        setName('')
+        setRole('staff')
+        await load()
+      } else {
+        setMsg({ type: 'err', text: json.error ?? 'Error al invitar' })
+      }
+    } catch (err) {
+      setMsg({ type: 'err', text: String(err) })
+    }
+    setSending(false)
+  }
+
+  const remove = async (id: string) => {
+    setRemoving(id)
+    try {
+      const { createClient } = await import('@/lib/supabase')
+      const sb = createClient()
+      const { data: { session } } = await sb.auth.getSession()
+      const token = session?.access_token
+      await fetch(`/api/staff?id=${id}`, {
+        method: 'DELETE',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      setMembers(prev => prev.filter(m => m.id !== id))
+    } catch { /* ignore */ }
+    setRemoving(null)
+  }
+
+  const ROLE_LABEL: Record<string, string> = { staff: 'Colaborador', manager: 'Encargado' }
+  const ROLE_COLOR: Record<string, string> = { staff: '#601EF9', manager: '#0ea5e9' }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+
+      {/* ── Invite form ─────────────────────────────────────────── */}
+      <div style={{ background: '#fff', border: '1px solid #ede9fe', borderRadius: 16, padding: 24 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+          <span style={{ fontSize: 20 }}>➕</span>
+          <div>
+            <p style={{ fontSize: 15, fontWeight: 700, color: '#0f172a', margin: 0 }}>Invitar colaborador</p>
+            <p style={{ fontSize: 12, color: '#64748b', margin: 0 }}>Recibirán un email para crear su cuenta y verán solo la vista operativa.</p>
+          </div>
+        </div>
+
+        <form onSubmit={invite} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, color: '#334155', display: 'block', marginBottom: 5 }}>Email *</label>
+              <input
+                type="email" required value={email} onChange={e => setEmail(e.target.value)}
+                placeholder="colaborador@clinica.com"
+                style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid #e2e8f0',
+                  fontSize: 13, background: '#f8fafc', boxSizing: 'border-box', outline: 'none' }}
+                onFocus={e => e.currentTarget.style.borderColor = '#601EF9'}
+                onBlur={e => e.currentTarget.style.borderColor = '#e2e8f0'}
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, color: '#334155', display: 'block', marginBottom: 5 }}>Nombre</label>
+              <input
+                type="text" value={name} onChange={e => setName(e.target.value)}
+                placeholder="Ej: María García"
+                style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid #e2e8f0',
+                  fontSize: 13, background: '#f8fafc', boxSizing: 'border-box', outline: 'none' }}
+                onFocus={e => e.currentTarget.style.borderColor = '#601EF9'}
+                onBlur={e => e.currentTarget.style.borderColor = '#e2e8f0'}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, color: '#334155', display: 'block', marginBottom: 5 }}>Rol</label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {(['staff', 'manager'] as const).map(r => (
+                <button key={r} type="button" onClick={() => setRole(r)}
+                  style={{ padding: '8px 16px', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer', border: '1.5px solid',
+                    borderColor: role === r ? '#601EF9' : '#e2e8f0',
+                    background: role === r ? '#F3EEFF' : '#f8fafc',
+                    color: role === r ? '#601EF9' : '#64748b' }}>
+                  {r === 'staff' ? '👤 Colaborador' : '⭐ Encargado'}
+                </button>
+              ))}
+            </div>
+            <p style={{ fontSize: 11, color: '#94a3b8', margin: '5px 0 0' }}>
+              {role === 'staff' ? 'Ve citas, clientes, mascotas y chats.' : 'Mismo que colaborador + estadísticas básicas de ingresos.'}
+            </p>
+          </div>
+
+          {msg && (
+            <div style={{ padding: '10px 14px', borderRadius: 10, fontSize: 13, fontWeight: 500,
+              background: msg.type === 'ok' ? '#f0fdf4' : '#fef2f2',
+              color: msg.type === 'ok' ? '#16a34a' : '#dc2626',
+              border: `1px solid ${msg.type === 'ok' ? '#bbf7d0' : '#fecaca'}` }}>
+              {msg.text}
+            </div>
+          )}
+
+          <button type="submit" disabled={sending || !email.trim()}
+            style={{ alignSelf: 'flex-start', padding: '10px 22px', borderRadius: 10, fontSize: 13, fontWeight: 700,
+              background: 'linear-gradient(135deg,#3b10b5,#601EF9)', color: '#fff', border: 'none',
+              cursor: sending ? 'wait' : 'pointer', opacity: (sending || !email.trim()) ? 0.6 : 1 }}>
+            {sending ? 'Enviando…' : 'Enviar invitación'}
+          </button>
+        </form>
+      </div>
+
+      {/* ── Current team ────────────────────────────────────────── */}
+      <div style={{ background: '#fff', border: '1px solid #ede9fe', borderRadius: 16, padding: 24 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+          <span style={{ fontSize: 16 }}>👥</span>
+          <p style={{ fontSize: 15, fontWeight: 700, color: '#0f172a', margin: 0 }}>
+            Tu equipo {!loading && members.length > 0 && <span style={{ fontSize: 12, fontWeight: 600, color: '#601EF9', background: '#F3EEFF', padding: '2px 8px', borderRadius: 20, marginLeft: 6 }}>{members.length}</span>}
+          </p>
+        </div>
+
+        {loading ? (
+          <p style={{ fontSize: 13, color: '#94a3b8', textAlign: 'center', padding: '20px 0' }}>Cargando…</p>
+        ) : members.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '24px 0' }}>
+            <p style={{ fontSize: 32, marginBottom: 8 }}>🙋</p>
+            <p style={{ fontSize: 13, color: '#64748b', margin: 0 }}>Aún no invitaste a nadie.</p>
+            <p style={{ fontSize: 12, color: '#94a3b8', margin: '4px 0 0' }}>Invitá a tu recepcionista, bañador o asistente.</p>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {members.map(m => (
+              <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px',
+                borderRadius: 12, background: '#F9F9FB', border: '1px solid #ede9fe' }}>
+                <div style={{ width: 38, height: 38, borderRadius: 10, background: '#F3EEFF',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>
+                  {m.accepted_at ? '✅' : '📧'}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', margin: 0,
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.name}</p>
+                  <p style={{ fontSize: 11, color: '#64748b', margin: 0 }}>{m.email}</p>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                  <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 20,
+                    background: ROLE_COLOR[m.role] + '18', color: ROLE_COLOR[m.role] }}>
+                    {ROLE_LABEL[m.role]}
+                  </span>
+                  {!m.accepted_at && (
+                    <span style={{ fontSize: 11, color: '#f59e0b', fontWeight: 600, padding: '3px 8px',
+                      borderRadius: 20, background: '#fffbeb', border: '1px solid #fde68a' }}>
+                      Pendiente
+                    </span>
+                  )}
+                  <button onClick={() => remove(m.id)} disabled={removing === m.id}
+                    style={{ fontSize: 11, padding: '4px 10px', borderRadius: 8, border: '1px solid #fecaca',
+                      background: '#fef2f2', color: '#dc2626', cursor: 'pointer',
+                      opacity: removing === m.id ? 0.5 : 1 }}>
+                    {removing === m.id ? '…' : 'Quitar'}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div style={{ padding: '12px 16px', borderRadius: 12, background: '#f0f9ff', border: '1px solid #bae6fd' }}>
+        <p style={{ fontSize: 12, color: '#0369a1', margin: 0 }}>
+          💡 <strong>¿Cómo funciona?</strong> El colaborador recibe un email con un link para crear su cuenta.
+          Cuando inicia sesión, ve solo la vista operativa (citas, clientes, chats). 
+          Finanzas y configuración avanzada son solo para vos.
+        </p>
+      </div>
+    </div>
+  )
+}
