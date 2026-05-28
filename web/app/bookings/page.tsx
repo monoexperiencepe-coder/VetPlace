@@ -885,7 +885,15 @@ export default function BookingsPage() {
       {completingBooking && (
         <CompleteWithPaymentModal booking={completingBooking}
           onClose={() => setCompletingBooking(null)}
-          onDone={() => { setCompletingBooking(null); load() }} />
+          onDone={() => {
+            const id = completingBooking?.id
+            setCompletingBooking(null)
+            if (id) {
+              setBookings(prev => prev.map(b =>
+                b.id === id ? { ...b, status: 'COMPLETED' as BookingStatus, payment_status: 'paid' } : b
+              ))
+            }
+          }} />
       )}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-2 flex-wrap">

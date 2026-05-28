@@ -134,7 +134,8 @@ export async function completeBooking(bookingId: string, clinicId: string): Prom
     pet?: { id: string; name: string; type: string; user?: { id: string; name?: string; phone: string } }
   }
 
-  await emitBookingCompleted(clinicId, {
+  // Fire-and-forget: don't block the API response waiting for domain events/automations
+  emitBookingCompleted(clinicId, {
     id:     booking.id,
     pet_id: booking.pet_id,
     date:   booking.date,
@@ -145,7 +146,7 @@ export async function completeBooking(bookingId: string, clinicId: string): Prom
     client_phone:     ctx?.pet?.user?.phone,
     pet_name:         ctx?.pet?.name,
     last_activity_at: booking.date,
-  })
+  }).catch(err => console.error('[completeBooking] emitBookingCompleted error:', err))
 
   return booking
 }
