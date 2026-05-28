@@ -476,9 +476,17 @@ function PassportScreen({ data }: { data: ClientData }) {
   if (!pet) return (
     <div className="min-h-screen" style={{ background: '#eee8ff', display: 'flex', justifyContent: 'center', alignItems: 'flex-start' }}>
       <div style={{ width: '100%', maxWidth: 430, minHeight: '100vh', background: '#f8f6ff', boxShadow: '0 0 60px rgba(96,30,249,0.15)' }}>
-        <div style={{ background: 'linear-gradient(135deg,#3b10b5,#601EF9)', padding: '40px 24px 32px' }}>
-          <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12 }}>{clinic.name}</p>
-          <h2 style={{ color: '#fff', fontSize: 20, fontWeight: 700, margin: '8px 0 0' }}>{data.name ?? data.phone}</h2>
+        <div style={{ background: 'linear-gradient(135deg,#3b10b5,#601EF9)', padding: '32px 24px 24px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div>
+              <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, margin: '0 0 6px' }}>{clinic.name}</p>
+              <h2 style={{ color: '#fff', fontSize: 20, fontWeight: 700, margin: 0 }}>{data.name ?? data.phone}</h2>
+            </div>
+            <button onClick={() => { Object.keys(sessionStorage).filter(k => k.startsWith('portal_token_')).forEach(k => sessionStorage.removeItem(k)); window.location.reload() }}
+              style={{ padding: '6px 12px', borderRadius: 10, background: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.85)', fontSize: 12, fontWeight: 600, border: 'none', cursor: 'pointer' }}>
+              Salir
+            </button>
+          </div>
         </div>
         <div style={{ padding: '40px 24px', textAlign: 'center' }}>
           <p style={{ fontSize: 40 }}>🐾</p>
