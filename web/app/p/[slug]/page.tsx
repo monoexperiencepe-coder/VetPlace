@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState, use } from 'react'
+import { useEffect, useState } from 'react'
+import { useParams } from 'next/navigation'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Clinic {
@@ -775,8 +776,9 @@ function PassportScreen({ data }: { data: ClientData }) {
 }
 
 // ─── Main Page ─────────────────────────────────────────────────────────────────
-export default function PortalPage({ params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = use(params)
+export default function PortalPage() {
+  const params = useParams()
+  const slug = (params?.slug as string) ?? ''
   const [clientData, setClientData] = useState<ClientData | null>(null)
   const [clinic, setClinic] = useState<Clinic | null>(null)
   const [loading, setLoading] = useState(true)
