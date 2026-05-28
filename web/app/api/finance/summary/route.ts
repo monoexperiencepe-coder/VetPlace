@@ -47,9 +47,9 @@ export async function GET(request: NextRequest) {
     // ── 1. Payments this month ──────────────────────────────────────────────
     const { data: paymentsThisMonth } = await supabaseAdmin
       .from('payments')
-      .select('amount, created_at')
+      .select('amount, date')
       .eq('clinic_id', cid)
-      .gte('created_at', thisMonthStart)
+      .gte('date', thisMonthStart)
 
     const revenueThisMonth = (paymentsThisMonth ?? []).reduce((s, p) => s + (Number(p.amount) || 0), 0)
 
@@ -58,17 +58,17 @@ export async function GET(request: NextRequest) {
       .from('payments')
       .select('amount')
       .eq('clinic_id', cid)
-      .gte('created_at', lastMonthStart)
-      .lte('created_at', lastMonthEnd)
+      .gte('date', lastMonthStart)
+      .lte('date', lastMonthEnd)
 
     const revenueLastMonth = (paymentsLastMonth ?? []).reduce((s, p) => s + (Number(p.amount) || 0), 0)
 
     // ── 3. Monthly revenue for past 6 months ───────────────────────────────
     const { data: allPayments6m } = await supabaseAdmin
       .from('payments')
-      .select('amount, created_at')
+      .select('amount, date')
       .eq('clinic_id', cid)
-      .gte('created_at', sixMonthsAgo)
+      .gte('date', sixMonthsAgo)
 
     // Group by month
     const monthMap: Record<string, number> = {}
@@ -78,7 +78,7 @@ export async function GET(request: NextRequest) {
       monthMap[key] = 0
     }
     for (const p of allPayments6m ?? []) {
-      const key = p.created_at.slice(0, 7)
+      const key = (p.date as string).slice(0, 7)
       if (monthMap[key] !== undefined) monthMap[key] += Number(p.amount) || 0
     }
 
@@ -151,11 +151,21 @@ export async function GET(request: NextRequest) {
     // Filter: clients with no booking in last 60 days
     const inactive: { id: string; name: string; phone: string; days_inactive: number }[] = []
     for (const c of inactiveData ?? []) {
+      // Find client's pets, then get their latest booking
+      const { data: clientPets } = await supabaseAdmin
+        .from('pets')
+        .select('id')
+        .eq('clinic_id', cid)
+        .eq('user_id', c.id)
+
+      if (!clientPets || clientPets.length === 0) continue
+      const petIds = clientPets.map((p: { id: string }) => p.id)
+
       const { data: lastBooking } = await supabaseAdmin
         .from('bookings')
         .select('date')
         .eq('clinic_id', cid)
-        .eq('client_id', c.id)
+        .in('pet_id', petIds)
         .order('date', { ascending: false })
         .limit(1)
         .maybeSingle()

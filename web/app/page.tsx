@@ -111,8 +111,8 @@ export default function DashboardPage() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, paddingBottom: 32 }}>
 
-      {/* ══ HERO — The one number (owner only) ═══════════════════════════ */}
-      {isOwner && <div style={{
+      {/* ══ HERO — owner / loading / staff ═════════════════════════════════ */}
+      {(isOwner || role === 'loading') && <div style={{
         borderRadius: 20, padding: '22px 28px',
         background: 'linear-gradient(135deg,#3b10b5 0%,#601EF9 55%,#7c3aff 100%)',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16,
