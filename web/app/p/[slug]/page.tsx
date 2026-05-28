@@ -474,8 +474,8 @@ function PassportScreen({ data }: { data: ClientData }) {
     : null
 
   if (!pet) return (
-    <div className="min-h-screen" style={{ background: '#eee8ff', display: 'flex', justifyContent: 'center', alignItems: 'flex-start' }}>
-      <div style={{ width: '100%', maxWidth: 430, minHeight: '100vh', background: '#f8f6ff', boxShadow: '0 0 60px rgba(96,30,249,0.15)' }}>
+    <div className="min-h-screen flex justify-center p-4" style={{ background: '#F4F4F8' }}>
+      <div className="w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl" style={{ background: '#f8f6ff', height: 'fit-content' }}>
         <div style={{ background: 'linear-gradient(135deg,#3b10b5,#601EF9)', padding: '32px 24px 24px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
@@ -526,8 +526,8 @@ function PassportScreen({ data }: { data: ClientData }) {
   const nextBooking = upcomingBookings[0]
 
   return (
-    <div className="min-h-screen" style={{ background: '#eee8ff', display: 'flex', justifyContent: 'center', alignItems: 'flex-start', padding: '0' }}>
-      <div style={{ width: '100%', maxWidth: 430, minHeight: '100vh', background: '#f8f6ff', boxShadow: '0 0 60px rgba(96,30,249,0.15)' }}>
+    <div className="min-h-screen flex justify-center p-4" style={{ background: '#F4F4F8' }}>
+      <div className="w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl" style={{ background: '#f8f6ff', height: 'fit-content' }}>
 
       {/* ── Header ── */}
       <div className="px-4 pt-10 pb-6" style={{ background: 'linear-gradient(135deg,#3b10b5,#601EF9)' }}>
