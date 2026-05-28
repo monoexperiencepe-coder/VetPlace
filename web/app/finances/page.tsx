@@ -158,18 +158,22 @@ export default function FinancesPage() {
           {/* Revenue bar chart */}
           <FCard>
             <FCardHeader title="Ingresos mensuales" sub="Últimos 6 meses" />
-            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, height: 180, padding: '8px 0 0' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, padding: '0 0 8px' }}>
               {data.monthlyRevenue.map((m, i) => {
                 const isLast = i === data.monthlyRevenue.length - 1
-                const heightPct = Math.max(8, Math.round((m.revenue / maxRevenue) * 100))
+                // Use explicit pixel height so the bars actually render tall
+                const barPx = Math.max(12, Math.round((m.revenue / maxRevenue) * 160))
                 return (
-                  <div key={m.month} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-                    <p style={{ fontSize: 11, fontWeight: 700, color: isLast ? '#601EF9' : '#94a3b8', margin: 0 }}>
+                  <div key={m.month} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
+                    <p style={{ fontSize: 11, fontWeight: 700, color: isLast ? '#601EF9' : '#64748b', margin: 0, whiteSpace: 'nowrap' }}>
                       S/{m.revenue >= 1000 ? (m.revenue / 1000).toFixed(1) + 'k' : m.revenue}
                     </p>
-                    <div style={{ width: '100%', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', flex: 1 }}>
-                      <div style={{ width: '70%', height: `${heightPct}%`, minHeight: 8, borderRadius: '6px 6px 0 0',
-                        background: isLast ? 'linear-gradient(180deg,#601EF9,#3b10b5)' : '#e0e7ff',
+                    <div style={{ width: '100%', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', height: barPx }}>
+                      <div style={{ width: '78%', height: '100%', borderRadius: '6px 6px 0 0',
+                        background: isLast
+                          ? 'linear-gradient(180deg,#7c3aff,#3b10b5)'
+                          : `rgba(96,30,249,${0.15 + (i / (data.monthlyRevenue.length - 1)) * 0.35})`,
+                        boxShadow: isLast ? '0 -2px 12px rgba(96,30,249,0.35)' : 'none',
                         transition: 'height 0.5s ease' }} />
                     </div>
                     <p style={{ fontSize: 11, fontWeight: isLast ? 700 : 500, color: isLast ? '#601EF9' : '#94a3b8', margin: 0 }}>{m.label}</p>
