@@ -109,7 +109,7 @@ export default function DashboardPage() {
   const totalAlerts = overdueEvents.length + finance.inactiveClients.length
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, paddingBottom: 32, maxWidth: 900 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, paddingBottom: 32 }}>
 
       {/* ══ HERO — The one number (owner only) ═══════════════════════════ */}
       {isOwner && <div style={{
@@ -269,7 +269,7 @@ export default function DashboardPage() {
       )}
 
       {/* ══ MAIN GRID ═════════════════════════════════════════════════════ */}
-      <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,3fr) minmax(0,2fr)', gap: 16 }}>
 
         {/* ── TODAY'S AGENDA ─────────────────────────────────────────── */}
         <Card>
