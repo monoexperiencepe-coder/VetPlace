@@ -6,6 +6,7 @@ import { useToast } from '@/context/ToastContext'
 import { createClient } from '@/lib/supabase'
 import { api, type FinanceSummary } from '@/lib/api'
 import { useRole } from '@/hooks/useRole'
+import { useClinicName, CLINIC_NAME_STORAGE_KEY } from '@/hooks/useClinicName'
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 interface TodayBooking {
@@ -55,24 +56,36 @@ function fmt(n: number) { return n.toLocaleString('es-PE') }
 export default function DashboardPage() {
   const toast                         = useToast()
   const { role, isOwner }              = useRole()
+  const storedClinicName               = useClinicName()
   const [stats, setStats]             = useState<StatsData | null>(null)
-  const [finance, setFinance]         = useState<FinanceSummary>(DEMO_FINANCE)
+  const [finance, setFinance]         = useState<FinanceSummary | null>(null)
   const [todayBookings, setTB]        = useState<TodayBooking[]>([])
   const [overdueEvents, setOverdue]   = useState<OverdueEvent[]>([])
-  const [clinicName, setClinicName]   = useState('Mi Clínica')
+  const [clinicName, setClinicName]   = useState('')
   const [completingId, setCI]         = useState<string | null>(null)
   const [loadingTB, setLoadingTB]     = useState(true)
   const [notifying, setNotifying]     = useState(false)
+
+  // Sync clinic name: localStorage first (instant), then API (authoritative)
+  useEffect(() => {
+    if (storedClinicName && storedClinicName !== 'VetPlace') setClinicName(storedClinicName)
+  }, [storedClinicName])
 
   useEffect(() => {
     const supabase = createClient()
     supabase.auth.getUser().then(({ data }) => {
       const meta = data.user?.user_metadata
-      if (meta?.clinic_name) setClinicName(meta.clinic_name)
+      if (meta?.clinic_name) {
+        setClinicName(meta.clinic_name)
+        try { localStorage.setItem(CLINIC_NAME_STORAGE_KEY, meta.clinic_name) } catch { /* ignore */ }
+      }
     })
     api.getMyClinic().then((d: unknown) => {
       const c = (d as { data?: { name?: string } })?.data
-      if (c?.name) setClinicName(c.name)
+      if (c?.name) {
+        setClinicName(c.name)
+        try { localStorage.setItem(CLINIC_NAME_STORAGE_KEY, c.name) } catch { /* ignore */ }
+      }
     }).catch(() => {})
   }, [])
 
@@ -81,7 +94,7 @@ export default function DashboardPage() {
   }, [])
 
   useEffect(() => {
-    api.getFinanceSummary().then(d => { if (d) setFinance(d) }).catch(() => {})
+    api.getFinanceSummary().then(d => { if (d) setFinance(d) }).catch(() => setFinance(DEMO_FINANCE))
   }, [])
 
   useEffect(() => {
@@ -105,8 +118,9 @@ export default function DashboardPage() {
   }
 
   const S = (k: string) => STATUS_STYLE[k] ?? STATUS_STYLE.PENDING
-  const gr = finance.revenueGrowth
-  const totalAlerts = overdueEvents.length + finance.inactiveClients.length
+  const f  = finance ?? DEMO_FINANCE   // safe fallback — only used after finance loads
+  const gr = finance?.revenueGrowth ?? null
+  const totalAlerts = overdueEvents.length + (finance?.inactiveClients.length ?? 0)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, paddingBottom: 32 }}>
@@ -126,7 +140,7 @@ export default function DashboardPage() {
             <div>
               <p style={{ color: '#c4b5fd', fontSize: 10, fontWeight: 600, margin: '0 0 3px', letterSpacing: '0.06em' }}>INGRESOS ESTE MES</p>
               <p style={{ color: '#fff', fontSize: 38, fontWeight: 900, margin: 0, lineHeight: 1 }}>
-                S/ {fmt(finance.revenueThisMonth)}
+                {finance ? `S/ ${fmt(finance.revenueThisMonth)}` : '—'}
               </p>
             </div>
             {gr !== null && (
@@ -191,7 +205,7 @@ export default function DashboardPage() {
         {isOwner ? (
           <>
             <KpiCard icon="🎯" label="Ticket promedio"
-              value={`S/ ${finance.avgTicket}`}
+              value={`S/ ${f.avgTicket}`}
               sub={`${stats?.bookings_this_month ?? 0} servicios este mes`}
               accent="#601EF9" />
             <KpiCard icon="👥" label="Clientes"
@@ -231,8 +245,8 @@ export default function DashboardPage() {
           <div style={{ flex: 1, minWidth: 200 }}>
             <p style={{ fontSize: 13, fontWeight: 700, color: '#92400e', margin: 0 }}>
               {overdueEvents.length > 0 && `${overdueEvents.length} recordatorio${overdueEvents.length > 1 ? 's' : ''} vencido${overdueEvents.length > 1 ? 's' : ''}`}
-              {overdueEvents.length > 0 && finance.inactiveClients.length > 0 && ' · '}
-              {finance.inactiveClients.length > 0 && `${finance.inactiveClients.length} cliente${finance.inactiveClients.length > 1 ? 's' : ''} sin volver en 60+ días`}
+              {overdueEvents.length > 0 && f.inactiveClients.length > 0 && ' · '}
+              {f.inactiveClients.length > 0 && `${f.inactiveClients.length} cliente${f.inactiveClients.length > 1 ? 's' : ''} sin volver en 60+ días`}
             </p>
             <p style={{ fontSize: 12, color: '#b45309', margin: '2px 0 0' }}>
               Atender esto puede generar ingresos directos
@@ -256,7 +270,7 @@ export default function DashboardPage() {
                 {notifying ? '…' : '📨 Notificar'}
               </button>
             )}
-            {finance.inactiveClients.length > 0 && (
+            {f.inactiveClients.length > 0 && (
               <Link href="/finances?tab=recover" style={{
                 padding: '7px 14px', borderRadius: 10, background: '#92400e', color: '#fff',
                 fontSize: 12, fontWeight: 700, textDecoration: 'none',
@@ -282,10 +296,10 @@ export default function DashboardPage() {
               {/* Revenue comparison */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
                 {[
-                  { label: 'Este mes', value: `S/ ${fmt(finance.revenueThisMonth)}`, accent: '#601EF9' },
-                  { label: 'Mes anterior', value: `S/ ${fmt(finance.revenueLastMonth)}`, accent: '#64748b' },
-                  { label: finance.revenueGrowth !== null ? (finance.revenueGrowth >= 0 ? `+${finance.revenueGrowth}% ↑` : `${finance.revenueGrowth}% ↓`) : '—',
-                    value: 'vs anterior', accent: finance.revenueGrowth !== null && finance.revenueGrowth >= 0 ? '#16a34a' : '#dc2626' },
+                  { label: 'Este mes', value: finance ? `S/ ${fmt(f.revenueThisMonth)}` : '—', accent: '#601EF9' },
+                  { label: 'Mes anterior', value: finance ? `S/ ${fmt(f.revenueLastMonth)}` : '—', accent: '#64748b' },
+                  { label: f.revenueGrowth !== null ? (f.revenueGrowth >= 0 ? `+${f.revenueGrowth}% ↑` : `${f.revenueGrowth}% ↓`) : '—',
+                    value: 'vs anterior', accent: f.revenueGrowth !== null && f.revenueGrowth >= 0 ? '#16a34a' : '#dc2626' },
                 ].map(item => (
                   <div key={item.label} style={{ padding: '14px 12px', borderRadius: 12, background: '#F9F9FB', border: '1px solid #ede9fe', textAlign: 'center' }}>
                     <p style={{ fontSize: 16, fontWeight: 800, color: item.accent, margin: '0 0 4px', lineHeight: 1 }}>{item.value}</p>
@@ -294,12 +308,12 @@ export default function DashboardPage() {
                 ))}
               </div>
               {/* Top services */}
-              {finance.topServices.length > 0 && (
+              {f.topServices.length > 0 && (
                 <div>
                   <p style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', margin: '0 0 8px', letterSpacing: '0.05em' }}>POR SERVICIO ESTE MES</p>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {finance.topServices.slice(0, 4).map((s, i) => {
-                      const max = finance.topServices[0]?.revenue || 1
+                    {f.topServices.slice(0, 4).map((s, i) => {
+                      const max = f.topServices[0]?.revenue || 1
                       const colors = ['#601EF9','#0ea5e9','#10b981','#f59e0b']
                       return (
                         <div key={s.name} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -315,9 +329,9 @@ export default function DashboardPage() {
                 </div>
               )}
               {/* Pending alert */}
-              {finance.pendingCount > 0 && (
+              {f.pendingCount > 0 && (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderRadius: 10, background: '#fffbeb', border: '1px solid #fde68a' }}>
-                  <p style={{ fontSize: 13, fontWeight: 600, color: '#92400e', margin: 0 }}>💰 {finance.pendingCount} cobro{finance.pendingCount > 1 ? 's' : ''} pendiente{finance.pendingCount > 1 ? 's' : ''}</p>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: '#92400e', margin: 0 }}>💰 {f.pendingCount} cobro{f.pendingCount > 1 ? 's' : ''} pendiente{f.pendingCount > 1 ? 's' : ''}</p>
                   <Link href="/finances" style={{ fontSize: 12, fontWeight: 700, color: '#92400e', textDecoration: 'none' }}>Cobrar →</Link>
                 </div>
               )}
@@ -400,7 +414,7 @@ export default function DashboardPage() {
                   {[
                     { icon: '📊', label: 'Ver finanzas completas', sub: 'Ingresos, clientes, tendencias', href: '/finances', accent: '#601EF9' },
                     { icon: '💰', label: 'Registrar cobro',        sub: 'Marca un servicio como pagado',  href: '/finances', accent: '#10b981' },
-                    { icon: '🔄', label: 'Recuperar clientes',     sub: `${finance.inactiveClients.length} clientes inactivos`, href: '/finances?tab=recover', accent: '#f59e0b' },
+                    { icon: '🔄', label: 'Recuperar clientes',     sub: `${f.inactiveClients.length} clientes inactivos`, href: '/finances?tab=recover', accent: '#f59e0b' },
                     { icon: '👥', label: 'Gestionar equipo',       sub: 'Invitar colaboradores',          href: '/settings?s=equipo', accent: '#0ea5e9' },
                   ].map(a => (
                     <Link key={a.label} href={a.href}
@@ -422,13 +436,13 @@ export default function DashboardPage() {
               </Card>
 
               {/* Top clients mini */}
-              {finance.topClients.length > 0 && (
+              {f.topClients.length > 0 && (
                 <Card>
                   <CardHeader icon="⭐" title="Mejores clientes"
                     action={<Link href="/finances?tab=clients" style={{ fontSize: 12, fontWeight: 600, color: '#601EF9', textDecoration: 'none' }}>Ver todos →</Link>}
                   />
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {finance.topClients.slice(0, 3).map((c, i) => (
+                    {f.topClients.slice(0, 3).map((c, i) => (
                       <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0' }}>
                         <span style={{ fontSize: 16, minWidth: 24, textAlign: 'center' }}>{['🥇','🥈','🥉'][i]}</span>
                         <p style={{ flex: 1, fontSize: 13, fontWeight: 600, color: '#0f172a', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</p>

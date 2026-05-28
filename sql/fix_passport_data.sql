@@ -192,7 +192,7 @@ BEGIN
     INSERT INTO medical_records (clinic_id, pet_id, date, type, diagnosis, treatment, notes, vet, weight)
     VALUES
       -- Luna's history
-      (v_clinic_id, p1, today - 165, 'checkup',
+      (v_clinic_id, p1, today - 165, 'consultation',
         'Control rutinario anual', 'Sin tratamiento requerido',
         'Peso saludable. Dientes en buen estado.', 'Dr. Ramírez', 22.5),
       (v_clinic_id, p1, today - 92,  'vaccine',
@@ -201,13 +201,13 @@ BEGIN
       (v_clinic_id, p1, today - 78,  'deworming',
         'Desparasitación interna y externa', 'Milbemax + pipeta antiparasitaria',
         'Próxima desparasitación en 3 meses.', 'Dra. Soto', 23.0),
-      (v_clinic_id, p1, today - 43,  'checkup',
+      (v_clinic_id, p1, today - 43,  'consultation',
         'Revisión post-baño. Dermatitis leve', 'Champú medicado Malaseb x 2 semanas',
         'Área de la papada con irritación. Mejoría esperada en 2 semanas.', 'Dra. Soto', 23.2),
       (v_clinic_id, p1, today - 28,  'vaccine',
         'Vacuna bivalente canina', 'Vacuna polivalente 5en1',
         'Tolera bien. Revisión en 1 año.', 'Dr. Ramírez', 23.1),
-      (v_clinic_id, p1, today - 8,   'checkup',
+      (v_clinic_id, p1, today - 8,   'consultation',
         'Consulta por cojera leve pata delantera derecha',
         'AINE (Meloxicam) 5 días + reposo',
         'Probable esguince leve. Radiografía no requerida.', 'Dr. Ramírez', 23.3),
@@ -215,19 +215,19 @@ BEGIN
       (v_clinic_id, p2, today - 155, 'deworming',
         'Desparasitación interna felina', 'Milbemax gatos',
         'Peso estable. Come bien.', 'Dra. Soto', 4.2),
-      (v_clinic_id, p2, today - 125, 'checkup',
+      (v_clinic_id, p2, today - 125, 'consultation',
         'Control rutinario anual', 'Sin tratamiento requerido',
         'Gato en excelente condición. Uñas recortadas.', 'Dra. Soto', 4.3),
       (v_clinic_id, p2, today - 88,  'grooming',
         'Baño + profilaxis dental', 'Limpieza dental manual',
         'Sarro leve en molares. Repetir en 6 meses.', 'Dra. Soto', 4.3),
-      (v_clinic_id, p2, today - 62,  'checkup',
+      (v_clinic_id, p2, today - 62,  'consultation',
         'Revisión dental por sarro leve', 'Croquetas dentales Hill''s',
         'Mejora respecto a visita anterior.', 'Dr. Ramírez', 4.4),
       (v_clinic_id, p2, today - 48,  'deworming',
         'Desparasitación preventiva', 'Milbemax + pipeta Frontline',
         'Sin parásitos encontrados.', 'Dra. Soto', 4.4),
-      (v_clinic_id, p2, today - 24,  'checkup',
+      (v_clinic_id, p2, today - 24,  'consultation',
         'Tos leve + mucosidad nasal', 'Amoxicilina 7 días + suero fisiológico nasal',
         'Probable rinotraqueítis viral leve. Mejoría en 5 días.', 'Dr. Ramírez', 4.3),
       (v_clinic_id, p2, today - 14,  'surgery',
@@ -242,10 +242,41 @@ BEGIN
       RAISE NOTICE 'Error inserting medical_records: %', SQLERRM;
   END;
 
+  -- ── 8. Add upcoming events (Eventos tab in passport) ───────────────────
+  -- Events are vet-generated reminders (vaccine due, annual checkup, etc.)
+  -- Different from bookings (client appointments). status = PENDING → shows in Eventos tab.
+  BEGIN
+    DELETE FROM events WHERE clinic_id = v_clinic_id;
+
+    INSERT INTO events (clinic_id, pet_id, type, scheduled_date, status)
+    VALUES
+      -- Luna's upcoming events
+      (v_clinic_id, p1, 'vaccine',   today + 337, 'PENDING'),   -- annual rabies vaccine (1 year from last)
+      (v_clinic_id, p1, 'deworming', today + 83,  'PENDING'),   -- deworming in 3 months
+      (v_clinic_id, p1, 'checkup',   today + 180, 'PENDING'),   -- 6-month checkup
+      -- Mochi's upcoming events
+      (v_clinic_id, p2, 'vaccine',   today + 14,  'PENDING'),   -- vaccine due soon
+      (v_clinic_id, p2, 'checkup',   today + 30,  'PENDING'),   -- post-surgery follow-up
+      (v_clinic_id, p2, 'grooming',  today + 21,  'PENDING'),   -- monthly grooming
+      -- Other pets
+      (v_clinic_id, p3, 'vaccine',   today + 7,   'PENDING'),
+      (v_clinic_id, p4, 'grooming',  today + 14,  'PENDING'),
+      (v_clinic_id, p5, 'checkup',   today + 3,   'PENDING'),
+      (v_clinic_id, p6, 'deworming', today + 10,  'PENDING');
+
+    RAISE NOTICE 'Events seeded for Eventos tab';
+  EXCEPTION
+    WHEN undefined_table THEN
+      RAISE NOTICE 'events table not found — skipping';
+    WHEN others THEN
+      RAISE NOTICE 'Error inserting events: %', SQLERRM;
+  END;
+
   RAISE NOTICE '';
   RAISE NOTICE '✅ fix_passport_data.sql complete!';
-  RAISE NOTICE '   Luna and Mochi: bookings (past + future) + 6 medical records each';
+  RAISE NOTICE '   Luna and Mochi: bookings + 6 medical records each + upcoming events';
   RAISE NOTICE '   All other pets: 6 months of bookings re-linked to current pet IDs';
   RAISE NOTICE '   Payments: re-inserted for all paid bookings';
+  RAISE NOTICE '   Events: upcoming vaccine/checkup/grooming reminders for all pets';
 
 END $$;
