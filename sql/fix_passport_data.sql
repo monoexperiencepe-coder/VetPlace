@@ -160,31 +160,33 @@ BEGIN
 
   RAISE NOTICE 'Bookings re-seeded successfully';
 
-  -- ── 6. Re-insert payments ────────────────────────────────────────────────
+  -- ── 6. Re-insert payments with correct date column (for finance chart) ───
+  -- payments.date DATE is what the finance API groups by for monthly bars.
+  -- We use the booking's date so revenue is spread across 6 months correctly.
   BEGIN
-    INSERT INTO payments (clinic_id, booking_id, amount, method, paid_at)
+    INSERT INTO payments (clinic_id, booking_id, client_id, amount, method, date)
     SELECT
       b.clinic_id,
       b.id,
+      -- Resolve client_id via pet → user_id
+      (SELECT p2.user_id FROM pets p2 WHERE p2.id = b.pet_id LIMIT 1),
       b.price,
-      CASE (RANDOM() * 2)::INT WHEN 0 THEN 'cash' WHEN 1 THEN 'card' ELSE 'transfer' END,
-      (b.date + b.time)::TIMESTAMPTZ + INTERVAL '1 hour'
+      CASE (FLOOR(RANDOM() * 4))::INT
+        WHEN 0 THEN 'cash'
+        WHEN 1 THEN 'card'
+        WHEN 2 THEN 'yape'
+        ELSE 'transfer'
+      END,
+      b.date   -- ← THE KEY: use the booking date, not today!
     FROM bookings b
     WHERE b.clinic_id = v_clinic_id
       AND b.payment_status = 'paid';
-    RAISE NOTICE 'Payments re-seeded';
+    RAISE NOTICE 'Payments re-seeded with correct dates (spread across 6 months)';
   EXCEPTION
-    WHEN undefined_column THEN
-      -- paid_at column may not exist — try without it
-      INSERT INTO payments (clinic_id, booking_id, amount, method)
-      SELECT
-        b.clinic_id, b.id, b.price,
-        CASE (RANDOM() * 2)::INT WHEN 0 THEN 'cash' WHEN 1 THEN 'card' ELSE 'transfer' END
-      FROM bookings b
-      WHERE b.clinic_id = v_clinic_id AND b.payment_status = 'paid';
-      RAISE NOTICE 'Payments re-seeded (without paid_at)';
     WHEN undefined_table THEN
       RAISE NOTICE 'payments table missing, skipping';
+    WHEN others THEN
+      RAISE NOTICE 'Payments error: %', SQLERRM;
   END;
 
   -- ── 7. Add medical records for Luna + Mochi (Historial tab) ─────────────

@@ -641,12 +641,12 @@ function PassportScreen({ data }: { data: ClientData }) {
           ))}
         </div>
 
-        {/* ── Tab: Citas ── */}
+        {/* ── Tab: Citas — upcoming only ── */}
         {tab === 'citas' && (
           <div className="space-y-3">
-            {upcomingBookings.length > 0 && (
+            {upcomingBookings.length > 0 ? (
               <div>
-                <p className="text-xs font-bold uppercase tracking-wide mb-2 px-1" style={{ color: '#601EF9' }}>Próximas</p>
+                <p className="text-xs font-bold uppercase tracking-wide mb-2 px-1" style={{ color: '#601EF9' }}>Próximas citas</p>
                 {upcomingBookings.map(b => (
                   <div key={b.id} className="rounded-2xl p-4 mb-2 shadow-sm" style={{ background: '#fff', border: '1px solid #ede9fe' }}>
                     <div className="flex items-center justify-between">
@@ -667,59 +667,70 @@ function PassportScreen({ data }: { data: ClientData }) {
                   </div>
                 ))}
               </div>
-            )}
-            {pastBookings.length > 0 && (
-              <div>
-                <p className="text-xs font-bold uppercase tracking-wide mb-2 px-1" style={{ color: '#94a3b8' }}>Historial de citas</p>
-                {pastBookings.slice(0, 5).map(b => (
-                  <div key={b.id} className="rounded-2xl p-3 mb-2" style={{ background: '#f8faff', border: '1px solid #e4ebff' }}>
-                    <div className="flex items-center justify-between">
-                      <p className="text-xs font-medium" style={{ color: '#475569' }}>
-                        {formatDate(b.date)}{b.notes ? ` · ${b.notes}` : ''}
-                      </p>
-                      <span className="text-[10px] px-2 py-0.5 rounded-lg" style={{ background: '#dcfce7', color: '#166534' }}>
-                        Completado
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-            {upcomingBookings.length === 0 && pastBookings.length === 0 && (
+            ) : (
               <div className="text-center py-8">
                 <p className="text-3xl mb-2">📅</p>
-                <p className="text-sm" style={{ color: '#94a3b8' }}>Sin citas registradas</p>
+                <p className="text-sm font-semibold mb-1" style={{ color: '#0f172a' }}>Sin citas próximas</p>
+                <p className="text-xs" style={{ color: '#94a3b8' }}>¿Quieres agendar una? Escríbenos por WhatsApp.</p>
               </div>
             )}
           </div>
         )}
 
-        {/* ── Tab: Historial clínico ── */}
+        {/* ── Tab: Historial — medical records + past bookings ── */}
         {tab === 'historial' && (
           <div className="space-y-3">
-            {records.length === 0 ? (
+            {records.length === 0 && pastBookings.length === 0 ? (
               <div className="text-center py-8">
                 <p className="text-3xl mb-2">📋</p>
-                <p className="text-sm" style={{ color: '#94a3b8' }}>Sin registros clínicos todavía</p>
+                <p className="text-sm" style={{ color: '#94a3b8' }}>Sin registros todavía</p>
               </div>
-            ) : records.map(r => (
-              <div key={r.id} className="rounded-2xl p-4 shadow-sm" style={{ background: '#fff', border: '1px solid #ede9fe' }}>
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <span className="text-xs font-semibold px-2.5 py-1 rounded-lg"
-                    style={{ background: RECORD_COLOR[r.type] ?? '#f1f5f9', color: RECORD_TEXT[r.type] ?? '#475569' }}>
-                    {RECORD_LABEL[r.type] ?? r.type}
-                  </span>
-                  <span className="text-xs shrink-0" style={{ color: '#94a3b8' }}>{formatDate(r.date)}</span>
-                </div>
-                {r.diagnosis && <p className="text-xs font-medium mb-1" style={{ color: '#0f172a' }}>{r.diagnosis}</p>}
-                {r.treatment && <p className="text-xs mb-1" style={{ color: '#475569' }}>💊 {r.treatment}</p>}
-                {r.notes && <p className="text-xs" style={{ color: '#64748b' }}>{r.notes}</p>}
-                                <div className="flex items-center gap-3 mt-2 pt-2" style={{ borderTop: '1px solid #ede9fe' }}>
-                  {r.vet && <span className="text-xs mr-2" style={{ color: '#94a3b8' }}>👨‍⚕️ {r.vet}</span>}
-                  {r.weight && <span className="text-xs" style={{ color: '#94a3b8' }}>⚖️ {r.weight} kg</span>}
-                </div>
-              </div>
-            ))}
+            ) : (
+              <>
+                {/* Medical records */}
+                {records.length > 0 && (
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wide mb-2 px-1" style={{ color: '#601EF9' }}>Registros clínicos</p>
+                    {records.map(r => (
+                      <div key={r.id} className="rounded-2xl p-4 mb-2 shadow-sm" style={{ background: '#fff', border: '1px solid #ede9fe' }}>
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <span className="text-xs font-semibold px-2.5 py-1 rounded-lg"
+                            style={{ background: RECORD_COLOR[r.type] ?? '#f1f5f9', color: RECORD_TEXT[r.type] ?? '#475569' }}>
+                            {RECORD_LABEL[r.type] ?? r.type}
+                          </span>
+                          <span className="text-xs shrink-0" style={{ color: '#94a3b8' }}>{formatDate(r.date)}</span>
+                        </div>
+                        {r.diagnosis && <p className="text-xs font-medium mb-1" style={{ color: '#0f172a' }}>{r.diagnosis}</p>}
+                        {r.treatment && <p className="text-xs mb-1" style={{ color: '#475569' }}>💊 {r.treatment}</p>}
+                        {r.notes && <p className="text-xs" style={{ color: '#64748b' }}>{r.notes}</p>}
+                        <div className="flex items-center gap-3 mt-2 pt-2" style={{ borderTop: '1px solid #ede9fe' }}>
+                          {r.vet && <span className="text-xs mr-2" style={{ color: '#94a3b8' }}>👨‍⚕️ {r.vet}</span>}
+                          {r.weight && <span className="text-xs" style={{ color: '#94a3b8' }}>⚖️ {r.weight} kg</span>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {/* Past bookings */}
+                {pastBookings.length > 0 && (
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wide mb-2 px-1" style={{ color: '#94a3b8' }}>Citas anteriores</p>
+                    {pastBookings.slice(0, 10).map(b => (
+                      <div key={b.id} className="rounded-2xl p-3 mb-2" style={{ background: '#f8faff', border: '1px solid #e4ebff' }}>
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs font-medium" style={{ color: '#475569' }}>
+                            {formatDate(b.date)}{b.notes ? ` · ${b.notes}` : ''}
+                          </p>
+                          <span className="text-[10px] px-2 py-0.5 rounded-lg" style={{ background: '#dcfce7', color: '#166534' }}>
+                            Completado
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
           </div>
         )}
 
