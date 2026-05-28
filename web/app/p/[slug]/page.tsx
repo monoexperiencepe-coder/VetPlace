@@ -467,10 +467,36 @@ function PassportScreen({ data }: { data: ClientData }) {
   const [tab, setTab] = useState<'citas' | 'historial' | 'eventos'>('citas')
 
   const pet = pets.find(p => p.id === activePet) ?? pets[0]
-  if (!pet) return null
+
+  const noPetWaLink = clinic.phone
+    ? 'https://wa.me/' + clinic.phone.replace(/\D/g, '') + '?text=' + encodeURIComponent('Hola! Soy ' + (data.name ?? data.phone) + ' y quiero agregar mi mascota al pasaporte')
+    : null
+
+  if (!pet) return (
+    <div className="min-h-screen" style={{ background: '#eee8ff', display: 'flex', justifyContent: 'center', alignItems: 'flex-start' }}>
+      <div style={{ width: '100%', maxWidth: 430, minHeight: '100vh', background: '#f8f6ff', boxShadow: '0 0 60px rgba(96,30,249,0.15)' }}>
+        <div style={{ background: 'linear-gradient(135deg,#3b10b5,#601EF9)', padding: '40px 24px 32px' }}>
+          <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12 }}>{clinic.name}</p>
+          <h2 style={{ color: '#fff', fontSize: 20, fontWeight: 700, margin: '8px 0 0' }}>{data.name ?? data.phone}</h2>
+        </div>
+        <div style={{ padding: '40px 24px', textAlign: 'center' }}>
+          <p style={{ fontSize: 40 }}>🐾</p>
+          <p style={{ fontSize: 16, fontWeight: 700, color: '#0f172a', margin: '12px 0 8px' }}>Sin mascotas registradas</p>
+          <p style={{ fontSize: 13, color: '#64748b', marginBottom: 24 }}>Consulta con tu veterinaria para agregar tus mascotas al pasaporte.</p>
+          {noPetWaLink && (
+            <a href={noPetWaLink} target="_blank" rel="noopener noreferrer"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '12px 20px', borderRadius: 12,
+                background: '#22c55e', color: '#fff', fontSize: 14, fontWeight: 700, textDecoration: 'none' }}>
+              Contactar por WhatsApp
+            </a>
+          )}
+        </div>
+      </div>
+    </div>
+  )
 
   const whatsappUrl = clinic.phone
-    ? `https://wa.me/${clinic.phone.replace(/\D/g, '')}?text=${encodeURIComponent(`Hola! Soy ${data.name ?? data.phone} y quiero consultar sobre ${pet.name} 🐾`)}`
+    ? 'https://wa.me/' + clinic.phone.replace(/\D/g, '') + '?text=' + encodeURIComponent('Hola! Soy ' + (data.name ?? data.phone) + ' y quiero consultar sobre ' + pet.name)
     : null
 
   const upcomingBookings = (pet.bookings ?? [])
@@ -732,7 +758,7 @@ function PassportScreen({ data }: { data: ClientData }) {
                 </svg>
                 Consultar por WhatsApp
               </a>
-              <a href={`https://wa.me/${clinic.phone?.replace(/\D/g,'')}?text=${encodeURIComponent(`Hola! Soy ${data.name ?? data.phone} y quiero agendar una cita para ${pet.name} 📅`)}`}
+              <a href={'https://wa.me/' + (clinic.phone?.replace(/\D/g,'') ?? '') + '?text=' + encodeURIComponent('Hola! Soy ' + (data.name ?? data.phone) + ' y quiero agendar una cita para ' + pet.name)}
                 target="_blank" rel="noopener noreferrer"
                 className="flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold"
                 style={{ background: '#f0fdf4', color: '#16a34a', border: '1.5px solid #86efac' }}>
@@ -757,6 +783,59 @@ export default function PortalPage({ params }: { params: Promise<{ slug: string 
 
   // Fetch clinic info for login screen
   useEffect(() => {
+    fetch(`/api/portal/clinic/${slug}`)
+      .then(r => r.json())
+      .then(d => setClinic(d.data ?? d))
+      .catch(() => {})
+  }, [slug])
+
+  // Check for token in URL or sessionStorage
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search)
+    const urlToken = urlParams.get('t')
+    const storedToken = sessionStorage.getItem(`portal_token_${slug}`)
+    const token = urlToken || storedToken
+
+    if (token && token !== 'undefined' && token !== 'null') {
+      fetch(`/api/portal/token?t=${token}`)
+        .then(r => r.json())
+        .then(d => {
+          const payload = d.data ?? d
+          if (payload?.id) {
+            setClientData(payload)
+            sessionStorage.setItem(`portal_token_${slug}`, token)
+          }
+        })
+        .catch(() => {})
+        .finally(() => setLoading(false))
+    } else {
+      setLoading(false)
+    }
+  }, [slug])
+
+  const handleSuccess = (token: string) => {
+    sessionStorage.setItem(`portal_token_${slug}`, token)
+    fetch(`/api/portal/token?t=${token}`)
+      .then(r => r.json())
+      .then(d => {
+        const payload = d.data ?? d
+        if (payload?.id) setClientData(payload)
+      })
+      .catch(() => {})
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: '#f8f6ff' }}>
+        <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin"
+          style={{ borderColor: '#601EF9', borderTopColor: 'transparent' }} />
+      </div>
+    )
+  }
+
+  if (clientData) return <PassportScreen data={clientData} />
+  return <LoginScreen slug={slug} clinic={clinic} onSuccess={handleSuccess} />
+}
     fetch(`/api/portal/clinic/${slug}`)
       .then(r => r.json())
       .then(d => setClinic(d.data ?? d))
