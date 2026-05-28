@@ -271,8 +271,61 @@ export default function DashboardPage() {
       {/* ══ MAIN GRID ═════════════════════════════════════════════════════ */}
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,3fr) minmax(0,2fr)', gap: 16 }}>
 
-        {/* ── TODAY'S AGENDA ─────────────────────────────────────────── */}
-        <Card>
+        {/* ── LEFT: agenda (staff) or business summary (owner) ───────── */}
+        {isOwner ? (
+          /* ── OWNER: Revenue breakdown ─────────────────────────────── */
+          <Card>
+            <CardHeader icon="📈" title="Resumen del mes"
+              action={<Link href="/finances" style={{ fontSize: 12, fontWeight: 600, color: '#601EF9', textDecoration: 'none' }}>Ver finanzas →</Link>}
+            />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {/* Revenue comparison */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                {[
+                  { label: 'Este mes', value: `S/ ${fmt(finance.revenueThisMonth)}`, accent: '#601EF9' },
+                  { label: 'Mes anterior', value: `S/ ${fmt(finance.revenueLastMonth)}`, accent: '#64748b' },
+                  { label: finance.revenueGrowth !== null ? (finance.revenueGrowth >= 0 ? `+${finance.revenueGrowth}% ↑` : `${finance.revenueGrowth}% ↓`) : '—',
+                    value: 'vs anterior', accent: finance.revenueGrowth !== null && finance.revenueGrowth >= 0 ? '#16a34a' : '#dc2626' },
+                ].map(item => (
+                  <div key={item.label} style={{ padding: '14px 12px', borderRadius: 12, background: '#F9F9FB', border: '1px solid #ede9fe', textAlign: 'center' }}>
+                    <p style={{ fontSize: 16, fontWeight: 800, color: item.accent, margin: '0 0 4px', lineHeight: 1 }}>{item.value}</p>
+                    <p style={{ fontSize: 11, color: '#94a3b8', margin: 0 }}>{item.label}</p>
+                  </div>
+                ))}
+              </div>
+              {/* Top services */}
+              {finance.topServices.length > 0 && (
+                <div>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', margin: '0 0 8px', letterSpacing: '0.05em' }}>POR SERVICIO ESTE MES</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {finance.topServices.slice(0, 4).map((s, i) => {
+                      const max = finance.topServices[0]?.revenue || 1
+                      const colors = ['#601EF9','#0ea5e9','#10b981','#f59e0b']
+                      return (
+                        <div key={s.name} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <p style={{ fontSize: 12, fontWeight: 600, color: '#334155', margin: 0, minWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</p>
+                          <div style={{ flex: 1, height: 6, borderRadius: 4, background: '#f1f5f9', overflow: 'hidden' }}>
+                            <div style={{ height: '100%', borderRadius: 4, background: colors[i] || '#601EF9', width: `${Math.round((s.revenue/max)*100)}%`, transition: 'width 0.6s' }} />
+                          </div>
+                          <p style={{ fontSize: 12, fontWeight: 700, color: '#0f172a', margin: 0, minWidth: 60, textAlign: 'right' }}>S/ {fmt(s.revenue)}</p>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+              {/* Pending alert */}
+              {finance.pendingCount > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderRadius: 10, background: '#fffbeb', border: '1px solid #fde68a' }}>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: '#92400e', margin: 0 }}>💰 {finance.pendingCount} cobro{finance.pendingCount > 1 ? 's' : ''} pendiente{finance.pendingCount > 1 ? 's' : ''}</p>
+                  <Link href="/finances" style={{ fontSize: 12, fontWeight: 700, color: '#92400e', textDecoration: 'none' }}>Cobrar →</Link>
+                </div>
+              )}
+            </div>
+          </Card>
+        ) : (
+          /* ── STAFF: Today's agenda ─────────────────────────────────── */
+          <Card>
           <CardHeader
             icon="🗓️" title="Agenda de hoy"
             badge={todayBookings.length > 0 ? `${todayBookings.length} citas` : undefined}
@@ -333,90 +386,138 @@ export default function DashboardPage() {
             </div>
           )}
         </Card>
+        )} {/* end owner/staff left column */}
 
-        {/* ── RIGHT: quick actions + overdue mini ───────────────────── */}
+        {/* ── RIGHT COLUMN ──────────────────────────────────────────── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-          {/* Quick actions */}
-          <Card>
-            <CardHeader icon="⚡" title="Acciones rápidas" />
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-              {[
-                { icon: '📅', label: 'Nueva cita',    href: '/bookings?new=1' },
-                { icon: '👤', label: 'Nuevo cliente', href: '/clients' },
-                ...(isOwner ? [{ icon: '💰', label: 'Cobrar', href: '/finances' }] : [{ icon: '📆', label: 'Eventos', href: '/events' }]),
-                { icon: '💬', label: 'WhatsApp',      href: '/chats' },
-              ].map(a => (
-                <Link key={a.label} href={a.href}
-                  style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
-                    padding: '14px 8px', borderRadius: 12, textAlign: 'center', textDecoration: 'none',
-                    background: '#F9F9FB', border: '1.5px solid #ede9fe', transition: 'all 0.15s' }}
-                  onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.background = '#F3EEFF'; el.style.borderColor = '#c4b5fd' }}
-                  onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.background = '#F9F9FB'; el.style.borderColor = '#ede9fe' }}>
-                  <span style={{ fontSize: 22 }}>{a.icon}</span>
-                  <span style={{ fontSize: 11, fontWeight: 600, color: '#334155' }}>{a.label}</span>
-                </Link>
-              ))}
-            </div>
-          </Card>
-
-          {/* Overdue events (compact) */}
-          {overdueEvents.length > 0 && (
-            <Card>
-              <CardHeader
-                icon="🔔" title="Vencidos"
-                badge={String(overdueEvents.length)} badgeRed
-                action={<Link href="/events" style={{ fontSize: 12, fontWeight: 600, color: '#601EF9', textDecoration: 'none' }}>Ver →</Link>}
-              />
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                {overdueEvents.slice(0, 3).map(e => {
-                  const days = Math.floor((Date.now() - new Date(e.scheduled_date).getTime()) / 86400000)
-                  return (
-                    <div key={e.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      padding: '9px 11px', borderRadius: 10, background: '#fef2f2', border: '1px solid #fecaca', gap: 8 }}>
-                      <div style={{ minWidth: 0 }}>
-                        <p style={{ fontSize: 12, fontWeight: 600, color: '#0f172a', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {e.pet?.name ?? '?'} · {e.pet?.user?.name ?? '?'}
-                        </p>
-                        <p style={{ fontSize: 11, color: '#ef4444', margin: 0 }}>{EVENT_LABEL[e.type] ?? e.type} · {days}d</p>
+          {isOwner ? (
+            /* ── OWNER: Business actions ──────────────────────────── */
+            <>
+              <Card>
+                <CardHeader icon="🚀" title="Acciones del negocio" />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {[
+                    { icon: '📊', label: 'Ver finanzas completas', sub: 'Ingresos, clientes, tendencias', href: '/finances', accent: '#601EF9' },
+                    { icon: '💰', label: 'Registrar cobro',        sub: 'Marca un servicio como pagado',  href: '/finances', accent: '#10b981' },
+                    { icon: '🔄', label: 'Recuperar clientes',     sub: `${finance.inactiveClients.length} clientes inactivos`, href: '/finances?tab=recover', accent: '#f59e0b' },
+                    { icon: '👥', label: 'Gestionar equipo',       sub: 'Invitar colaboradores',          href: '/settings?s=equipo', accent: '#0ea5e9' },
+                  ].map(a => (
+                    <Link key={a.label} href={a.href}
+                      style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px',
+                        borderRadius: 12, textDecoration: 'none', border: '1.5px solid #ede9fe', background: '#F9F9FB', transition: 'all 0.15s' }}
+                      onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.background = '#F3EEFF'; el.style.borderColor = a.accent }}
+                      onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.background = '#F9F9FB'; el.style.borderColor = '#ede9fe' }}>
+                      <div style={{ width: 36, height: 36, borderRadius: 10, background: a.accent + '18', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>
+                        {a.icon}
                       </div>
-                      <button onClick={async () => {
-                        await api.notifyEvent(e.id)
-                        setOverdue(prev => prev.filter(x => x.id !== e.id))
-                        toast.success('Enviado')
-                      }} style={{ fontSize: 11, fontWeight: 700, padding: '4px 9px', borderRadius: 8,
-                        background: '#dc2626', color: '#fff', border: 'none', cursor: 'pointer', flexShrink: 0 }}>
-                        📨
-                      </button>
-                    </div>
-                  )
-                })}
-              </div>
-            </Card>
-          )}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', margin: 0 }}>{a.label}</p>
+                        <p style={{ fontSize: 11, color: '#94a3b8', margin: 0 }}>{a.sub}</p>
+                      </div>
+                      <span style={{ fontSize: 14, color: '#c4b5fd' }}>→</span>
+                    </Link>
+                  ))}
+                </div>
+              </Card>
 
-          {/* Links to deep pages */}
-          <Card>
-            <CardHeader icon="🔗" title="Ir a" />
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              {[
-                ...(isOwner ? [{ icon: '📊', label: 'Finanzas completas', href: '/finances' }] : []),
-                { icon: '👤', label: 'Todos los clientes',  href: '/clients'  },
-                { icon: '📆', label: 'Recordatorios',       href: '/events'   },
-                { icon: '💬', label: 'Conversaciones',      href: '/chats'    },
-                { icon: '⚙️', label: 'Configuración',       href: '/settings' },
-              ].map(l => (
-                <Link key={l.href} href={l.href}
-                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 10px', borderRadius: 10, textDecoration: 'none', transition: 'background 0.1s' }}
-                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = '#F3EEFF'}
-                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}>
-                  <span style={{ fontSize: 15 }}>{l.icon}</span>
-                  <span style={{ fontSize: 13, fontWeight: 500, color: '#334155' }}>{l.label}</span>
-                  <span style={{ marginLeft: 'auto', fontSize: 12, color: '#c4b5fd' }}>→</span>
-                </Link>
-              ))}
-            </div>
-          </Card>
+              {/* Top clients mini */}
+              {finance.topClients.length > 0 && (
+                <Card>
+                  <CardHeader icon="⭐" title="Mejores clientes"
+                    action={<Link href="/finances?tab=clients" style={{ fontSize: 12, fontWeight: 600, color: '#601EF9', textDecoration: 'none' }}>Ver todos →</Link>}
+                  />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {finance.topClients.slice(0, 3).map((c, i) => (
+                      <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0' }}>
+                        <span style={{ fontSize: 16, minWidth: 24, textAlign: 'center' }}>{['🥇','🥈','🥉'][i]}</span>
+                        <p style={{ flex: 1, fontSize: 13, fontWeight: 600, color: '#0f172a', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</p>
+                        <p style={{ fontSize: 13, fontWeight: 700, color: '#601EF9', margin: 0 }}>S/ {fmt(c.revenue)}</p>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              )}
+            </>
+          ) : (
+            /* ── STAFF: Quick actions + overdue ─────────────────────── */
+            <>
+              <Card>
+                <CardHeader icon="⚡" title="Acciones rápidas" />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  {[
+                    { icon: '📅', label: 'Nueva cita',    href: '/bookings?new=1' },
+                    { icon: '👤', label: 'Nuevo cliente', href: '/clients' },
+                    { icon: '📆', label: 'Eventos',       href: '/events' },
+                    { icon: '💬', label: 'WhatsApp',      href: '/chats' },
+                  ].map(a => (
+                    <Link key={a.label} href={a.href}
+                      style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
+                        padding: '14px 8px', borderRadius: 12, textAlign: 'center', textDecoration: 'none',
+                        background: '#F9F9FB', border: '1.5px solid #ede9fe' }}
+                      onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.background = '#F3EEFF'; el.style.borderColor = '#c4b5fd' }}
+                      onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.background = '#F9F9FB'; el.style.borderColor = '#ede9fe' }}>
+                      <span style={{ fontSize: 22 }}>{a.icon}</span>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: '#334155' }}>{a.label}</span>
+                    </Link>
+                  ))}
+                </div>
+              </Card>
+
+              {overdueEvents.length > 0 && (
+                <Card>
+                  <CardHeader icon="🔔" title="Vencidos" badge={String(overdueEvents.length)} badgeRed
+                    action={<Link href="/events" style={{ fontSize: 12, fontWeight: 600, color: '#601EF9', textDecoration: 'none' }}>Ver →</Link>}
+                  />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                    {overdueEvents.slice(0, 3).map(e => {
+                      const days = Math.floor((Date.now() - new Date(e.scheduled_date).getTime()) / 86400000)
+                      return (
+                        <div key={e.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                          padding: '9px 11px', borderRadius: 10, background: '#fef2f2', border: '1px solid #fecaca', gap: 8 }}>
+                          <div style={{ minWidth: 0 }}>
+                            <p style={{ fontSize: 12, fontWeight: 600, color: '#0f172a', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {e.pet?.name ?? '?'} · {e.pet?.user?.name ?? '?'}
+                            </p>
+                            <p style={{ fontSize: 11, color: '#ef4444', margin: 0 }}>{EVENT_LABEL[e.type] ?? e.type} · {days}d</p>
+                          </div>
+                          <button onClick={async () => {
+                            await api.notifyEvent(e.id)
+                            setOverdue(prev => prev.filter(x => x.id !== e.id))
+                            toast.success('Enviado')
+                          }} style={{ fontSize: 11, fontWeight: 700, padding: '4px 9px', borderRadius: 8,
+                            background: '#dc2626', color: '#fff', border: 'none', cursor: 'pointer', flexShrink: 0 }}>
+                            📨
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </Card>
+              )}
+
+              <Card>
+                <CardHeader icon="🔗" title="Ir a" />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  {[
+                    { icon: '👤', label: 'Todos los clientes', href: '/clients'  },
+                    { icon: '📆', label: 'Recordatorios',      href: '/events'   },
+                    { icon: '💬', label: 'Conversaciones',     href: '/chats'    },
+                    { icon: '⚙️', label: 'Configuración',      href: '/settings' },
+                  ].map(l => (
+                    <Link key={l.href} href={l.href}
+                      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 10px', borderRadius: 10, textDecoration: 'none' }}
+                      onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = '#F3EEFF'}
+                      onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}>
+                      <span style={{ fontSize: 15 }}>{l.icon}</span>
+                      <span style={{ fontSize: 13, fontWeight: 500, color: '#334155' }}>{l.label}</span>
+                      <span style={{ marginLeft: 'auto', fontSize: 12, color: '#c4b5fd' }}>→</span>
+                    </Link>
+                  ))}
+                </div>
+              </Card>
+            </>
+          )}
 
         </div>
       </div>
