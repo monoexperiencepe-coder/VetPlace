@@ -33,7 +33,7 @@ BEGIN
   DELETE FROM bookings
   WHERE clinic_id = v_clinic_id
     AND date = today
-    AND status IN ('CONFIRMED', 'PENDING');
+    AND status IN ('CONFIRMED', 'PENDING', 'COMPLETED');
 
   -- Re-insert them with today's date
   INSERT INTO bookings (clinic_id, pet_id, service_type_id, date, time, status, payment_status, price, notes)
@@ -57,7 +57,8 @@ BEGIN
     DELETE FROM bookings
     WHERE clinic_id = v_clinic_id
       AND pet_id = p5
-      AND date > today - 61;
+      AND date > today - 61
+      AND date < today;
 
     RAISE NOTICE '✅ Diego Ramos marked as inactive (last visit 61+ days ago)';
   END IF;
@@ -69,7 +70,8 @@ BEGIN
     DELETE FROM bookings
     WHERE clinic_id = v_clinic_id
       AND pet_id = p6
-      AND date > today - 61;
+      AND date > today - 61
+      AND date < today;
 
     RAISE NOTICE '✅ Ana Torres marked as inactive (last visit 61+ days ago)';
   END IF;

@@ -200,6 +200,17 @@ export const api = {
     request(`/api/events/${id}/cancel`, { method: 'PATCH' }),
   completeEvent: (id: string) =>
     request(`/api/events/${id}/complete`, { method: 'PATCH' }),
+  // Staff members
+  getStaff: () =>
+    request('/api/staff'),
+  createStaff: (body: { name: string; role?: string; color?: string }) =>
+    request('/api/staff', { method: 'POST', body: JSON.stringify(body) }),
+  updateStaff: (id: string, body: { name?: string; role?: string; color?: string; active?: boolean }) =>
+    request(`/api/staff/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  deleteStaff: (id: string) =>
+    request(`/api/staff/${id}`, { method: 'DELETE' }),
+  updateBookingStaff: (bookingId: string, staffId: string | null) =>
+    request(`/api/bookings/${bookingId}`, { method: 'PATCH', body: JSON.stringify({ staff_id: staffId }) }),
   // Bookings
   getBookingsByPet: (petId: string) =>
     request(`/api/bookings/pet/${petId}`),

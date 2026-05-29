@@ -36,7 +36,7 @@ export async function getBookingsByPet(petId: string, clinicId: string): Promise
 export async function getBookingsByDate(date: string, clinicId: string): Promise<Booking[]> {
   const { data, error } = await supabaseAdmin
     .from('bookings')
-    .select(`*, pet:pets (id, name, type, user:clients (id, name, phone))`)
+    .select(`*, pet:pets (id, name, type, user:clients (id, name, phone)), service:service_types (id, name, price), staff:staff_members (id, name, color)`)
     .eq('date', date)
     .eq('clinic_id', clinicId)
     .in('status', ['PENDING', 'CONFIRMED', 'COMPLETED'])

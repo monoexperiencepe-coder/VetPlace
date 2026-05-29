@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { api } from '@/lib/api'
 import { useConfirm } from '@/context/ConfirmContext'
 import { useToast } from '@/context/ToastContext'
+import AgendaCalendarView from '@/components/AgendaCalendarView'
 
 
 function normalizeTime(t: string): string {
@@ -798,6 +799,13 @@ export default function BookingsPage() {
   const [actionId, setActionId]             = useState<string | null>(null)
   const [completingBooking, setCompletingBooking] = useState<Booking | null>(null)
   const [totalPending, setTotalPending]     = useState(0)
+  const [viewMode, setViewMode]             = useState<'list' | 'calendar'>('list')
+  const [staff, setStaff]                   = useState<{ id: string; name: string; color: string; role: string }[]>([])
+
+  // Load staff members once
+  useEffect(() => {
+    api.getStaff().then((s: unknown) => setStaff(s as { id: string; name: string; color: string; role: string }[])).catch(() => {})
+  }, [])
 
   // Siempre cargar el conteo global de pendientes (independiente del filtro activo)
   useEffect(() => {
@@ -923,6 +931,34 @@ export default function BookingsPage() {
             <span className="w-px h-3" style={{ background: '#ede9fe' }} />
             <span style={{ color: '#94a3b8' }}><span className="font-bold" style={{ color: '#16a34a' }}>{counts.completed}</span> completados</span>
           </div>
+          {/* View toggle — only show for date-based filters */}
+          {(filter === 'today' || filter === 'tomorrow') && (
+            <div className="flex p-0.5 rounded-lg gap-0.5" style={{ background: '#F3EEFF' }}>
+              <button
+                onClick={() => setViewMode('list')}
+                title="Vista lista"
+                className="p-1.5 rounded-md transition-all"
+                style={{ background: viewMode === 'list' ? '#601EF9' : 'transparent' }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={viewMode === 'list' ? 'white' : '#601EF9'} strokeWidth="2" strokeLinecap="round">
+                  <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
+                  <circle cx="3" cy="6" r="1" fill={viewMode === 'list' ? 'white' : '#601EF9'}/><circle cx="3" cy="12" r="1" fill={viewMode === 'list' ? 'white' : '#601EF9'}/><circle cx="3" cy="18" r="1" fill={viewMode === 'list' ? 'white' : '#601EF9'}/>
+                </svg>
+              </button>
+              <button
+                onClick={() => setViewMode('calendar')}
+                title="Vista calendario"
+                className="p-1.5 rounded-md transition-all"
+                style={{ background: viewMode === 'calendar' ? '#601EF9' : 'transparent' }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={viewMode === 'calendar' ? 'white' : '#601EF9'} strokeWidth="2" strokeLinecap="round">
+                  <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/>
+                  <line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/>
+                  <line x1="9" y1="14" x2="15" y2="14"/>
+                </svg>
+              </button>
+            </div>
+          )}
           <button onClick={() => setShowModal(true)}
             className="flex items-center gap-2 px-4 py-2 text-white text-sm font-semibold rounded-xl"
             style={{ background: 'linear-gradient(135deg,#3b10b5,#601EF9)' }}>
@@ -940,10 +976,22 @@ export default function BookingsPage() {
       {error && (
         <div className="py-4 px-5 rounded-2xl text-sm" style={{ background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca' }}>{error}</div>
       )}
-      {!loading && !error && visible.length === 0 && (
+      {/* Calendar view */}
+      {viewMode === 'calendar' && !loading && !error && (filter === 'today' || filter === 'tomorrow') && (
+        <AgendaCalendarView
+          bookings={bookings as Parameters<typeof AgendaCalendarView>[0]['bookings']}
+          staff={staff}
+          onCompleteBooking={(b) => setCompletingBooking(b as Booking)}
+          onBookingUpdated={(bookingId, changes) => {
+            setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, ...changes } : b))
+          }}
+        />
+      )}
+
+      {!loading && !error && visible.length === 0 && viewMode === 'list' && (
         <EmptyState onNew={() => setShowModal(true)} filter={filter} />
       )}
-      {!loading && !error && visible.length > 0 && (
+      {!loading && !error && visible.length > 0 && viewMode === 'list' && (
         <div className="rounded-2xl" style={{ background: '#fff', border: '1px solid #ede9fe', overflow: 'visible' }}>
           <div className="grid text-[10px] font-semibold uppercase tracking-widest px-4 py-2.5"
             style={{ gridTemplateColumns: '70px 1fr 90px 90px 110px 200px', background: '#F9F9FB', borderBottom: '1px solid #ede9fe', color: '#94a3b8' }}>

@@ -17,8 +17,9 @@ export default function Sidebar() {
       label: 'Operaciones',
       items: [
         { href: '/',         label: 'Dashboard', icon: DashIcon },
-        { href: '/bookings', label: 'Agenda',    icon: CalIcon },
-        { href: '/clients',  label: 'Clientes',  icon: ClientIcon },
+        { href: '/bookings',   label: 'Agenda',     icon: CalIcon },
+        { href: '/clients',    label: 'Clientes',   icon: ClientIcon },
+        { href: '/empleados',  label: 'Empleados',  icon: TeamIcon },
         ...(isOwner ? [{ href: '/finances', label: 'Finanzas', icon: MoneyIcon }] : []),
       ],
     },
@@ -258,6 +259,14 @@ function PawIcon({ active }: { active: boolean }) {
       <circle cx="6"  cy="11" r="1.2" fill="currentColor" stroke="none" />
       <circle cx="18" cy="11" r="1.2" fill="currentColor" stroke="none" />
       <path strokeLinecap="round" strokeLinejoin="round" d="M9 13c0 2.21 1.343 4 3 4s3-1.79 3-4c0-1.5-1.343-2-3-2s-3 .5-3 2z" />
+    </svg>
+  )
+}
+
+function TeamIcon({ active }: { active: boolean }) {
+  return (
+    <svg className="w-[18px] h-[18px] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={active ? 2.5 : 1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
     </svg>
   )
 }
