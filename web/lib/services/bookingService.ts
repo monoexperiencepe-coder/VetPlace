@@ -39,7 +39,7 @@ export async function getBookingsByDate(date: string, clinicId: string): Promise
     .select(`*, pet:pets (id, name, type, user:clients (id, name, phone))`)
     .eq('date', date)
     .eq('clinic_id', clinicId)
-    .in('status', ['PENDING', 'CONFIRMED'])
+    .in('status', ['PENDING', 'CONFIRMED', 'COMPLETED'])
     .order('time', { ascending: true })
 
   if (error) handleSupabaseError(error)
