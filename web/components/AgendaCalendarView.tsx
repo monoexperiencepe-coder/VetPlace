@@ -72,11 +72,12 @@ export default function AgendaCalendarView({ bookings, staff, onCompleteBooking,
     })),
   ]
 
-  function getBookingForSlot(hour: string, colId: string): CalBooking | undefined {
-    return bookings.find(b => {
-      const bHour = (b.time || '').slice(0, 5)
+  function getBookingsForSlot(hour: string, colId: string): CalBooking[] {
+    const slotHour = parseInt(hour.slice(0, 2), 10)
+    return bookings.filter(b => {
+      const bHour = parseInt((b.time || '00:00').slice(0, 2), 10)
       const bColId = b.staff_id || 'unassigned'
-      return bHour === hour && bColId === colId && b.status !== 'CANCELLED'
+      return bHour === slotHour && bColId === colId && b.status !== 'CANCELLED'
     })
   }
 
@@ -148,14 +149,16 @@ export default function AgendaCalendarView({ bookings, staff, onCompleteBooking,
 
               {/* Slots */}
               {columns.map((col, i) => {
-                const booking = getBookingForSlot(hour, col.id)
+                const slotBookings = getBookingsForSlot(hour, col.id)
                 return (
                   <div key={col.id} style={{
                     borderRight: i < columns.length - 1 ? '1px solid #f1f5f9' : 'none',
                     padding: '3px 4px', minHeight: 56, overflow: 'hidden',
+                    display: 'flex', flexDirection: 'column', gap: 2,
                   }}>
-                    {booking && (
+                    {slotBookings.map(booking => (
                       <div
+                        key={booking.id}
                         role="button"
                         onClick={() => setSelected(booking)}
                         style={{
@@ -174,10 +177,10 @@ export default function AgendaCalendarView({ bookings, staff, onCompleteBooking,
                           {booking.service?.name ?? booking.notes ?? ''}
                         </div>
                         <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.7)', marginTop: 1 }}>
-                          {hour}{(booking.price ?? booking.service?.price) != null ? ` · S/${booking.price ?? booking.service?.price}` : ''}
+                          {(booking.time || '').slice(0, 5)}{(booking.price ?? booking.service?.price) != null ? ` · S/${booking.price ?? booking.service?.price}` : ''}
                         </div>
                       </div>
-                    )}
+                    ))}
                   </div>
                 )
               })}
