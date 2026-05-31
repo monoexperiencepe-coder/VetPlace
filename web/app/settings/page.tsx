@@ -869,120 +869,507 @@ function Step({ n, text }: { n: string; text: string }) {
 }
 
 // ─── TAB: Instrucciones del bot ───────────────────────────────────────────────
-const DEFAULT_BOT_INSTRUCTIONS = `Eres el asistente virtual de la clínica veterinaria. Tu función es:\n- Responder consultas sobre turnos, horarios y servicios.\n- Confirmar o cancelar turnos cuando el cliente lo pide.\n- Dar información básica sobre vacunas, baños y consultas.\n- No dar diagnósticos médicos ni indicaciones de medicamentos.\n- Siempre ser amable, claro y conciso.\n- Si no podés resolver algo, derivar al personal de la clínica.\n\nIdioma: español. Tono: profesional pero cercano.`
+
+function buildBotPrompt(opts: {
+  businessType: string
+  specialty: string
+  clinicDisplayName: string
+  tone: string
+  acceptBookings: boolean
+  sharePrice: boolean
+  avoidDiagnosis: boolean
+  escalationPhone: string
+  cancelPolicy: string
+  cancelHours: string
+  noShowPolicy: string
+  paymentMethods: string[]
+  useEmojis: boolean
+  shortReplies: boolean
+  greeting: string
+  extraRules: string
+}): string {
+  const toneMap: Record<string, string> = {
+    profesional: 'profesional y amable',
+    amigable:    'muy amigable y cercano',
+    formal:      'formal y serio',
+    divertido:   'divertido y desenfadado',
+  }
+  const bizMap: Record<string, string> = {
+    veterinaria:  'clínica veterinaria',
+    peluqueria:   'peluquería canina',
+    ambas:        'clínica veterinaria y peluquería canina',
+    tienda:       'tienda de mascotas',
+    otro:         'negocio de atención de mascotas',
+  }
+  const cancelMap: Record<string, string> = {
+    free:    'Las cancelaciones son gratuitas en cualquier momento.',
+    '24h':   `Las cancelaciones deben hacerse con al menos ${opts.cancelHours} horas de anticipación para no generar cargo.`,
+    '48h':   `Las cancelaciones deben hacerse con al menos ${opts.cancelHours} horas de anticipación.`,
+    charge:  'Toda cancelación de último momento puede generar un cargo por reserva.',
+  }
+
+  const lines: string[] = []
+
+  const name = opts.clinicDisplayName || 'la clínica'
+  const biz  = bizMap[opts.businessType] || 'negocio de mascotas'
+  const tone = toneMap[opts.tone] || 'profesional y amable'
+  const emoji = opts.useEmojis ? ' Podés usar emojis de forma moderada.' : ' No uses emojis.'
+  const length = opts.shortReplies ? ' Sé breve y conciso, máximo 2-3 líneas por respuesta.' : ' Podés dar respuestas detalladas cuando sea útil.'
+
+  lines.push(`Eres el asistente virtual de ${name}, ${biz} en Perú.`)
+  lines.push(`Tu nombre es Vety y representás al equipo de ${name}.`)
+  if (opts.greeting) lines.push(`Al iniciar una conversación nueva, saluda así: "${opts.greeting}"`)
+  lines.push(``)
+  lines.push(`PERSONALIDAD Y ESTILO:`)
+  lines.push(`- Tono: ${tone}.${emoji}${length}`)
+  lines.push(`- Idioma: español peruano. Tutea al cliente.`)
+  lines.push(``)
+  lines.push(`SERVICIOS Y ESPECIALIDADES:`)
+  if (opts.specialty) {
+    lines.push(`- Ofrecés: ${opts.specialty}.`)
+  } else {
+    lines.push(`- Respondé consultas sobre los servicios del negocio.`)
+  }
+  lines.push(``)
+  lines.push(`REGLAS DE ATENCIÓN:`)
+  if (opts.acceptBookings) {
+    lines.push(`- Podés agendar, confirmar y cancelar citas a través del sistema.`)
+  } else {
+    lines.push(`- No agendes citas directamente. Derivá al cliente para que llame o visite la clínica.`)
+  }
+  if (opts.sharePrice) {
+    lines.push(`- Podés compartir precios de los servicios cuando el cliente los pida.`)
+  } else {
+    lines.push(`- No des precios exactos. Indicá que los precios varían según la mascota y que el equipo puede informar en consulta.`)
+  }
+  if (opts.avoidDiagnosis) {
+    lines.push(`- NUNCA des diagnósticos médicos ni recomendés medicamentos. Siempre derivá al veterinario.`)
+  }
+  lines.push(``)
+  lines.push(`POLÍTICAS:`)
+  const cancelText = cancelMap[opts.cancelPolicy]
+  if (cancelText) lines.push(`- Cancelaciones: ${cancelText}`)
+  if (opts.noShowPolicy) lines.push(`- No-show: ${opts.noShowPolicy}`)
+  if (opts.paymentMethods.length > 0) {
+    lines.push(`- Métodos de pago aceptados: ${opts.paymentMethods.join(', ')}.`)
+  }
+  lines.push(``)
+  lines.push(`DERIVACIÓN:`)
+  if (opts.escalationPhone) {
+    lines.push(`- Si el cliente tiene una urgencia o no podés resolver su consulta, derivalo a: ${opts.escalationPhone}.`)
+  } else {
+    lines.push(`- Si no podés resolver algo, indicá que el equipo se comunicará a la brevedad.`)
+  }
+  lines.push(`- Nunca inventes información. Si no sabés algo, decí que vas a consultar con el equipo.`)
+
+  if (opts.extraRules) {
+    lines.push(``)
+    lines.push(`INSTRUCCIONES ADICIONALES:`)
+    lines.push(opts.extraRules)
+  }
+
+  return lines.join('\n')
+}
 
 function TabBot() {
-  const [saved, setSaved]   = useState(false)
+  const [saved, setSaved]     = useState(false)
   const [saveErr, setSaveErr] = useState('')
-  const textRef = useRef<HTMLTextAreaElement>(null)
-  const [instructions, setInstructions] = useState(DEFAULT_BOT_INSTRUCTIONS)
-  const [tone, setTone]           = useState('profesional')
-  const [autoReply, setAutoReply] = useState(true)
-  const [offHours, setOffHours]   = useState(true)
-  const [offMsg, setOffMsg]       = useState('Hola! Estamos fuera del horario de atención. Te respondemos a la brevedad. 🐾')
+  const [loading, setLoading] = useState(true)
+  const [showAdvanced, setShowAdvanced] = useState(false)
+
+  // Structured fields
+  const [businessType,     setBusinessType]     = useState('veterinaria')
+  const [specialty,        setSpecialty]        = useState('')
+  const [clinicDisplayName,setClinicDisplayName]= useState('')
+  const [tone,             setTone]             = useState('amigable')
+  const [autoReply,        setAutoReply]        = useState(true)
+  const [offHours,         setOffHours]         = useState(true)
+  const [offMsg,           setOffMsg]           = useState('Hola! Estamos fuera del horario de atención. Te respondemos a la brevedad. 🐾')
+  const [acceptBookings,   setAcceptBookings]   = useState(true)
+  const [sharePrice,       setSharePrice]       = useState(true)
+  const [avoidDiagnosis,   setAvoidDiagnosis]   = useState(true)
+  const [escalationPhone,  setEscalationPhone]  = useState('')
+  const [cancelPolicy,     setCancelPolicy]     = useState('24h')
+  const [cancelHours,      setCancelHours]      = useState('24')
+  const [noShowPolicy,     setNoShowPolicy]     = useState('Si el cliente no se presenta, el turno queda cancelado.')
+  const [paymentMethods,   setPaymentMethods]   = useState<string[]>(['efectivo', 'yape'])
+  const [useEmojis,        setUseEmojis]        = useState(true)
+  const [shortReplies,     setShortReplies]     = useState(true)
+  const [greeting,         setGreeting]         = useState('')
+  const [extraRules,       setExtraRules]       = useState('')
+  const [instructions,     setInstructions]     = useState('')
 
   useEffect(() => {
     api.getMyClinic().then((c: unknown) => {
-      const clinic = c as { settings?: { bot?: Record<string, unknown> } }
-      const b = clinic?.settings?.bot
-      if (!b) return
-      if (typeof b.instructions === 'string') setInstructions(b.instructions)
-      if (typeof b.tone         === 'string') setTone(b.tone)
-      if (typeof b.autoReply    === 'boolean') setAutoReply(b.autoReply)
-      if (typeof b.offHours     === 'boolean') setOffHours(b.offHours)
-      if (typeof b.offMsg       === 'string') setOffMsg(b.offMsg)
-    }).catch(() => {})
+      const clinic = c as { name?: string; settings?: { bot?: Record<string, unknown> } }
+      const b = clinic?.settings?.bot ?? {}
+      const cn = clinic?.name ?? ''
+      setClinicDisplayName((b.clinicDisplayName as string) || cn)
+      if (b.businessType)    setBusinessType(b.businessType as string)
+      if (b.specialty)       setSpecialty(b.specialty as string)
+      if (b.tone)            setTone(b.tone as string)
+      if (typeof b.autoReply      === 'boolean') setAutoReply(b.autoReply)
+      if (typeof b.offHours       === 'boolean') setOffHours(b.offHours)
+      if (b.offMsg)          setOffMsg(b.offMsg as string)
+      if (typeof b.acceptBookings === 'boolean') setAcceptBookings(b.acceptBookings)
+      if (typeof b.sharePrice     === 'boolean') setSharePrice(b.sharePrice)
+      if (typeof b.avoidDiagnosis === 'boolean') setAvoidDiagnosis(b.avoidDiagnosis)
+      if (b.escalationPhone) setEscalationPhone(b.escalationPhone as string)
+      if (b.cancelPolicy)    setCancelPolicy(b.cancelPolicy as string)
+      if (b.cancelHours)     setCancelHours(b.cancelHours as string)
+      if (b.noShowPolicy)    setNoShowPolicy(b.noShowPolicy as string)
+      if (Array.isArray(b.paymentMethods)) setPaymentMethods(b.paymentMethods as string[])
+      if (typeof b.useEmojis      === 'boolean') setUseEmojis(b.useEmojis)
+      if (typeof b.shortReplies   === 'boolean') setShortReplies(b.shortReplies)
+      if (b.greeting)        setGreeting(b.greeting as string)
+      if (b.extraRules)      setExtraRules(b.extraRules as string)
+      if (b.instructions)    setInstructions(b.instructions as string)
+    }).catch(() => {}).finally(() => setLoading(false))
   }, [])
+
+  function togglePayment(m: string) {
+    setPaymentMethods(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m])
+  }
+
+  function handleGenerate() {
+    const prompt = buildBotPrompt({
+      businessType, specialty, clinicDisplayName, tone, acceptBookings,
+      sharePrice, avoidDiagnosis, escalationPhone, cancelPolicy, cancelHours,
+      noShowPolicy, paymentMethods, useEmojis, shortReplies, greeting, extraRules,
+    })
+    setInstructions(prompt)
+    setShowAdvanced(true)
+  }
 
   const handleSave = async () => {
     setSaveErr('')
     try {
-      await api.updateMyClinic({ settings: { bot: { instructions, tone, autoReply, offHours, offMsg } } })
+      const botData = {
+        instructions, tone, autoReply, offHours, offMsg,
+        businessType, specialty, clinicDisplayName, acceptBookings,
+        sharePrice, avoidDiagnosis, escalationPhone, cancelPolicy, cancelHours,
+        noShowPolicy, paymentMethods, useEmojis, shortReplies, greeting, extraRules,
+      }
+      await api.updateMyClinic({ settings: { bot: botData } })
       setSaved(true); setTimeout(() => setSaved(false), 2500)
     } catch (e) {
       setSaveErr(e instanceof Error ? e.message : 'Error al guardar')
     }
   }
 
+  const BotField = ({ label, children }: { label: string; children: React.ReactNode }) => (
+    <div>
+      <label className="text-xs font-semibold mb-1.5 block" style={{ color: '#334155' }}>{label}</label>
+      {children}
+    </div>
+  )
+
+  const BotPills = ({ options, value, onChange }: { options: { id: string; label: string; icon?: string }[]; value: string; onChange: (v: string) => void }) => (
+    <div className="flex gap-2 flex-wrap">
+      {options.map(o => (
+        <button key={o.id} onClick={() => onChange(o.id)}
+          className="px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors"
+          style={value === o.id
+            ? { background: '#601EF9', color: '#fff' }
+            : { background: '#F1F5F9', color: '#64748b' }}>
+          {o.icon && <span className="mr-1">{o.icon}</span>}{o.label}
+        </button>
+      ))}
+    </div>
+  )
+
+  if (loading) return (
+    <div className="flex justify-center py-16">
+      <div className="w-7 h-7 rounded-full border-2 animate-spin"
+        style={{ borderColor: '#601EF9', borderTopColor: 'transparent' }} />
+    </div>
+  )
+
   return (
-    <Card title="Instrucciones del bot" subtitle="Configurá cómo responde el asistente de WhatsApp a tus clientes.">
-      <div className="space-y-5">
-        {/* Prompt principal */}
-        <div>
-          <div className="flex items-center justify-between mb-1.5">
-            <label className="text-xs font-semibold" style={{ color: '#334155' }}>Instrucciones del sistema (prompt)</label>
-            <span className="text-[10px]" style={{ color: '#94a3b8' }}>{instructions.length} caracteres</span>
-          </div>
-          <textarea
-            ref={textRef}
-            rows={10}
-            value={instructions}
-            onChange={(e) => setInstructions(e.target.value)}
-            className="w-full px-4 py-3 rounded-xl text-sm outline-none resize-none font-mono leading-relaxed"
-            style={{ background: '#F9F9FB', border: '1.5px solid #E5E7EB', color: '#0f172a' }}
-            onFocus={(e) => (e.currentTarget.style.border = '1.5px solid #601EF9')}
-            onBlur={(e)  => (e.currentTarget.style.border = '1.5px solid #E5E7EB')}
-          />
-          <p className="text-[11px] mt-1" style={{ color: '#94a3b8' }}>
-            Este texto se envía como contexto al modelo de IA. Sé específico para mejores respuestas.
-          </p>
-        </div>
+    <div className="space-y-5">
 
-        {/* Tono */}
-        <div>
-          <label className="text-xs font-semibold mb-1.5 block" style={{ color: '#334155' }}>Tono de respuesta</label>
-          <div className="flex gap-2 flex-wrap">
-            {['profesional', 'amigable', 'formal', 'divertido'].map((t) => (
-              <button
-                key={t}
-                onClick={() => setTone(t)}
-                className="px-3 py-1.5 rounded-xl text-xs font-medium capitalize transition-colors"
-                style={
-                  tone === t
-                    ? { background: '#601EF9', color: '#fff' }
-                    : { background: '#F1F5F9', color: '#64748b' }
-                }
-              >
-                {t}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Toggle auto-reply */}
-        <Toggle
-          label="Respuesta automática"
-          desc="El bot responde automáticamente los mensajes entrantes"
-          value={autoReply}
-          onChange={setAutoReply}
-        />
-
-        {/* Fuera de horario */}
-        <Toggle
-          label="Mensaje fuera de horario"
-          desc="Respuesta automática cuando el cliente escribe fuera del horario de atención"
-          value={offHours}
-          onChange={setOffHours}
-        />
-        {offHours && (
-          <div>
-            <label className="text-xs font-semibold mb-1.5 block" style={{ color: '#334155' }}>Mensaje fuera de horario</label>
-            <textarea
-              rows={2}
-              value={offMsg}
-              onChange={(e) => setOffMsg(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-xl text-sm outline-none resize-none"
-              style={{ background: '#F9F9FB', border: '1.5px solid #E5E7EB', color: '#0f172a' }}
-              onFocus={(e) => (e.currentTarget.style.border = '1.5px solid #601EF9')}
-              onBlur={(e)  => (e.currentTarget.style.border = '1.5px solid #E5E7EB')}
+      {/* ── Identidad del negocio ─────────────────────────────── */}
+      <Card title="Identidad del negocio" subtitle="Cómo se presenta el bot ante tus clientes.">
+        <div className="space-y-4">
+          <BotField label="Nombre que usa el bot para referirse al negocio">
+            <input
+              value={clinicDisplayName}
+              onChange={e => setClinicDisplayName(e.target.value)}
+              placeholder="Ej: SuperVet, Peluquería Pelitos, Clínica San Jorge"
+              className="w-full px-3 py-2.5 text-sm rounded-xl outline-none"
+              style={{ border: '1.5px solid #e2e8f0', color: '#0f172a', background: '#f9f9fb' }}
+              onFocus={e => (e.currentTarget.style.borderColor = '#601EF9')}
+              onBlur={e  => (e.currentTarget.style.borderColor = '#e2e8f0')}
             />
+          </BotField>
+
+          <BotField label="Tipo de negocio">
+            <BotPills
+              value={businessType}
+              onChange={setBusinessType}
+              options={[
+                { id: 'veterinaria', label: 'Veterinaria',  icon: '🏥' },
+                { id: 'peluqueria',  label: 'Peluquería',   icon: '✂️' },
+                { id: 'ambas',       label: 'Ambas',        icon: '🐾' },
+                { id: 'tienda',      label: 'Tienda',       icon: '🛒' },
+                { id: 'otro',        label: 'Otro',         icon: '📋' },
+              ]}
+            />
+          </BotField>
+
+          <BotField label="Servicios principales (describe brevemente lo que ofrecés)">
+            <input
+              value={specialty}
+              onChange={e => setSpecialty(e.target.value)}
+              placeholder="Ej: baños, cortes, vacunas, desparasitación, consultas veterinarias"
+              className="w-full px-3 py-2.5 text-sm rounded-xl outline-none"
+              style={{ border: '1.5px solid #e2e8f0', color: '#0f172a', background: '#f9f9fb' }}
+              onFocus={e => (e.currentTarget.style.borderColor = '#601EF9')}
+              onBlur={e  => (e.currentTarget.style.borderColor = '#e2e8f0')}
+            />
+          </BotField>
+
+          <BotField label="Saludo de bienvenida (opcional)">
+            <input
+              value={greeting}
+              onChange={e => setGreeting(e.target.value)}
+              placeholder='Ej: "¡Hola! Soy Vety, el asistente de SuperVet 🐾 ¿En qué te puedo ayudar?"'
+              className="w-full px-3 py-2.5 text-sm rounded-xl outline-none"
+              style={{ border: '1.5px solid #e2e8f0', color: '#0f172a', background: '#f9f9fb' }}
+              onFocus={e => (e.currentTarget.style.borderColor = '#601EF9')}
+              onBlur={e  => (e.currentTarget.style.borderColor = '#e2e8f0')}
+            />
+          </BotField>
+        </div>
+      </Card>
+
+      {/* ── Estilo de respuesta ───────────────────────────────── */}
+      <Card title="Estilo de respuesta" subtitle="Cómo habla el bot con tus clientes.">
+        <div className="space-y-4">
+          <BotField label="Tono">
+            <BotPills
+              value={tone}
+              onChange={setTone}
+              options={[
+                { id: 'amigable',    label: 'Amigable 😊' },
+                { id: 'profesional', label: 'Profesional' },
+                { id: 'formal',      label: 'Formal' },
+                { id: 'divertido',   label: 'Divertido 🎉' },
+              ]}
+            />
+          </BotField>
+
+          <div className="flex gap-4">
+            <Toggle
+              label="Usar emojis"
+              desc="El bot incluye emojis en sus respuestas"
+              value={useEmojis}
+              onChange={setUseEmojis}
+            />
+            <Toggle
+              label="Respuestas cortas"
+              desc="Máximo 2–3 líneas, directo al punto"
+              value={shortReplies}
+              onChange={setShortReplies}
+            />
+          </div>
+        </div>
+      </Card>
+
+      {/* ── Reglas de atención ───────────────────────────────── */}
+      <Card title="Reglas de atención" subtitle="Qué puede y qué no puede hacer el bot.">
+        <div className="space-y-4">
+          <Toggle
+            label="Agendar citas por WhatsApp"
+            desc="El bot puede confirmar y agendar turnos directamente"
+            value={acceptBookings}
+            onChange={setAcceptBookings}
+          />
+          <Toggle
+            label="Compartir precios"
+            desc="El bot puede dar precios de servicios cuando el cliente pregunta"
+            value={sharePrice}
+            onChange={setSharePrice}
+          />
+          <Toggle
+            label="Bloquear diagnósticos médicos"
+            desc="El bot nunca dará diagnósticos ni recomendaciones de medicamentos"
+            value={avoidDiagnosis}
+            onChange={setAvoidDiagnosis}
+          />
+
+          <BotField label="Número de derivación (para urgencias o consultas que el bot no puede resolver)">
+            <input
+              value={escalationPhone}
+              onChange={e => setEscalationPhone(e.target.value)}
+              placeholder="Ej: 999 123 456 — Dr. Rodríguez"
+              className="w-full px-3 py-2.5 text-sm rounded-xl outline-none"
+              style={{ border: '1.5px solid #e2e8f0', color: '#0f172a', background: '#f9f9fb' }}
+              onFocus={e => (e.currentTarget.style.borderColor = '#601EF9')}
+              onBlur={e  => (e.currentTarget.style.borderColor = '#e2e8f0')}
+            />
+          </BotField>
+        </div>
+      </Card>
+
+      {/* ── Políticas del negocio ─────────────────────────────── */}
+      <Card title="Políticas del negocio" subtitle="El bot informará estas reglas a los clientes cuando sea relevante.">
+        <div className="space-y-4">
+          <BotField label="Política de cancelación">
+            <BotPills
+              value={cancelPolicy}
+              onChange={setCancelPolicy}
+              options={[
+                { id: 'free',   label: 'Siempre gratis' },
+                { id: '24h',    label: 'Aviso previo requerido' },
+                { id: 'charge', label: 'Cargo por cancelación' },
+              ]}
+            />
+          </BotField>
+
+          {cancelPolicy !== 'free' && cancelPolicy !== 'charge' && (
+            <BotField label="Horas mínimas de anticipación">
+              <BotPills
+                value={cancelHours}
+                onChange={setCancelHours}
+                options={[
+                  { id: '12', label: '12 h' },
+                  { id: '24', label: '24 h' },
+                  { id: '48', label: '48 h' },
+                  { id: '72', label: '72 h' },
+                ]}
+              />
+            </BotField>
+          )}
+
+          <BotField label="Política de no-show">
+            <input
+              value={noShowPolicy}
+              onChange={e => setNoShowPolicy(e.target.value)}
+              placeholder="Ej: Si el cliente no se presenta, el turno queda cancelado y se puede aplicar un cargo."
+              className="w-full px-3 py-2.5 text-sm rounded-xl outline-none"
+              style={{ border: '1.5px solid #e2e8f0', color: '#0f172a', background: '#f9f9fb' }}
+              onFocus={e => (e.currentTarget.style.borderColor = '#601EF9')}
+              onBlur={e  => (e.currentTarget.style.borderColor = '#e2e8f0')}
+            />
+          </BotField>
+
+          <BotField label="Métodos de pago aceptados">
+            <div className="flex gap-2 flex-wrap">
+              {['efectivo', 'yape', 'plin', 'transferencia', 'tarjeta', 'lukita'].map(m => (
+                <button key={m} onClick={() => togglePayment(m)}
+                  className="px-3 py-1.5 rounded-xl text-xs font-semibold capitalize transition-colors"
+                  style={paymentMethods.includes(m)
+                    ? { background: '#601EF9', color: '#fff' }
+                    : { background: '#F1F5F9', color: '#64748b' }}>
+                  {m}
+                </button>
+              ))}
+            </div>
+          </BotField>
+        </div>
+      </Card>
+
+      {/* ── Respuesta automática y fuera de horario ──────────── */}
+      <Card title="Respuesta automática" subtitle="Cuándo y cómo responde el bot.">
+        <div className="space-y-4">
+          <Toggle
+            label="Activar respuesta automática"
+            desc="El bot responde automáticamente los mensajes entrantes de WhatsApp"
+            value={autoReply}
+            onChange={setAutoReply}
+          />
+          <Toggle
+            label="Mensaje fuera de horario"
+            desc="Respuesta automática cuando el cliente escribe fuera del horario de atención"
+            value={offHours}
+            onChange={setOffHours}
+          />
+          {offHours && (
+            <BotField label="Texto del mensaje fuera de horario">
+              <textarea
+                rows={2}
+                value={offMsg}
+                onChange={e => setOffMsg(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl text-sm outline-none resize-none"
+                style={{ border: '1.5px solid #e2e8f0', color: '#0f172a', background: '#f9f9fb' }}
+                onFocus={e => (e.currentTarget.style.borderColor = '#601EF9')}
+                onBlur={e  => (e.currentTarget.style.borderColor = '#e2e8f0')}
+              />
+            </BotField>
+          )}
+        </div>
+      </Card>
+
+      {/* ── Instrucciones adicionales (avanzado) ─────────────── */}
+      <div style={{ border: '1px solid #ede9fe', borderRadius: 16, overflow: 'hidden' }}>
+        <button
+          onClick={() => setShowAdvanced(v => !v)}
+          className="w-full flex items-center justify-between px-5 py-4 text-left"
+          style={{ background: showAdvanced ? '#F3EEFF' : 'white' }}>
+          <div>
+            <p className="text-sm font-semibold" style={{ color: '#0f172a' }}>Instrucciones avanzadas</p>
+            <p className="text-xs mt-0.5" style={{ color: '#94a3b8' }}>Reglas personalizadas adicionales y prompt del sistema</p>
+          </div>
+          <span className="text-lg" style={{ color: '#601EF9', transform: showAdvanced ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>⌄</span>
+        </button>
+
+        {showAdvanced && (
+          <div className="px-5 pb-5 pt-3 space-y-4" style={{ background: 'white', borderTop: '1px solid #ede9fe' }}>
+            <BotField label="Reglas adicionales específicas para tu negocio">
+              <textarea
+                rows={3}
+                value={extraRules}
+                onChange={e => setExtraRules(e.target.value)}
+                placeholder="Ej: Solo atendemos perros y gatos, no reptiles. El baño incluye corte de uñas gratis. Los precios de baño varían según el tamaño de la mascota."
+                className="w-full px-3 py-2.5 rounded-xl text-sm outline-none resize-none"
+                style={{ border: '1.5px solid #e2e8f0', color: '#0f172a', background: '#f9f9fb' }}
+                onFocus={e => (e.currentTarget.style.borderColor = '#601EF9')}
+                onBlur={e  => (e.currentTarget.style.borderColor = '#e2e8f0')}
+              />
+            </BotField>
+
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-semibold" style={{ color: '#334155' }}>Prompt del sistema (generado automáticamente)</label>
+                <span className="text-[10px]" style={{ color: '#94a3b8' }}>{instructions.length} chars</span>
+              </div>
+              <textarea
+                rows={10}
+                value={instructions}
+                onChange={e => setInstructions(e.target.value)}
+                className="w-full px-3 py-3 rounded-xl text-sm outline-none resize-none font-mono leading-relaxed"
+                style={{ background: '#F9F9FB', border: '1.5px solid #E5E7EB', color: '#0f172a' }}
+                onFocus={e => (e.currentTarget.style.borderColor = '#601EF9')}
+                onBlur={e  => (e.currentTarget.style.borderColor = '#e2e8f0')}
+              />
+              <p className="text-[11px] mt-1" style={{ color: '#94a3b8' }}>
+                Este texto se envía al modelo de IA. Usá el botón de abajo para regenerarlo desde los campos de arriba.
+              </p>
+            </div>
           </div>
         )}
       </div>
 
-      {saveErr && <p className="text-xs mt-2 px-3 py-2 rounded-xl" style={{ background: '#fee2e2', color: '#dc2626' }}>⚠️ {saveErr}</p>}
-      <SaveBtn onSave={handleSave} saved={saved} />
-    </Card>
+      {/* ── Acciones ──────────────────────────────────────────── */}
+      {saveErr && (
+        <p className="text-xs px-3 py-2 rounded-xl" style={{ background: '#fee2e2', color: '#dc2626' }}>⚠️ {saveErr}</p>
+      )}
+
+      <div className="flex gap-3">
+        <button
+          onClick={handleGenerate}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold"
+          style={{ background: '#F3EEFF', color: '#601EF9', border: '1.5px solid #ddd6fe' }}>
+          ✨ Generar instrucciones
+        </button>
+        <SaveBtn onSave={handleSave} saved={saved} />
+      </div>
+
+      <p className="text-xs" style={{ color: '#94a3b8' }}>
+        Presioná "Generar instrucciones" para crear el prompt del bot a partir de los campos de arriba, luego guardá.
+      </p>
+    </div>
   )
 }
 
