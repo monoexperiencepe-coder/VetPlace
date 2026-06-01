@@ -868,510 +868,533 @@ function Step({ n, text }: { n: string; text: string }) {
   )
 }
 
-// ─── TAB: Instrucciones del bot ───────────────────────────────────────────────
+// ─── TAB: Bot — "Configuración mínima" ────────────────────────────────────────
 
 function buildBotPrompt(opts: {
-  businessType: string
-  specialty: string
-  clinicDisplayName: string
-  tone: string
-  acceptBookings: boolean
+  clinicName: string
+  assistantName: string
+  communicationStyle: string
+  useEmojis: boolean
+  responseLength: string
+  welcomeMessage: string
+  allowBookings: boolean
+  allowReschedule: boolean
+  allowCancellations: boolean
   sharePrice: boolean
-  avoidDiagnosis: boolean
-  escalationPhone: string
+  shareLocation: boolean
+  shareZones: boolean
+  escalateToHuman: boolean
+  escalationContact: string
   cancelPolicy: string
   cancelHours: string
   noShowPolicy: string
   paymentMethods: string[]
-  useEmojis: boolean
-  shortReplies: boolean
-  greeting: string
-  extraRules: string
+  offHoursMessage: string
+  confirmationMessage: string
+  reminderMessage: string
+  objectives: string[]
+  extraInstructions: string
 }): string {
-  const toneMap: Record<string, string> = {
-    profesional: 'profesional y amable',
-    amigable:    'muy amigable y cercano',
-    formal:      'formal y serio',
-    divertido:   'divertido y desenfadado',
+  const styleMap: Record<string, string> = {
+    friendly:     'cercano, cálido y amigable',
+    professional: 'profesional y cortés',
+    premium:      'sofisticado, exclusivo y premium',
+    fun:          'divertido, dinámico y con humor ligero',
   }
-  const bizMap: Record<string, string> = {
-    veterinaria:  'clínica veterinaria',
-    peluqueria:   'peluquería canina',
-    ambas:        'clínica veterinaria y peluquería canina',
-    tienda:       'tienda de mascotas',
-    otro:         'negocio de atención de mascotas',
+  const lengthMap: Record<string, string> = {
+    brief:    'Responde siempre de forma breve (1-2 líneas máximo).',
+    balanced: 'Usa respuestas equilibradas, ni muy cortas ni muy largas.',
+    detailed: 'Puedes dar respuestas detalladas cuando el cliente necesite más información.',
   }
   const cancelMap: Record<string, string> = {
-    free:    'Las cancelaciones son gratuitas en cualquier momento.',
-    '24h':   `Las cancelaciones deben hacerse con al menos ${opts.cancelHours} horas de anticipación para no generar cargo.`,
-    '48h':   `Las cancelaciones deben hacerse con al menos ${opts.cancelHours} horas de anticipación.`,
-    charge:  'Toda cancelación de último momento puede generar un cargo por reserva.',
+    free:   'Las cancelaciones son gratuitas en cualquier momento.',
+    notice: `Se requiere avisar con al menos ${opts.cancelHours} horas de anticipación para cancelar sin cargo.`,
+    charge: 'Las cancelaciones de último momento pueden tener un cargo por reserva.',
+  }
+  const objLabels: Record<string, string> = {
+    more_bookings:  'conseguir más reservas',
+    recurrence:     'aumentar la recurrencia de clientes',
+    reactivate:     'recuperar clientes inactivos',
+    reduce_cancel:  'reducir cancelaciones',
+    better_service: 'mejorar la experiencia de atención',
+    premium_upsell: 'incrementar ventas de servicios premium',
+    products:       'vender productos complementarios',
+    avg_ticket:     'aumentar el ticket promedio',
+    loyalty:        'fidelizar clientes',
   }
 
-  const lines: string[] = []
+  const name   = opts.assistantName || 'el asistente virtual'
+  const clinic = opts.clinicName || 'la clínica'
+  const style  = styleMap[opts.communicationStyle] || styleMap.friendly
+  const length = lengthMap[opts.responseLength] || lengthMap.balanced
+  const emojis = opts.useEmojis ? 'Puedes usar emojis de forma moderada.' : 'No uses emojis.'
+  const cancel = cancelMap[opts.cancelPolicy] || cancelMap.notice
 
-  const name = opts.clinicDisplayName || 'la clínica'
-  const biz  = bizMap[opts.businessType] || 'negocio de mascotas'
-  const tone = toneMap[opts.tone] || 'profesional y amable'
-  const emoji = opts.useEmojis ? ' Podés usar emojis de forma moderada.' : ' No uses emojis.'
-  const length = opts.shortReplies ? ' Sé breve y conciso, máximo 2-3 líneas por respuesta.' : ' Podés dar respuestas detalladas cuando sea útil.'
+  const lines: string[] = [
+    `Eres ${name}, el asistente virtual de ${clinic}.`,
+    ``,
+    `ACCESO AL SISTEMA:`,
+    `Tienes acceso completo a la información del negocio registrada en el sistema:`,
+    `- Servicios disponibles y precios actualizados`,
+    `- Horarios de atención configurados`,
+    `- Agenda y disponibilidad en tiempo real`,
+    `- Zonas de cobertura y logística`,
+    `- Información de mascotas y clientes registrados`,
+    `- Personal asignado y su disponibilidad`,
+    ``,
+    `CONFIDENCIALIDAD:`,
+    `Nunca reveles información interna del negocio: ventas, facturación, costos, sueldos, comisiones, estadísticas administrativas ni configuraciones internas. Si un cliente pregunta algo de esto, indica que no estás autorizado a compartir esa información.`,
+    ``,
+    `PERSONALIDAD:`,
+    `- Estilo: ${style}.`,
+    `- ${length}`,
+    `- ${emojis}`,
+    `- Idioma: español. Tutea al cliente.`,
+  ]
 
-  lines.push(`Eres el asistente virtual de ${name}, ${biz} en Perú.`)
-  lines.push(`Tu nombre es Vety y representás al equipo de ${name}.`)
-  if (opts.greeting) lines.push(`Al iniciar una conversación nueva, saluda así: "${opts.greeting}"`)
-  lines.push(``)
-  lines.push(`PERSONALIDAD Y ESTILO:`)
-  lines.push(`- Tono: ${tone}.${emoji}${length}`)
-  lines.push(`- Idioma: español peruano. Tutea al cliente.`)
-  lines.push(``)
-  lines.push(`SERVICIOS Y ESPECIALIDADES:`)
-  if (opts.specialty) {
-    lines.push(`- Ofrecés: ${opts.specialty}.`)
-  } else {
-    lines.push(`- Respondé consultas sobre los servicios del negocio.`)
-  }
-  lines.push(``)
-  lines.push(`REGLAS DE ATENCIÓN:`)
-  if (opts.acceptBookings) {
-    lines.push(`- Podés agendar, confirmar y cancelar citas a través del sistema.`)
-  } else {
-    lines.push(`- No agendes citas directamente. Derivá al cliente para que llame o visite la clínica.`)
-  }
-  if (opts.sharePrice) {
-    lines.push(`- Podés compartir precios de los servicios cuando el cliente los pida.`)
-  } else {
-    lines.push(`- No des precios exactos. Indicá que los precios varían según la mascota y que el equipo puede informar en consulta.`)
-  }
-  if (opts.avoidDiagnosis) {
-    lines.push(`- NUNCA des diagnósticos médicos ni recomendés medicamentos. Siempre derivá al veterinario.`)
-  }
-  lines.push(``)
-  lines.push(`POLÍTICAS:`)
-  const cancelText = cancelMap[opts.cancelPolicy]
-  if (cancelText) lines.push(`- Cancelaciones: ${cancelText}`)
-  if (opts.noShowPolicy) lines.push(`- No-show: ${opts.noShowPolicy}`)
-  if (opts.paymentMethods.length > 0) {
-    lines.push(`- Métodos de pago aceptados: ${opts.paymentMethods.join(', ')}.`)
-  }
-  lines.push(``)
-  lines.push(`DERIVACIÓN:`)
-  if (opts.escalationPhone) {
-    lines.push(`- Si el cliente tiene una urgencia o no podés resolver su consulta, derivalo a: ${opts.escalationPhone}.`)
-  } else {
-    lines.push(`- Si no podés resolver algo, indicá que el equipo se comunicará a la brevedad.`)
-  }
-  lines.push(`- Nunca inventes información. Si no sabés algo, decí que vas a consultar con el equipo.`)
+  if (opts.welcomeMessage) lines.push(`- Saludo de bienvenida: "${opts.welcomeMessage}"`)
 
-  if (opts.extraRules) {
-    lines.push(``)
-    lines.push(`INSTRUCCIONES ADICIONALES:`)
-    lines.push(opts.extraRules)
+  lines.push(``, `REGLAS DE ATENCIÓN:`)
+  lines.push(`- ${opts.allowBookings      ? 'Puedes agendar citas directamente.' : 'No agendes citas. Derivá al cliente para que contacte al negocio.'}`)
+  lines.push(`- ${opts.allowReschedule    ? 'Puedes reprogramar citas existentes.' : 'No reprogrames citas. Derivá al equipo.'}`)
+  lines.push(`- ${opts.allowCancellations ? 'Puedes cancelar citas cuando el cliente lo solicita.' : 'No canceles citas directamente. Derivá al equipo.'}`)
+  lines.push(`- ${opts.sharePrice         ? 'Comparte precios de servicios cuando el cliente pregunta.' : 'No des precios exactos. Indica que varían según la mascota y derivá para consulta.'}`)
+  if (opts.shareLocation)  lines.push(`- Comparte la dirección y ubicación del negocio cuando te la pidan.`)
+  if (opts.shareZones)     lines.push(`- Informa sobre las zonas de cobertura del servicio a domicilio.`)
+  if (opts.escalateToHuman) {
+    const contact = opts.escalationContact ? `Contacto: ${opts.escalationContact}.` : ''
+    lines.push(`- Cuando no puedas resolver algo o la situación lo requiera, deriva al equipo humano. ${contact}`)
   }
+
+  lines.push(``, `POLÍTICAS:`)
+  lines.push(`- Cancelaciones: ${cancel}`)
+  if (opts.noShowPolicy)   lines.push(`- No-show: ${opts.noShowPolicy}`)
+  if (opts.paymentMethods.length > 0) lines.push(`- Métodos de pago aceptados: ${opts.paymentMethods.join(', ')}.`)
+
+  if (opts.offHoursMessage)     lines.push(``, `FUERA DE HORARIO:`, `Cuando el cliente escribe fuera del horario, responde: "${opts.offHoursMessage}"`)
+  if (opts.confirmationMessage) lines.push(``, `CONFIRMACIÓN DE RESERVA:`, `Al confirmar una cita, envía: "${opts.confirmationMessage}"`)
+  if (opts.reminderMessage)     lines.push(``, `RECORDATORIO:`, `Para recordatorios de citas, usa: "${opts.reminderMessage}"`)
+
+  if (opts.objectives.length > 0) {
+    const objText = opts.objectives.map(o => objLabels[o] || o).join(', ')
+    lines.push(``, `OBJETIVOS COMERCIALES:`, `El negocio busca: ${objText}.`)
+    lines.push(`Orienta sutilmente tus respuestas para apoyar estos objetivos cuando sea natural y oportuno. No seas agresivo ni invasivo.`)
+  }
+
+  if (opts.extraInstructions) lines.push(``, `INSTRUCCIONES ADICIONALES:`, opts.extraInstructions)
 
   return lines.join('\n')
+}
+
+// Compact toggle for the bot page
+function BotToggle({ label, desc, value, onChange }: { label: string; desc?: string; value: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <div
+      onClick={() => onChange(!value)}
+      style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderRadius: 12, cursor: 'pointer', background: value ? '#F3EEFF' : '#f8fafc', border: `1.5px solid ${value ? '#ddd6fe' : '#e2e8f0'}`, transition: 'all 0.15s' }}
+    >
+      <div style={{ flex: 1 }}>
+        <p style={{ fontSize: 13, fontWeight: 600, color: value ? '#3b0764' : '#334155', margin: 0 }}>{label}</p>
+        {desc && <p style={{ fontSize: 11, color: '#94a3b8', margin: '2px 0 0' }}>{desc}</p>}
+      </div>
+      <div style={{ width: 36, height: 20, borderRadius: 10, background: value ? '#601EF9' : '#cbd5e1', position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}>
+        <div style={{ width: 14, height: 14, borderRadius: '50%', background: 'white', position: 'absolute', top: 3, left: value ? 19 : 3, transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
+      </div>
+    </div>
+  )
+}
+
+function BotBlock({ n, title, desc, children }: { n: number; title: string; desc: string; children: React.ReactNode }) {
+  return (
+    <div style={{ border: '1px solid #ede9fe', borderRadius: 16, overflow: 'hidden', background: 'white' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px 20px', borderBottom: '1px solid #f1f5f9' }}>
+        <div style={{ width: 28, height: 28, borderRadius: 8, background: 'linear-gradient(135deg,#3b10b5,#601EF9)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, color: 'white', flexShrink: 0 }}>{n}</div>
+        <div>
+          <p style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', margin: 0 }}>{title}</p>
+          <p style={{ fontSize: 11, color: '#94a3b8', margin: '1px 0 0' }}>{desc}</p>
+        </div>
+      </div>
+      <div style={{ padding: '16px 20px' }}>{children}</div>
+    </div>
+  )
+}
+
+function BotInput({ label, value, onChange, placeholder, multiline }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; multiline?: boolean }) {
+  const base: React.CSSProperties = { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: 13, color: '#0f172a', background: '#f9f9fb', outline: 'none', boxSizing: 'border-box' }
+  return (
+    <div style={{ marginTop: 4 }}>
+      {label && <label style={{ fontSize: 11, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</label>}
+      {multiline
+        ? <textarea rows={3} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} style={{ ...base, resize: 'none', lineHeight: 1.5 }}
+            onFocus={e => (e.currentTarget.style.borderColor = '#601EF9')}
+            onBlur={e  => (e.currentTarget.style.borderColor = '#e2e8f0')} />
+        : <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} style={base}
+            onFocus={e => (e.currentTarget.style.borderColor = '#601EF9')}
+            onBlur={e  => (e.currentTarget.style.borderColor = '#e2e8f0')} />
+      }
+    </div>
+  )
+}
+
+function BotPillSelect({ options, value, onChange, multi }: { options: { id: string; label: string }[]; value: string | string[]; onChange: (v: string | string[]) => void; multi?: boolean }) {
+  const isSelected = (id: string) => multi ? (value as string[]).includes(id) : value === id
+  const toggle = (id: string) => {
+    if (multi) {
+      const arr = value as string[]
+      onChange(arr.includes(id) ? arr.filter(x => x !== id) : [...arr, id])
+    } else {
+      onChange(id)
+    }
+  }
+  return (
+    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
+      {options.map(o => (
+        <button key={o.id} onClick={() => toggle(o.id)}
+          style={{ padding: '7px 13px', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: '1.5px solid', transition: 'all 0.15s',
+            borderColor: isSelected(o.id) ? '#601EF9' : '#e2e8f0',
+            background:  isSelected(o.id) ? '#601EF9' : 'white',
+            color:       isSelected(o.id) ? 'white'   : '#475569' }}>
+          {o.label}
+        </button>
+      ))}
+    </div>
+  )
 }
 
 function TabBot() {
   const [saved, setSaved]     = useState(false)
   const [saveErr, setSaveErr] = useState('')
   const [loading, setLoading] = useState(true)
-  const [showAdvanced, setShowAdvanced] = useState(false)
+  const [clinicName, setClinicName] = useState('')
 
-  // Structured fields
-  const [businessType,     setBusinessType]     = useState('veterinaria')
-  const [specialty,        setSpecialty]        = useState('')
-  const [clinicDisplayName,setClinicDisplayName]= useState('')
-  const [tone,             setTone]             = useState('amigable')
-  const [autoReply,        setAutoReply]        = useState(true)
-  const [offHours,         setOffHours]         = useState(true)
-  const [offMsg,           setOffMsg]           = useState('Hola! Estamos fuera del horario de atención. Te respondemos a la brevedad. 🐾')
-  const [acceptBookings,   setAcceptBookings]   = useState(true)
-  const [sharePrice,       setSharePrice]       = useState(true)
-  const [avoidDiagnosis,   setAvoidDiagnosis]   = useState(true)
-  const [escalationPhone,  setEscalationPhone]  = useState('')
-  const [cancelPolicy,     setCancelPolicy]     = useState('24h')
-  const [cancelHours,      setCancelHours]      = useState('24')
-  const [noShowPolicy,     setNoShowPolicy]     = useState('Si el cliente no se presenta, el turno queda cancelado.')
-  const [paymentMethods,   setPaymentMethods]   = useState<string[]>(['efectivo', 'yape'])
-  const [useEmojis,        setUseEmojis]        = useState(true)
-  const [shortReplies,     setShortReplies]     = useState(true)
-  const [greeting,         setGreeting]         = useState('')
-  const [extraRules,       setExtraRules]       = useState('')
-  const [instructions,     setInstructions]     = useState('')
+  // Block 1 — Personalidad
+  const [assistantName,      setAssistantName]      = useState('Vety')
+  const [communicationStyle, setCommunicationStyle] = useState('friendly')
+  const [useEmojis,          setUseEmojis]          = useState(true)
+  const [responseLength,     setResponseLength]     = useState('balanced')
+  const [welcomeMessage,     setWelcomeMessage]     = useState('')
+
+  // Block 2 — Reglas de atención
+  const [allowBookings,      setAllowBookings]      = useState(true)
+  const [allowReschedule,    setAllowReschedule]    = useState(true)
+  const [allowCancellations, setAllowCancellations] = useState(true)
+  const [sharePrice,         setSharePrice]         = useState(true)
+  const [shareLocation,      setShareLocation]      = useState(true)
+  const [shareZones,         setShareZones]         = useState(true)
+  const [escalateToHuman,    setEscalateToHuman]    = useState(true)
+  const [escalationContact,  setEscalationContact]  = useState('')
+
+  // Block 3 — Políticas
+  const [cancelPolicy,   setCancelPolicy]   = useState('notice')
+  const [cancelHours,    setCancelHours]    = useState('24')
+  const [noShowPolicy,   setNoShowPolicy]   = useState('Si el cliente no se presenta, el turno queda cancelado.')
+  const [paymentMethods, setPaymentMethods] = useState<string[]>(['efectivo', 'yape'])
+
+  // Block 4 — Automatizaciones
+  const [autoReply,            setAutoReply]            = useState(true)
+  const [offHoursReply,        setOffHoursReply]        = useState(true)
+  const [notifyNoAvail,        setNotifyNoAvail]        = useState(true)
+  const [autoConfirm,          setAutoConfirm]          = useState(false)
+  const [sendReminders,        setSendReminders]        = useState(true)
+  const [offHoursMessage,      setOffHoursMessage]      = useState('Hola! Estamos fuera de horario. Te respondemos a la brevedad. 🐾')
+  const [confirmationMessage,  setConfirmationMessage]  = useState('')
+  const [reminderMessage,      setReminderMessage]      = useState('')
+
+  // Block 5 — Objetivos
+  const [objectives, setObjectives] = useState<string[]>(['more_bookings', 'recurrence'])
+
+  // Block 6 — Avanzado
+  const [extraInstructions, setExtraInstructions] = useState('')
+  const [showPrompt,        setShowPrompt]        = useState(false)
+  const [instructions,      setInstructions]      = useState('')
 
   useEffect(() => {
     api.getMyClinic().then((c: unknown) => {
       const clinic = c as { name?: string; settings?: { bot?: Record<string, unknown> } }
+      setClinicName(clinic?.name ?? '')
       const b = clinic?.settings?.bot ?? {}
-      const cn = clinic?.name ?? ''
-      setClinicDisplayName((b.clinicDisplayName as string) || cn)
-      if (b.businessType)    setBusinessType(b.businessType as string)
-      if (b.specialty)       setSpecialty(b.specialty as string)
-      if (b.tone)            setTone(b.tone as string)
-      if (typeof b.autoReply      === 'boolean') setAutoReply(b.autoReply)
-      if (typeof b.offHours       === 'boolean') setOffHours(b.offHours)
-      if (b.offMsg)          setOffMsg(b.offMsg as string)
-      if (typeof b.acceptBookings === 'boolean') setAcceptBookings(b.acceptBookings)
-      if (typeof b.sharePrice     === 'boolean') setSharePrice(b.sharePrice)
-      if (typeof b.avoidDiagnosis === 'boolean') setAvoidDiagnosis(b.avoidDiagnosis)
-      if (b.escalationPhone) setEscalationPhone(b.escalationPhone as string)
-      if (b.cancelPolicy)    setCancelPolicy(b.cancelPolicy as string)
-      if (b.cancelHours)     setCancelHours(b.cancelHours as string)
-      if (b.noShowPolicy)    setNoShowPolicy(b.noShowPolicy as string)
+      if (b.assistantName)      setAssistantName(b.assistantName as string)
+      if (b.communicationStyle) setCommunicationStyle(b.communicationStyle as string)
+      if (typeof b.useEmojis === 'boolean')     setUseEmojis(b.useEmojis)
+      if (b.responseLength)     setResponseLength(b.responseLength as string)
+      if (b.welcomeMessage)     setWelcomeMessage(b.welcomeMessage as string)
+      if (typeof b.allowBookings      === 'boolean') setAllowBookings(b.allowBookings)
+      if (typeof b.allowReschedule    === 'boolean') setAllowReschedule(b.allowReschedule)
+      if (typeof b.allowCancellations === 'boolean') setAllowCancellations(b.allowCancellations)
+      if (typeof b.sharePrice         === 'boolean') setSharePrice(b.sharePrice)
+      if (typeof b.shareLocation      === 'boolean') setShareLocation(b.shareLocation)
+      if (typeof b.shareZones         === 'boolean') setShareZones(b.shareZones)
+      if (typeof b.escalateToHuman    === 'boolean') setEscalateToHuman(b.escalateToHuman)
+      if (b.escalationContact)  setEscalationContact(b.escalationContact as string)
+      if (b.cancelPolicy)       setCancelPolicy(b.cancelPolicy as string)
+      if (b.cancelHours)        setCancelHours(b.cancelHours as string)
+      if (b.noShowPolicy)       setNoShowPolicy(b.noShowPolicy as string)
       if (Array.isArray(b.paymentMethods)) setPaymentMethods(b.paymentMethods as string[])
-      if (typeof b.useEmojis      === 'boolean') setUseEmojis(b.useEmojis)
-      if (typeof b.shortReplies   === 'boolean') setShortReplies(b.shortReplies)
-      if (b.greeting)        setGreeting(b.greeting as string)
-      if (b.extraRules)      setExtraRules(b.extraRules as string)
-      if (b.instructions)    setInstructions(b.instructions as string)
+      if (typeof b.autoReply        === 'boolean') setAutoReply(b.autoReply)
+      if (typeof b.offHoursReply    === 'boolean') setOffHoursReply(b.offHoursReply)
+      if (typeof b.notifyNoAvail    === 'boolean') setNotifyNoAvail(b.notifyNoAvail)
+      if (typeof b.autoConfirm      === 'boolean') setAutoConfirm(b.autoConfirm)
+      if (typeof b.sendReminders    === 'boolean') setSendReminders(b.sendReminders)
+      if (b.offHoursMessage)    setOffHoursMessage(b.offHoursMessage as string)
+      if (b.confirmationMessage)setConfirmationMessage(b.confirmationMessage as string)
+      if (b.reminderMessage)    setReminderMessage(b.reminderMessage as string)
+      if (Array.isArray(b.objectives)) setObjectives(b.objectives as string[])
+      if (b.extraInstructions)  setExtraInstructions(b.extraInstructions as string)
+      if (b.instructions)       setInstructions(b.instructions as string)
     }).catch(() => {}).finally(() => setLoading(false))
   }, [])
 
-  function togglePayment(m: string) {
-    setPaymentMethods(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m])
-  }
-
-  function handleGenerate() {
-    const prompt = buildBotPrompt({
-      businessType, specialty, clinicDisplayName, tone, acceptBookings,
-      sharePrice, avoidDiagnosis, escalationPhone, cancelPolicy, cancelHours,
-      noShowPolicy, paymentMethods, useEmojis, shortReplies, greeting, extraRules,
+  function buildPrompt() {
+    return buildBotPrompt({
+      clinicName, assistantName, communicationStyle, useEmojis, responseLength,
+      welcomeMessage, allowBookings, allowReschedule, allowCancellations,
+      sharePrice, shareLocation, shareZones, escalateToHuman, escalationContact,
+      cancelPolicy, cancelHours, noShowPolicy, paymentMethods,
+      offHoursMessage, confirmationMessage, reminderMessage,
+      objectives, extraInstructions,
     })
-    setInstructions(prompt)
-    setShowAdvanced(true)
   }
 
   const handleSave = async () => {
     setSaveErr('')
+    const prompt = buildPrompt()
+    setInstructions(prompt)
     try {
-      const botData = {
-        instructions, tone, autoReply, offHours, offMsg,
-        businessType, specialty, clinicDisplayName, acceptBookings,
-        sharePrice, avoidDiagnosis, escalationPhone, cancelPolicy, cancelHours,
-        noShowPolicy, paymentMethods, useEmojis, shortReplies, greeting, extraRules,
-      }
-      await api.updateMyClinic({ settings: { bot: botData } })
+      await api.updateMyClinic({
+        settings: {
+          bot: {
+            instructions: prompt,
+            assistantName, communicationStyle, useEmojis, responseLength, welcomeMessage,
+            allowBookings, allowReschedule, allowCancellations,
+            sharePrice, shareLocation, shareZones, escalateToHuman, escalationContact,
+            cancelPolicy, cancelHours, noShowPolicy, paymentMethods,
+            autoReply, offHoursReply, notifyNoAvail, autoConfirm, sendReminders,
+            offHoursMessage, confirmationMessage, reminderMessage,
+            objectives, extraInstructions,
+          },
+        },
+      })
       setSaved(true); setTimeout(() => setSaved(false), 2500)
     } catch (e) {
       setSaveErr(e instanceof Error ? e.message : 'Error al guardar')
     }
   }
 
-  const BotField = ({ label, children }: { label: string; children: React.ReactNode }) => (
-    <div>
-      <label className="text-xs font-semibold mb-1.5 block" style={{ color: '#334155' }}>{label}</label>
-      {children}
-    </div>
-  )
-
-  const BotPills = ({ options, value, onChange }: { options: { id: string; label: string; icon?: string }[]; value: string; onChange: (v: string) => void }) => (
-    <div className="flex gap-2 flex-wrap">
-      {options.map(o => (
-        <button key={o.id} onClick={() => onChange(o.id)}
-          className="px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors"
-          style={value === o.id
-            ? { background: '#601EF9', color: '#fff' }
-            : { background: '#F1F5F9', color: '#64748b' }}>
-          {o.icon && <span className="mr-1">{o.icon}</span>}{o.label}
-        </button>
-      ))}
-    </div>
-  )
-
   if (loading) return (
-    <div className="flex justify-center py-16">
-      <div className="w-7 h-7 rounded-full border-2 animate-spin"
-        style={{ borderColor: '#601EF9', borderTopColor: 'transparent' }} />
+    <div style={{ display: 'flex', justifyContent: 'center', padding: '48px 0' }}>
+      <div style={{ width: 28, height: 28, borderRadius: '50%', border: '2.5px solid #601EF9', borderTopColor: 'transparent', animation: 'spin 0.7s linear infinite' }} />
     </div>
   )
+
+  const SYSTEM_MODULES = [
+    { label: 'Servicios & precios', icon: '💲' },
+    { label: 'Horarios',            icon: '⏰' },
+    { label: 'Agenda',              icon: '📅' },
+    { label: 'Zonas',               icon: '🗺️' },
+    { label: 'Empleados',           icon: '👥' },
+    { label: 'Clientes',            icon: '👤' },
+  ]
 
   return (
-    <div className="space-y-5">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-      {/* ── Identidad del negocio ─────────────────────────────── */}
-      <Card title="Identidad del negocio" subtitle="Cómo se presenta el bot ante tus clientes.">
-        <div className="space-y-4">
-          <BotField label="Nombre que usa el bot para referirse al negocio">
-            <input
-              value={clinicDisplayName}
-              onChange={e => setClinicDisplayName(e.target.value)}
-              placeholder="Ej: SuperVet, Peluquería Pelitos, Clínica San Jorge"
-              className="w-full px-3 py-2.5 text-sm rounded-xl outline-none"
-              style={{ border: '1.5px solid #e2e8f0', color: '#0f172a', background: '#f9f9fb' }}
-              onFocus={e => (e.currentTarget.style.borderColor = '#601EF9')}
-              onBlur={e  => (e.currentTarget.style.borderColor = '#e2e8f0')}
-            />
-          </BotField>
-
-          <BotField label="Tipo de negocio">
-            <BotPills
-              value={businessType}
-              onChange={setBusinessType}
-              options={[
-                { id: 'veterinaria', label: 'Veterinaria',  icon: '🏥' },
-                { id: 'peluqueria',  label: 'Peluquería',   icon: '✂️' },
-                { id: 'ambas',       label: 'Ambas',        icon: '🐾' },
-                { id: 'tienda',      label: 'Tienda',       icon: '🛒' },
-                { id: 'otro',        label: 'Otro',         icon: '📋' },
-              ]}
-            />
-          </BotField>
-
-          <BotField label="Servicios principales (describe brevemente lo que ofrecés)">
-            <input
-              value={specialty}
-              onChange={e => setSpecialty(e.target.value)}
-              placeholder="Ej: baños, cortes, vacunas, desparasitación, consultas veterinarias"
-              className="w-full px-3 py-2.5 text-sm rounded-xl outline-none"
-              style={{ border: '1.5px solid #e2e8f0', color: '#0f172a', background: '#f9f9fb' }}
-              onFocus={e => (e.currentTarget.style.borderColor = '#601EF9')}
-              onBlur={e  => (e.currentTarget.style.borderColor = '#e2e8f0')}
-            />
-          </BotField>
-
-          <BotField label="Saludo de bienvenida (opcional)">
-            <input
-              value={greeting}
-              onChange={e => setGreeting(e.target.value)}
-              placeholder='Ej: "¡Hola! Soy Vety, el asistente de SuperVet 🐾 ¿En qué te puedo ayudar?"'
-              className="w-full px-3 py-2.5 text-sm rounded-xl outline-none"
-              style={{ border: '1.5px solid #e2e8f0', color: '#0f172a', background: '#f9f9fb' }}
-              onFocus={e => (e.currentTarget.style.borderColor = '#601EF9')}
-              onBlur={e  => (e.currentTarget.style.borderColor = '#e2e8f0')}
-            />
-          </BotField>
-        </div>
-      </Card>
-
-      {/* ── Estilo de respuesta ───────────────────────────────── */}
-      <Card title="Estilo de respuesta" subtitle="Cómo habla el bot con tus clientes.">
-        <div className="space-y-4">
-          <BotField label="Tono">
-            <BotPills
-              value={tone}
-              onChange={setTone}
-              options={[
-                { id: 'amigable',    label: 'Amigable 😊' },
-                { id: 'profesional', label: 'Profesional' },
-                { id: 'formal',      label: 'Formal' },
-                { id: 'divertido',   label: 'Divertido 🎉' },
-              ]}
-            />
-          </BotField>
-
-          <div className="flex gap-4">
-            <Toggle
-              label="Usar emojis"
-              desc="El bot incluye emojis en sus respuestas"
-              value={useEmojis}
-              onChange={setUseEmojis}
-            />
-            <Toggle
-              label="Respuestas cortas"
-              desc="Máximo 2–3 líneas, directo al punto"
-              value={shortReplies}
-              onChange={setShortReplies}
-            />
-          </div>
-        </div>
-      </Card>
-
-      {/* ── Reglas de atención ───────────────────────────────── */}
-      <Card title="Reglas de atención" subtitle="Qué puede y qué no puede hacer el bot.">
-        <div className="space-y-4">
-          <Toggle
-            label="Agendar citas por WhatsApp"
-            desc="El bot puede confirmar y agendar turnos directamente"
-            value={acceptBookings}
-            onChange={setAcceptBookings}
-          />
-          <Toggle
-            label="Compartir precios"
-            desc="El bot puede dar precios de servicios cuando el cliente pregunta"
-            value={sharePrice}
-            onChange={setSharePrice}
-          />
-          <Toggle
-            label="Bloquear diagnósticos médicos"
-            desc="El bot nunca dará diagnósticos ni recomendaciones de medicamentos"
-            value={avoidDiagnosis}
-            onChange={setAvoidDiagnosis}
-          />
-
-          <BotField label="Número de derivación (para urgencias o consultas que el bot no puede resolver)">
-            <input
-              value={escalationPhone}
-              onChange={e => setEscalationPhone(e.target.value)}
-              placeholder="Ej: 999 123 456 — Dr. Rodríguez"
-              className="w-full px-3 py-2.5 text-sm rounded-xl outline-none"
-              style={{ border: '1.5px solid #e2e8f0', color: '#0f172a', background: '#f9f9fb' }}
-              onFocus={e => (e.currentTarget.style.borderColor = '#601EF9')}
-              onBlur={e  => (e.currentTarget.style.borderColor = '#e2e8f0')}
-            />
-          </BotField>
-        </div>
-      </Card>
-
-      {/* ── Políticas del negocio ─────────────────────────────── */}
-      <Card title="Políticas del negocio" subtitle="El bot informará estas reglas a los clientes cuando sea relevante.">
-        <div className="space-y-4">
-          <BotField label="Política de cancelación">
-            <BotPills
-              value={cancelPolicy}
-              onChange={setCancelPolicy}
-              options={[
-                { id: 'free',   label: 'Siempre gratis' },
-                { id: '24h',    label: 'Aviso previo requerido' },
-                { id: 'charge', label: 'Cargo por cancelación' },
-              ]}
-            />
-          </BotField>
-
-          {cancelPolicy !== 'free' && cancelPolicy !== 'charge' && (
-            <BotField label="Horas mínimas de anticipación">
-              <BotPills
-                value={cancelHours}
-                onChange={setCancelHours}
-                options={[
-                  { id: '12', label: '12 h' },
-                  { id: '24', label: '24 h' },
-                  { id: '48', label: '48 h' },
-                  { id: '72', label: '72 h' },
-                ]}
-              />
-            </BotField>
-          )}
-
-          <BotField label="Política de no-show">
-            <input
-              value={noShowPolicy}
-              onChange={e => setNoShowPolicy(e.target.value)}
-              placeholder="Ej: Si el cliente no se presenta, el turno queda cancelado y se puede aplicar un cargo."
-              className="w-full px-3 py-2.5 text-sm rounded-xl outline-none"
-              style={{ border: '1.5px solid #e2e8f0', color: '#0f172a', background: '#f9f9fb' }}
-              onFocus={e => (e.currentTarget.style.borderColor = '#601EF9')}
-              onBlur={e  => (e.currentTarget.style.borderColor = '#e2e8f0')}
-            />
-          </BotField>
-
-          <BotField label="Métodos de pago aceptados">
-            <div className="flex gap-2 flex-wrap">
-              {['efectivo', 'yape', 'plin', 'transferencia', 'tarjeta', 'lukita'].map(m => (
-                <button key={m} onClick={() => togglePayment(m)}
-                  className="px-3 py-1.5 rounded-xl text-xs font-semibold capitalize transition-colors"
-                  style={paymentMethods.includes(m)
-                    ? { background: '#601EF9', color: '#fff' }
-                    : { background: '#F1F5F9', color: '#64748b' }}>
-                  {m}
-                </button>
-              ))}
-            </div>
-          </BotField>
-        </div>
-      </Card>
-
-      {/* ── Respuesta automática y fuera de horario ──────────── */}
-      <Card title="Respuesta automática" subtitle="Cuándo y cómo responde el bot.">
-        <div className="space-y-4">
-          <Toggle
-            label="Activar respuesta automática"
-            desc="El bot responde automáticamente los mensajes entrantes de WhatsApp"
-            value={autoReply}
-            onChange={setAutoReply}
-          />
-          <Toggle
-            label="Mensaje fuera de horario"
-            desc="Respuesta automática cuando el cliente escribe fuera del horario de atención"
-            value={offHours}
-            onChange={setOffHours}
-          />
-          {offHours && (
-            <BotField label="Texto del mensaje fuera de horario">
-              <textarea
-                rows={2}
-                value={offMsg}
-                onChange={e => setOffMsg(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl text-sm outline-none resize-none"
-                style={{ border: '1.5px solid #e2e8f0', color: '#0f172a', background: '#f9f9fb' }}
-                onFocus={e => (e.currentTarget.style.borderColor = '#601EF9')}
-                onBlur={e  => (e.currentTarget.style.borderColor = '#e2e8f0')}
-              />
-            </BotField>
-          )}
-        </div>
-      </Card>
-
-      {/* ── Instrucciones adicionales (avanzado) ─────────────── */}
-      <div style={{ border: '1px solid #ede9fe', borderRadius: 16, overflow: 'hidden' }}>
-        <button
-          onClick={() => setShowAdvanced(v => !v)}
-          className="w-full flex items-center justify-between px-5 py-4 text-left"
-          style={{ background: showAdvanced ? '#F3EEFF' : 'white' }}>
+      {/* ── Banner ─────────────────────────────────────────────── */}
+      <div style={{ borderRadius: 16, padding: '16px 20px', background: 'linear-gradient(135deg,#F3EEFF,#ede9fe)', border: '1px solid #ddd6fe' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+          <span style={{ fontSize: 22 }}>🤖</span>
           <div>
-            <p className="text-sm font-semibold" style={{ color: '#0f172a' }}>Instrucciones avanzadas</p>
-            <p className="text-xs mt-0.5" style={{ color: '#94a3b8' }}>Reglas personalizadas adicionales y prompt del sistema</p>
+            <p style={{ fontSize: 14, fontWeight: 700, color: '#3b0764', margin: 0 }}>El asistente ya conoce tu negocio</p>
+            <p style={{ fontSize: 12, color: '#7c3aed', margin: '2px 0 0' }}>Lee automáticamente la información de todos los módulos del sistema</p>
           </div>
-          <span className="text-lg" style={{ color: '#601EF9', transform: showAdvanced ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>⌄</span>
-        </button>
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {SYSTEM_MODULES.map(m => (
+            <span key={m.label} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, background: 'white', color: '#601EF9', border: '1px solid #ddd6fe' }}>
+              <span style={{ fontSize: 13 }}>{m.icon}</span>{m.label}
+            </span>
+          ))}
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, background: '#601EF9', color: 'white' }}>
+            ✓ Siempre actualizado
+          </span>
+        </div>
+      </div>
 
-        {showAdvanced && (
-          <div className="px-5 pb-5 pt-3 space-y-4" style={{ background: 'white', borderTop: '1px solid #ede9fe' }}>
-            <BotField label="Reglas adicionales específicas para tu negocio">
-              <textarea
-                rows={3}
-                value={extraRules}
-                onChange={e => setExtraRules(e.target.value)}
-                placeholder="Ej: Solo atendemos perros y gatos, no reptiles. El baño incluye corte de uñas gratis. Los precios de baño varían según el tamaño de la mascota."
-                className="w-full px-3 py-2.5 rounded-xl text-sm outline-none resize-none"
-                style={{ border: '1.5px solid #e2e8f0', color: '#0f172a', background: '#f9f9fb' }}
-                onFocus={e => (e.currentTarget.style.borderColor = '#601EF9')}
-                onBlur={e  => (e.currentTarget.style.borderColor = '#e2e8f0')}
-              />
-            </BotField>
+      {/* ── Bloque 1: Personalidad ─────────────────────────────── */}
+      <BotBlock n={1} title="Personalidad del asistente" desc="Cómo se comunica el bot con tus clientes">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <BotInput label="Nombre del asistente" value={assistantName} onChange={setAssistantName} placeholder="Ej: Vety, Mia, Asistente Pelitos…" />
 
+          <div>
+            <label style={{ fontSize: 11, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Estilo de comunicación</label>
+            <BotPillSelect value={communicationStyle} onChange={v => setCommunicationStyle(v as string)}
+              options={[
+                { id: 'friendly',     label: '😊 Cercano y amigable' },
+                { id: 'professional', label: '💼 Profesional' },
+                { id: 'premium',      label: '✨ Premium' },
+                { id: 'fun',          label: '🎉 Divertido' },
+              ]}
+            />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="text-xs font-semibold" style={{ color: '#334155' }}>Prompt del sistema (generado automáticamente)</label>
-                <span className="text-[10px]" style={{ color: '#94a3b8' }}>{instructions.length} chars</span>
-              </div>
-              <textarea
-                rows={10}
-                value={instructions}
-                onChange={e => setInstructions(e.target.value)}
-                className="w-full px-3 py-3 rounded-xl text-sm outline-none resize-none font-mono leading-relaxed"
-                style={{ background: '#F9F9FB', border: '1.5px solid #E5E7EB', color: '#0f172a' }}
-                onFocus={e => (e.currentTarget.style.borderColor = '#601EF9')}
-                onBlur={e  => (e.currentTarget.style.borderColor = '#e2e8f0')}
+              <label style={{ fontSize: 11, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Longitud de respuestas</label>
+              <BotPillSelect value={responseLength} onChange={v => setResponseLength(v as string)}
+                options={[{ id: 'brief', label: 'Breves' }, { id: 'balanced', label: 'Equilibradas' }, { id: 'detailed', label: 'Detalladas' }]}
               />
-              <p className="text-[11px] mt-1" style={{ color: '#94a3b8' }}>
-                Este texto se envía al modelo de IA. Usá el botón de abajo para regenerarlo desde los campos de arriba.
-              </p>
             </div>
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Emojis</label>
+              <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                {([{ id: 'on', label: '😊 Sí' }, { id: 'off', label: 'No' }] as const).map(o => (
+                  <button key={o.id} onClick={() => setUseEmojis(o.id === 'on')}
+                    style={{ padding: '7px 14px', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: '1.5px solid', transition: 'all 0.15s',
+                      borderColor: (o.id === 'on') === useEmojis ? '#601EF9' : '#e2e8f0',
+                      background:  (o.id === 'on') === useEmojis ? '#601EF9' : 'white',
+                      color:       (o.id === 'on') === useEmojis ? 'white'   : '#475569' }}>
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <BotInput label="Mensaje de bienvenida (opcional)" value={welcomeMessage} onChange={setWelcomeMessage}
+            placeholder='Ej: "¡Hola! Soy Vety de SuperVet 🐾 ¿En qué te puedo ayudar hoy?"' />
+        </div>
+      </BotBlock>
+
+      {/* ── Bloque 2: Reglas de atención ───────────────────────── */}
+      <BotBlock n={2} title="Reglas de atención" desc="Qué puede y qué no puede hacer el asistente">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <BotToggle label="Agendar citas"       desc="El asistente puede reservar turnos directamente"             value={allowBookings}      onChange={setAllowBookings} />
+          <BotToggle label="Reprogramar citas"   desc="El asistente puede cambiar la fecha u hora de un turno"      value={allowReschedule}    onChange={setAllowReschedule} />
+          <BotToggle label="Cancelar citas"      desc="El asistente puede cancelar turnos a pedido del cliente"     value={allowCancellations} onChange={setAllowCancellations} />
+          <BotToggle label="Compartir precios"   desc="Informa los precios de servicios cuando se le pregunta"      value={sharePrice}         onChange={setSharePrice} />
+          <BotToggle label="Compartir ubicación" desc="Brinda la dirección y cómo llegar al negocio"                value={shareLocation}      onChange={setShareLocation} />
+          <BotToggle label="Compartir zonas"     desc="Informa sobre zonas de cobertura para servicio a domicilio"  value={shareZones}         onChange={setShareZones} />
+          <BotToggle label="Escalar a humano"    desc="Deriva al equipo cuando no puede resolver algo"               value={escalateToHuman}    onChange={setEscalateToHuman} />
+          {escalateToHuman && (
+            <div style={{ paddingLeft: 14, borderLeft: '2px solid #ede9fe' }}>
+              <BotInput label="Número o contacto de derivación" value={escalationContact} onChange={setEscalationContact}
+                placeholder="Ej: 999 123 456 — Andrea (recepción)" />
+            </div>
+          )}
+        </div>
+      </BotBlock>
+
+      {/* ── Bloque 3: Políticas ─────────────────────────────────── */}
+      <BotBlock n={3} title="Políticas del negocio" desc="El asistente comunica estas reglas cuando es relevante">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div>
+            <label style={{ fontSize: 11, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Política de cancelación</label>
+            <BotPillSelect value={cancelPolicy} onChange={v => setCancelPolicy(v as string)}
+              options={[{ id: 'free', label: '✅ Siempre gratis' }, { id: 'notice', label: '⏱ Aviso previo' }, { id: 'charge', label: '💳 Con cargo' }]}
+            />
+            {cancelPolicy === 'notice' && (
+              <div style={{ marginTop: 10 }}>
+                <label style={{ fontSize: 11, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Anticipación mínima</label>
+                <BotPillSelect value={cancelHours} onChange={v => setCancelHours(v as string)}
+                  options={[{ id: '12', label: '12 h' }, { id: '24', label: '24 h' }, { id: '48', label: '48 h' }, { id: '72', label: '72 h' }]}
+                />
+              </div>
+            )}
+          </div>
+
+          <BotInput label="Política de no-show" value={noShowPolicy} onChange={setNoShowPolicy}
+            placeholder="Ej: Si el cliente no se presenta sin avisar, el turno queda cancelado." />
+
+          <div>
+            <label style={{ fontSize: 11, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Métodos de pago</label>
+            <BotPillSelect value={paymentMethods} onChange={v => setPaymentMethods(v as string[])} multi
+              options={[
+                { id: 'efectivo',      label: 'Efectivo' },
+                { id: 'yape',          label: '📱 Yape' },
+                { id: 'plin',          label: '📱 Plin' },
+                { id: 'transferencia', label: 'Transferencia' },
+                { id: 'tarjeta',       label: '💳 Tarjeta' },
+                { id: 'lukita',        label: 'Lukita' },
+              ]}
+            />
+          </div>
+        </div>
+      </BotBlock>
+
+      {/* ── Bloque 4: Automatizaciones ─────────────────────────── */}
+      <BotBlock n={4} title="Automatizaciones" desc="Respuestas y acciones automáticas del asistente">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <BotToggle label="Responder mensajes automáticamente"  desc="El asistente responde sin intervención manual"           value={autoReply}    onChange={setAutoReply} />
+          <BotToggle label="Respuesta fuera de horario"          desc="Responde automáticamente cuando el negocio está cerrado" value={offHoursReply} onChange={setOffHoursReply} />
+          <BotToggle label="Avisar cuando no haya disponibilidad" desc="Informa al cliente si no hay turnos disponibles"       value={notifyNoAvail} onChange={setNotifyNoAvail} />
+          <BotToggle label="Confirmar reservas automáticamente"  desc="Envía confirmación al cliente al agendar un turno"      value={autoConfirm}  onChange={setAutoConfirm} />
+          <BotToggle label="Enviar recordatorios automáticos"    desc="Recuerda la cita al cliente con anticipación"            value={sendReminders} onChange={setSendReminders} />
+        </div>
+        {(offHoursReply || autoConfirm || sendReminders) && (
+          <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 12, paddingTop: 16, borderTop: '1px solid #f1f5f9' }}>
+            {offHoursReply && <BotInput label="Mensaje fuera de horario"   value={offHoursMessage}     onChange={setOffHoursMessage}     placeholder="Ej: Hola! Estamos fuera de horario. Te respondemos pronto. 🐾" />}
+            {autoConfirm   && <BotInput label="Mensaje de confirmación"    value={confirmationMessage}  onChange={setConfirmationMessage}  placeholder="Ej: ✅ Tu cita fue confirmada para el {fecha} a las {hora}. ¡Te esperamos!" />}
+            {sendReminders && <BotInput label="Mensaje de recordatorio"    value={reminderMessage}      onChange={setReminderMessage}      placeholder="Ej: 🐾 Recordatorio: mañana a las {hora} tenés turno en {negocio}." />}
           </div>
         )}
-      </div>
+      </BotBlock>
 
-      {/* ── Acciones ──────────────────────────────────────────── */}
-      {saveErr && (
-        <p className="text-xs px-3 py-2 rounded-xl" style={{ background: '#fee2e2', color: '#dc2626' }}>⚠️ {saveErr}</p>
+      {/* ── Bloque 5: Objetivos ─────────────────────────────────── */}
+      <BotBlock n={5} title="Objetivos del negocio" desc="El asistente orienta sus respuestas para apoyar estos objetivos">
+        <BotPillSelect value={objectives} onChange={v => setObjectives(v as string[])} multi
+          options={[
+            { id: 'more_bookings',  label: '📈 Más reservas' },
+            { id: 'recurrence',     label: '🔁 Mayor recurrencia' },
+            { id: 'reactivate',     label: '💤 Recuperar inactivos' },
+            { id: 'reduce_cancel',  label: '✋ Menos cancelaciones' },
+            { id: 'better_service', label: '⭐ Mejor atención' },
+            { id: 'premium_upsell', label: '💎 Servicios premium' },
+            { id: 'products',       label: '🛒 Productos' },
+            { id: 'avg_ticket',     label: '💵 Ticket promedio' },
+            { id: 'loyalty',        label: '❤️ Fidelización' },
+          ]}
+        />
+        <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 10 }}>
+          Seleccioná uno o varios. El asistente los tendrá en cuenta de forma sutil y natural, sin ser invasivo.
+        </p>
+      </BotBlock>
+
+      {/* ── Bloque 6: Instrucciones adicionales ─────────────────── */}
+      <BotBlock n={6} title="Instrucciones adicionales" desc="Reglas específicas que no encajan en los campos anteriores">
+        <BotInput label="" value={extraInstructions} onChange={setExtraInstructions} multiline
+          placeholder={"Ej:\n• Siempre mencionar las promociones activas.\n• No ofrecer descuentos sin consultar al encargado.\n• Solo atendemos perros y gatos, no reptiles.\n• El baño incluye corte de uñas sin cargo."} />
+      </BotBlock>
+
+      {/* ── Ver prompt generado ─────────────────────────────────── */}
+      <button onClick={() => { const p = buildPrompt(); setInstructions(p); setShowPrompt(v => !v) }}
+        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px', borderRadius: 12, fontSize: 12, fontWeight: 600, color: '#601EF9', background: 'transparent', border: '1.5px dashed #ddd6fe', cursor: 'pointer' }}>
+        <span style={{ transform: showPrompt ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s', display: 'inline-block' }}>▶</span>
+        {showPrompt ? 'Ocultar' : 'Ver'} prompt generado (avanzado)
+      </button>
+
+      {showPrompt && (
+        <div style={{ border: '1px solid #e2e8f0', borderRadius: 12, overflow: 'hidden' }}>
+          <div style={{ padding: '8px 14px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: '#64748b' }}>PROMPT DEL SISTEMA</span>
+            <span style={{ fontSize: 10, color: '#94a3b8' }}>{instructions.length} chars</span>
+          </div>
+          <textarea rows={12} value={instructions} onChange={e => setInstructions(e.target.value)}
+            style={{ width: '100%', padding: '12px 14px', fontSize: 11, fontFamily: 'monospace', color: '#334155', background: '#f9f9fb', border: 'none', outline: 'none', resize: 'none', boxSizing: 'border-box', lineHeight: 1.6 }} />
+        </div>
       )}
 
-      <div className="flex gap-3">
-        <button
-          onClick={handleGenerate}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold"
-          style={{ background: '#F3EEFF', color: '#601EF9', border: '1.5px solid #ddd6fe' }}>
-          ✨ Generar instrucciones
-        </button>
-        <SaveBtn onSave={handleSave} saved={saved} />
-      </div>
+      {/* ── Guardar ─────────────────────────────────────────────── */}
+      {saveErr && (
+        <p style={{ fontSize: 12, padding: '10px 14px', borderRadius: 10, background: '#fee2e2', color: '#dc2626' }}>⚠️ {saveErr}</p>
+      )}
 
-      <p className="text-xs" style={{ color: '#94a3b8' }}>
-        Presioná "Generar instrucciones" para crear el prompt del bot a partir de los campos de arriba, luego guardá.
-      </p>
+      <button onClick={handleSave}
+        style={{ padding: '13px 28px', borderRadius: 12, fontSize: 14, fontWeight: 700, color: 'white', background: saved ? '#10b981' : 'linear-gradient(135deg,#3b10b5,#601EF9)', border: 'none', cursor: 'pointer', transition: 'all 0.2s', boxShadow: saved ? 'none' : '0 4px 14px rgba(96,30,249,0.3)', alignSelf: 'flex-start' }}>
+        {saved ? '✓ Guardado' : '💾 Guardar configuración'}
+      </button>
     </div>
   )
 }
+
 
 // ─── TAB: Automatizaciones ───────────────────────────────────────────────────
 const AUTO_TRIGGER_LABELS: Record<string, string> = {
